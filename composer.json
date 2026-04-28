@@ -7,7 +7,7 @@
     "authors": [
         {
             "name": "Lorenzo Padovani",
-            "email": "lorenzo.padovani@gmail.com"
+            "email": "lorenzo.padovani@padosoft.com"
         }
     ],
     "require": {
@@ -23,18 +23,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Lopadova\\EvalHarness\\": "src/"
+            "Padosoft\\EvalHarness\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Lopadova\\EvalHarness\\Tests\\": "tests/"
+            "Padosoft\\EvalHarness\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Lopadova\\EvalHarness\\EvalHarnessServiceProvider"
+                "Padosoft\\EvalHarness\\EvalHarnessServiceProvider"
             ]
         }
     },
