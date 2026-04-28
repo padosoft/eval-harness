@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Padosoft$ns;
+namespace Padosoft\EvalHarness;
 
 use Illuminate\Support\ServiceProvider;
 
