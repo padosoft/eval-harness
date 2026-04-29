@@ -18,9 +18,10 @@ use Padosoft\EvalHarness\EvalHarnessServiceProvider;
  *
  *   1. The provider is a true `Illuminate\Support\ServiceProvider`
  *      subclass (auto-discovery requires this).
- *   2. Loading the provider into a fresh Testbench app does not throw
- *      — both `register()` and `boot()` complete cleanly even though
- *      they are no-ops.
+ *   2. `register()` and `boot()` execute cleanly when invoked
+ *      directly on a Testbench app instance — both are no-ops in
+ *      v0.0.1, so the test simply exercises the code path and
+ *      asserts that no exception escaped.
  *
  * When v4.0 brings real bindings, replace these assertions with
  * coverage of the actual public surface.
@@ -45,11 +46,23 @@ final class ServiceProviderTest extends TestCase
         );
     }
 
-    public function test_service_provider_boots_without_throwing(): void
+    public function test_register_and_boot_complete_without_throwing(): void
     {
-        // Reaching this assertion proves the Testbench setUp() chain
-        // (which calls register() then boot() on every package
-        // provider) completed without exceptions for the scaffold.
-        $this->assertTrue($this->app->providerIsLoaded(EvalHarnessServiceProvider::class));
+        // Construct a fresh provider and invoke both methods directly
+        // — Testbench's setUp() also calls them, but invoking
+        // explicitly here means a future regression that throws from
+        // either method fails THIS test with a clear stack trace
+        // instead of failing the whole TestCase setUp(). Both
+        // methods are no-ops in the v0.0.1 scaffold, so reaching the
+        // assertion is itself the green signal.
+        $provider = new EvalHarnessServiceProvider($this->app);
+
+        $provider->register();
+        $provider->boot();
+
+        $this->assertTrue(
+            $this->app->providerIsLoaded(EvalHarnessServiceProvider::class),
+            'Testbench should have registered the provider during setUp().',
+        );
     }
 }
