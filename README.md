@@ -2,6 +2,8 @@
 
 Agentic eval framework for Laravel. **Regression-block your AI before merge.**
 
+![banner.png](resources/banner.png)
+
 ## Features
 
 - Golden dataset format (JSON, version-controlled)
