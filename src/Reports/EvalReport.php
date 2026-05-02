@@ -205,7 +205,7 @@ final class EvalReport
 
         foreach ($this->scoresFor($metricName) as $score) {
             $normalizedScore = $this->scoreBoundary($score);
-            $index = min($bucketCount - 1, max(0, (int) floor($normalizedScore * $bucketCount)));
+            $index = $this->bucketIndexForScore($normalizedScore, $histogram);
             $histogram[$index]['count']++;
         }
 
@@ -215,6 +215,26 @@ final class EvalReport
     private function scoreBoundary(float $value): float
     {
         return (float) round($value, 10);
+    }
+
+    /**
+     * @param  list<array{min: float, max: float, count: int}>  $histogram
+     */
+    private function bucketIndexForScore(float $score, array $histogram): int
+    {
+        $lastIndex = count($histogram) - 1;
+
+        foreach ($histogram as $index => $bucket) {
+            if ($index === $lastIndex) {
+                return $index;
+            }
+
+            if ($score >= $bucket['min'] && $score < $bucket['max']) {
+                return $index;
+            }
+        }
+
+        return $lastIndex;
     }
 
     /**

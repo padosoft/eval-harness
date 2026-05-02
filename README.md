@@ -520,14 +520,15 @@ accidentally and never burns API credits.
 
 ## Roadmap
 
-### v0.2 (planned)
+### v0.2 (in progress)
 
-- **Parallel batch evals** — run N samples in parallel via Laravel
-  queues (`SerialBatch`, `LazyParallelBatch`).
 - **Cohort metrics** — aggregate scores by `metadata.tags` so the
   report surfaces "geography questions are 95%, refund-policy
-  questions are 60%" instead of a single mean.
-- **Histogram view** in the markdown report.
+  questions are 60%" instead of a single mean. Implemented in
+  Markdown/JSON reports.
+- **Histogram view** in Markdown and JSON reports.
+- **Parallel batch evals** — run N samples in parallel via Laravel
+  queues (`SerialBatch`, `LazyParallelBatch`).
 - **Standalone output assertions** — score saved outputs without
   invoking an agent, closing the Promptfoo-style CI workflow gap.
 - **More built-in metrics**: ROUGE-L, BERTScore (via embeddings),

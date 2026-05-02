@@ -313,4 +313,12 @@ final class EvalReportTest extends TestCase
         $this->assertSame(0, $histogram[2]['count']);
         $this->assertSame(1, $histogram[3]['count']);
     }
+
+    public function test_histogram_assigns_repeating_decimal_boundary_to_next_bucket(): void
+    {
+        $histogram = $this->reportWithScores([1.0 / 3.0])->histogramForMetric('exact-match', 3);
+
+        $this->assertSame(0, $histogram[0]['count']);
+        $this->assertSame(1, $histogram[1]['count']);
+    }
 }

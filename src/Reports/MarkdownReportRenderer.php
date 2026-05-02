@@ -147,12 +147,12 @@ final class MarkdownReportRenderer
 
     private function headingText(string $value): string
     {
-        return $this->singleLine($value);
+        return $this->markdownText($value);
     }
 
     private function inlineCode(string $value): string
     {
-        return '`'.str_replace('`', '\\`', $this->singleLine($value)).'`';
+        return '<code>'.htmlspecialchars($this->singleLine($value), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</code>';
     }
 
     private function markdownText(string $value): string

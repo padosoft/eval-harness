@@ -74,3 +74,5 @@
 - Aggregate helpers should sort score lists once and reuse the sorted values for multiple percentiles, especially when the same helper powers both global and per-cohort report rows.
 - Histogram boundary floats are part of the JSON report contract; round bucket min/max values to a fixed precision so binary floating-point artifacts do not leak into dashboards or report diffs.
 - Histogram bucket assignment must normalize scores with the same precision used for bucket boundaries, otherwise boundary-like values such as `0.7 - 0.4` can count in the previous bucket while the displayed range says otherwise.
+- Markdown inline code cannot safely escape backticks with backslashes inside a code span. Use HTML `<code>` with `htmlspecialchars()` for user-controlled identifiers.
+- Histogram bucket assignment is most stable when it compares normalized scores against the precomputed rounded bucket boundaries instead of multiplying and flooring the score again.

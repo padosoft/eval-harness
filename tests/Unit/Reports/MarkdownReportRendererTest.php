@@ -61,7 +61,7 @@ final class MarkdownReportRendererTest extends TestCase
         $md = (new MarkdownReportRenderer)->render($report);
 
         $this->assertStringContainsString('## Failures', $md);
-        $this->assertStringContainsString('`s1`', $md);
+        $this->assertStringContainsString('<code>s1</code>', $md);
         $this->assertStringContainsString('llm-as-judge', $md);
         $this->assertStringContainsString('timeout', $md);
     }
@@ -78,8 +78,8 @@ final class MarkdownReportRendererTest extends TestCase
 
         $md = (new MarkdownReportRenderer)->render($report);
 
-        $this->assertStringContainsString('sample `s\\`1 next`', $md);
-        $this->assertStringContainsString('metric `metric\\`name`', $md);
+        $this->assertStringContainsString('sample <code>s`1 next</code>', $md);
+        $this->assertStringContainsString('metric <code>metric`name</code>', $md);
         $this->assertStringContainsString('boom \\`code\\`', $md);
         $this->assertStringNotContainsString("s`1\nnext", $md);
     }
@@ -109,6 +109,7 @@ final class MarkdownReportRendererTest extends TestCase
 
         $this->assertStringContainsString('geo\\|bad line\\`tick', $md);
         $this->assertStringContainsString('exact\\|match bad\\`metric', $md);
+        $this->assertStringContainsString('### exact|match bad\\`metric', $md);
         $this->assertStringNotContainsString("geo|bad\nline", $md);
     }
 
