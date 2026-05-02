@@ -399,7 +399,7 @@ already implement that contract.
 │  - dataset registry (in-memory, single source of truth)          │
 │  - run(dataset, sut)                                             │
 │      ├─► iterate samples                                         │
-│      ├─► invoke callable input or SampleRunner SampleInvocation  │
+│      ├─► invoke input callable or SampleInvocation-based runner  │
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
 │      │   - clean → MetricScore                                   │

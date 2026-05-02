@@ -157,4 +157,16 @@
   - `vendor/bin/phpunit` => `OK (131 tests, 269 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `131 tests, 269 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `131 tests, 269 assertions` result.
+- Copilot reviewed PR #6 at head `ca12f25` and generated four additional comments:
+  - `SampleRunner` docblock should not imply `EvalEngine::run()` accepts class strings directly,
+  - README architecture wording should include SampleInvocation-typed callables, not only SampleRunner,
+  - the documented `eval-harness.sut` class-binding path needed a command test,
+  - `SampleInvocation` docblock should mention regular callables typed as `SampleInvocation`.
+- Updated the docblocks/README wording and added command coverage for binding `eval-harness.sut` directly to a `SampleRunner` class.
+- Full local gate passed after the eighth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (132 tests, 270 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `132 tests, 270 assertions` result.

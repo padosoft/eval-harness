@@ -10,6 +10,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
+use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalCommandTest extends TestCase
@@ -61,6 +62,21 @@ final class EvalCommandTest extends TestCase
         });
 
         $this->artisan('eval-harness:run', ['dataset' => 'runner-preregistered'])
+            ->assertExitCode(0);
+    }
+
+    public function test_runs_with_pre_registered_dataset_and_bound_sample_runner_class(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('runner-class-preregistered')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', ['dataset' => 'runner-class-preregistered'])
             ->assertExitCode(0);
     }
 

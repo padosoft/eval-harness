@@ -50,3 +50,5 @@
 - When adding reflection branches for callable shapes, cover every branch: function string, static `Class::method` string, invokable object, array method reference, first-class callable, and `Closure::fromCallable()`.
 - If reflection dispatch handles union parameter types, include a regression test where `SampleInvocation` is one member of the union.
 - When a builder guard applies to both `loadFromYaml()` and `loadFromYamlString()`, test both file-backed and string-backed paths.
+- Do not document class-string support on `EvalEngine::run()` unless the engine actually resolves class strings. Class strings are valid for `eval-harness.sut` container bindings, where Laravel resolves them before the engine runs.
+- When CLI messages show a container binding pattern, add command coverage for that exact documented path.

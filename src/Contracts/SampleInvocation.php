@@ -7,12 +7,14 @@ namespace Padosoft\EvalHarness\Contracts;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 
 /**
- * Input-only payload passed to a SampleRunner.
+ * Input-only payload passed to runner-style SUT invocations.
  *
- * Runners invoke the application under test; they do not need the
- * golden answer or free-form metadata used by metrics/reporting. This
- * keeps the future queued payload smaller and avoids leaking
- * non-serializable expected-output or metadata values into jobs.
+ * SampleRunner implementations and callables whose first parameter is
+ * typed as SampleInvocation invoke the application under test without
+ * needing the golden answer or free-form metadata used by
+ * metrics/reporting. This keeps the future queued payload smaller and
+ * avoids leaking non-serializable expected-output or metadata values
+ * into jobs.
  */
 final class SampleInvocation
 {
