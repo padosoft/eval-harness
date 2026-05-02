@@ -354,10 +354,13 @@ final class EvalReport
             }
         }
 
+        $sortedValues = $values;
+        sort($sortedValues);
+
         return [
             'mean' => array_sum($values) / count($values),
-            'p50' => $this->percentileForValues($values, 50.0),
-            'p95' => $this->percentileForValues($values, 95.0),
+            'p50' => $this->percentileForSortedValues($sortedValues, 50.0),
+            'p95' => $this->percentileForSortedValues($sortedValues, 95.0),
             'pass_rate' => (float) ($passed / count($values)),
         ];
     }
@@ -372,6 +375,15 @@ final class EvalReport
         }
 
         sort($values);
+
+        return $this->percentileForSortedValues($values, $percentile);
+    }
+
+    /**
+     * @param  list<float>  $values
+     */
+    private function percentileForSortedValues(array $values, float $percentile): float
+    {
         $rank = ($percentile / 100.0) * (count($values) - 1);
         $lower = (int) floor($rank);
         $upper = (int) ceil($rank);

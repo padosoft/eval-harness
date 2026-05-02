@@ -8,7 +8,7 @@ namespace Padosoft\EvalHarness\Reports;
  * Human-readable Markdown renderer for {@see EvalReport}.
  *
  * Output structure:
- *   - H1 with dataset name + run timestamp.
+ *   - H1 with dataset name.
  *   - Summary table: total samples, total failures, duration.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
  *   - Cohort table by metadata.tags.

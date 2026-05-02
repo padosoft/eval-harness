@@ -251,6 +251,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 _Run completed in 2.41s over 30 samples (0 failures captured)._
 
+## Summary
+
+| total samples | total failures | duration seconds |
+| --- | --- | --- |
+| 30 | 0 | 2.41 |
+
 ## Per-metric aggregates
 
 | metric | mean | p50 | p95 | pass-rate (>= 0.5) |

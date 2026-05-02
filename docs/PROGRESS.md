@@ -271,3 +271,13 @@
   - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `0d0c4fb` and generated three comments:
+  - `MarkdownReportRenderer` docblock still claimed the H1 includes a timestamp,
+  - README report example needed the new `## Summary` section,
+  - `aggregateValues()` should sort once and reuse the sorted score list for p50/p95.
+- Addressed those comments by correcting the docblock, syncing the README example, and adding a sorted-percentile helper used by `aggregateValues()`.
+- Full local gate passed after the third PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

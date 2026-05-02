@@ -69,3 +69,5 @@
 - Markdown renderers should use `metricAggregate()` once per metric row. Calling `meanScore()`, two percentiles, and pass-rate separately repeats loops/sorts and makes report rendering scale worse.
 - Markdown table cells that include user-controlled tag or metric names need escaping for pipes, backticks, and newlines so generated reports stay diffable and parseable.
 - Do not copy free-form `DatasetSample::$metadata` into JSON reports. Metadata may contain provider payloads or secrets; expose only normalized safe fields such as `tags` until a redaction hook exists.
+- Keep renderer docblocks and README snippets synchronized with actual report section order; generated report examples become contract documentation for downstream users.
+- Aggregate helpers should sort score lists once and reuse the sorted values for multiple percentiles, especially when the same helper powers both global and per-cohort report rows.
