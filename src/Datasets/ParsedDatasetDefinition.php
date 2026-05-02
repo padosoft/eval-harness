@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Datasets;
 
+use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
+
 /**
  * Intermediate value object emitted by {@see YamlDatasetLoader}.
  *
@@ -26,5 +28,16 @@ final class ParsedDatasetDefinition
         public readonly string $name,
         public readonly array $samples,
         public readonly string $schemaVersion = DatasetSchema::VERSION,
-    ) {}
+    ) {
+        if (! DatasetSchema::isSupported($schemaVersion)) {
+            throw new DatasetSchemaException(
+                sprintf(
+                    "Parsed dataset '%s' uses unsupported schema version '%s'. Supported versions: %s.",
+                    $name,
+                    $schemaVersion,
+                    implode(', ', DatasetSchema::SUPPORTED_VERSIONS),
+                ),
+            );
+        }
+    }
 }

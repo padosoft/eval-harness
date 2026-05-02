@@ -132,7 +132,7 @@ final class DatasetBuilderTest extends TestCase
         YAML;
 
         $this->expectException(DatasetSchemaException::class);
-        $this->expectExceptionMessage('Do not combine loadFromYaml(), loadFromYamlString(), and withSamples()');
+        $this->expectExceptionMessage('Do not combine loadFromYaml() or loadFromYamlString() with withSamples()');
 
         $engine->dataset('mixed.source')
             ->loadFromYamlString($yaml)
@@ -145,11 +145,55 @@ final class DatasetBuilderTest extends TestCase
         $engine = $this->app->make(EvalEngine::class);
 
         $this->expectException(DatasetSchemaException::class);
-        $this->expectExceptionMessage('Do not combine loadFromYaml(), loadFromYamlString(), and withSamples()');
+        $this->expectExceptionMessage('Do not combine withSamples() with loadFromYaml() or loadFromYamlString()');
 
         $engine->dataset('mixed.source.reverse')
             ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'x')])
             ->loadFromYamlString('name: mixed.source.reverse');
+    }
+
+    public function test_yaml_sample_source_can_be_replaced_before_register(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $firstYaml = <<<'YAML'
+        name: replace.yaml
+        samples:
+          - id: old
+            input: {q: old}
+            expected_output: old
+        YAML;
+
+        $secondYaml = <<<'YAML'
+        name: replace.yaml
+        samples:
+          - id: new
+            input: {q: new}
+            expected_output: new
+        YAML;
+
+        $dataset = $engine->dataset('replace.yaml')
+            ->loadFromYamlString($firstYaml)
+            ->loadFromYamlString($secondYaml)
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->assertSame('new', $dataset->samples[0]->id);
+    }
+
+    public function test_programmatic_sample_source_can_be_replaced_before_register(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $dataset = $engine->dataset('replace.samples')
+            ->withSamples([new DatasetSample(id: 'old', input: [], expectedOutput: 'old')])
+            ->withSamples([new DatasetSample(id: 'new', input: [], expectedOutput: 'new')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->assertSame('new', $dataset->samples[0]->id);
     }
 
     /**

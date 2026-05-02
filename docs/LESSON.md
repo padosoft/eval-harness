@@ -38,3 +38,5 @@
 - Copilot PR #6 caught an ambiguous builder edge case: if YAML and `withSamples()` are both allowed, schema metadata can come from one source while samples come from another. Reject mixed sample sources at the builder boundary.
 - Public value objects that carry schema identifiers must validate them in their constructors. It is not enough for the YAML loader to validate versions, because consumers can directly instantiate `GoldenDataset` and `EvalReport`.
 - README examples that add optional compatibility fields must explicitly say the field is optional; otherwise existing users may think they need to rewrite legacy YAML.
+- When rejecting ambiguous builder flows, keep the guard as narrow as the bug. `loadFromYamlString()` may replace prior YAML before `register()`, and `withSamples()` may replace prior programmatic samples; only switching between YAML-backed and programmatic sample sources is invalid.
+- `ParsedDatasetDefinition` is public enough to need the same schema validation as `GoldenDataset` and `EvalReport`.

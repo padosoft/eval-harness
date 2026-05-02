@@ -95,4 +95,14 @@
   - `vendor/bin/phpunit` => `OK (119 tests, 250 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `119 tests, 250 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `119 tests, 250 assertions` result.
+- Copilot reviewed PR #6 at head `e03dcf5` and generated two additional comments:
+  - the mixed-source guard was too broad because it rejected same-source replacement before register,
+  - `ParsedDatasetDefinition` also needed constructor schema validation.
+- Narrowed the builder guard to reject only YAML/programmatic source switching, kept YAML->YAML and samples->samples replacement valid, and validated `ParsedDatasetDefinition` schema metadata.
+- Full local gate passed after the second Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (122 tests, 254 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `122 tests, 254 assertions` result.
