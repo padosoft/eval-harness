@@ -14,3 +14,4 @@
 - LangSmith competitor notes: useful parity targets include dataset versioning, filtering/splits, export formats, and promotion of filtered traces/failures back into datasets.
 - `composer.lock` is ignored in this library repo but may exist locally; after changing Composer constraints, run `composer update --lock` locally so `composer validate --strict` does not fail on a stale ignored lock.
 - PHPStan level max sees Testbench `$this->app` as nullable. Narrow it with `assertInstanceOf(\Illuminate\Foundation\Application::class, $app)` before constructing service providers or calling Laravel application methods.
+- Do not enable both `push` and `pull_request` CI triggers for `task/**` branches unless duplicate CI runs are desired. For this repo, `pull_request` on `task/**` is enough for subtask PRs, while `push` should stay limited to `main`.
