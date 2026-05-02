@@ -36,6 +36,7 @@
     },
     "suggest": {
         "laravel/ai": "Use the laravel/ai SDK providers (OpenAI, OpenRouter, Regolo, etc.) to route metric LLM and embedding calls without managing HTTP credentials by hand.",
+        "laravel/horizon": "Recommended in host applications for supervising parallel eval queues in production.",
         "padosoft/laravel-ai-regolo": "Drives every metric LLM call through Italian sovereign Regolo infrastructure (cost + GDPR). Any laravel/ai SDK provider works."
     },
     "autoload": {

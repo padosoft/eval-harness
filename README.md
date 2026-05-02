@@ -92,6 +92,8 @@ surface small and the offline path fast.
 
 ---
 
+![eval-harness report banner](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/banner.png)
+
 ## Features
 
 - **Three metrics out of the box** — `exact-match`, `cosine-embedding`,
@@ -506,9 +508,10 @@ accidentally and never burns API credits.
   test datasets bundled (opt-in).
 - **Regression detection** — store the last N runs in a JSON
   manifest and fail the gate when macro-F1 drops more than X%.
-- **Web dashboard** — minimal Laravel route serving an HTML view of
-  the JSON report. Read-only, no auth (deploy behind your existing
-  admin gate).
+- **Report API contract for a separate UI package** — read-only
+  Laravel routes/resources for JSON reports, cohorts, histograms,
+  and artifacts. No bundled UI in this package; deploy the UI behind
+  your existing admin gate.
 
 ### v1.0
 

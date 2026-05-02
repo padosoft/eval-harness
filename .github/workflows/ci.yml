@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'task/**']
 
 permissions:
   contents: read
@@ -59,9 +59,9 @@ jobs:
         run: vendor/bin/pint --test
 
       - name: Run PHPStan
-        run: vendor/bin/phpstan analyse --no-progress
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
 
-      - name: Run PHPUnit (Unit suite — offline)
+      - name: Run PHPUnit (Unit suite offline)
         run: vendor/bin/phpunit --testsuite Unit
 
       - name: Run PHPUnit (Architecture suite)

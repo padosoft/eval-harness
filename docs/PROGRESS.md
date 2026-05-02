@@ -1,0 +1,68 @@
+# Progress
+
+## 2026-05-02
+
+- Started Macro Task 0 on `task/governance-agent-rules` from `chore/test-count-readme-sync`.
+- Confirmed no open PRs existed before starting the macro task.
+- Verified current local baseline:
+  - `composer validate --strict` passed.
+  - `vendor/bin/phpunit` passed before the PHPStan nullability fix.
+  - `vendor/bin/pint --test` passed.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` failed because no analysis path/config existed.
+- Read the reference repo `product_image_discovery_admin` and adapted its durable workflow pattern: `AGENTS.md`, rules, lessons, progress, repo-local skill, PR/Copilot loop, and GraphQL Copilot fallback.
+- Recorded user constraints in the plan: Laravel `^12|^13`, PHP `^8.3`, Horizon-ready queue execution with `sync` queues/fakes in tests, and no bundled Web UI in this package.
+- Added governance files, the roadmap plan, repo-local Claude skill, Copilot instructions, PHPStan config, hard PHPStan/Pint CI gates, Laravel 12/13 Composer constraints, and normalized stale `v4.0` operational references.
+- Updated CI triggers so PRs into `task/**` macro branches receive checks before the macro PR targets `main`.
+- First post-change gate pass found:
+  - `composer validate --strict` blocked because the local ignored `composer.lock` was stale after Composer constraint changes.
+  - `vendor/bin/phpstan analyse` caught Testbench app nullability in `ServiceProviderTest`.
+- Fixed the Testbench app nullability issue and synchronized the local ignored Composer lock metadata.
+- Full local gate passed after initial governance fixes before `origin/main` advanced:
+  - `composer validate --strict`
+  - `vendor/bin/phpstan analyse --memory-limit=512M`
+  - `vendor/bin/pint --test`
+  - `vendor/bin/phpunit`
+- Opened subtask PR #4 from `task/governance-agent-rules-bootstrap` into `task/governance-agent-rules`.
+- Requested Copilot Code Review through the GraphQL fallback because `gh pr edit 4 --add-reviewer '@copilot'` was blocked by the missing `read:project` scope.
+- CI passed on PR #4 for PHP 8.3, 8.4, and 8.5.
+- Copilot reviewed all changed files on PR #4 and generated no comments.
+- Merged PR #4 into `task/governance-agent-rules` at merge commit `a36379d`.
+- After PR #4, observed duplicate CI runs from enabling both `push` and `pull_request` on `task/**`; adjusted CI to keep `task/**` on `pull_request` only while `push` remains limited to `main`.
+- While macro PR #5 was open, `origin/main` advanced to `7012aa2` with the v0.1 eval engine core from PR #3.
+- Merged `origin/main` into `task/governance-agent-rules`, preserving the v0.1 runtime implementation and resolving governance conflicts in workflow, Composer, PHPStan, PHPUnit, service provider, and service provider tests.
+- Updated the roadmap to treat Macro Task 1 as an audit/fill-gaps task over the existing v0.1 core instead of a greenfield core build.
+- Integrated local gate passed after the `origin/main` merge:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpstan analyse --no-progress --memory-limit=512M`
+  - `vendor/bin/pint --test`
+  - `vendor/bin/phpunit --testsuite Unit` => `OK (109 tests, 223 assertions)`
+  - `vendor/bin/phpunit --testsuite Architecture` => `OK (3 tests, 347 assertions)`
+- Copilot reviewed PR #5 at head `0d80f18` and generated one plan-doc comment about a stale competitor sentence.
+- Updated `docs/ROADMAP_IMPLEMENTATION_PLAN.md` to state that README already has the competitor comparison and should be kept current.
+- Copilot reviewed PR #5 at head `c5b5222` and generated six comments:
+  - use `--add-reviewer copilot` examples instead of `@copilot`
+  - add descriptive banner alt text
+  - clean up plain hyphen dash wording in `phpunit.xml`
+  - reword the Unit-suite CI step name
+- Applied those review fixes.
+- Copilot reviewed PR #5 at head `3992221` and generated three additional comments:
+  - use forward-slash vendor binary paths in `AGENTS.md`
+  - include `--memory-limit=512M` in the plan's PHPStan gate
+  - avoid raw angle-bracket placeholders in the PR template
+- Applied those review fixes.
+- Copilot reviewed PR #5 at head `f2affe5` and generated one additional PR-template comment about raw `<N>` placeholder rendering.
+- Replaced that placeholder with `Macro Task N`.
+- Copilot reviewed PR #5 at head `7643973` and generated four additional comments:
+  - avoid hard-coded repo names in GitHub API examples
+  - export-ignore the README banner resources
+  - clarify the live-suite XML comment wording
+  - make the PR template ID example concrete
+- Applied those review fixes.
+- Copilot reviewed PR #5 at head `795e802` and generated two additional comments:
+  - make the concrete PR template ID visibly replaceable
+  - make the live-suite XML comment a complete sentence
+- Applied those review fixes. The banner-size thread was already addressed by adding `resources/` to `.gitattributes export-ignore`.
+- Copilot reviewed PR #5 at head `e7e59f8` and generated two additional comments:
+  - use an absolute GitHub raw URL for the README banner because `resources/` is export-ignored
+  - title-case `Source of Truth`
+- Applied those review fixes.
