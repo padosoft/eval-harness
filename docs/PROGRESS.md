@@ -235,7 +235,7 @@
 - Started subtask branch `task/metrics-reporting-cohorts-histogram` from the macro branch.
 - Implemented the first reporting slice:
   - `EvalReport` now exposes per-metric aggregate arrays, metric histograms, normalized sample tags, and cohort summaries grouped by `metadata.tags`,
-  - JSON reports now include `metric_distributions`, `cohorts`, sample `tags`, and sample `metadata` for the future separate UI package,
+  - JSON reports now include `metric_distributions`, `cohorts`, and sample `tags` for the future separate UI package,
   - Markdown reports now include a summary table, cohort table, and score histogram sections,
   - README now documents the cohort/histogram report shape and adds competitor-informed planned items for standalone assertions plus dataset split/filter workflows.
 - Targeted report tests passed:
@@ -259,5 +259,15 @@
 - Full local gate passed after PR #9 review fixes:
   - `composer validate --strict --no-check-publish`
   - `vendor/bin/phpunit` => `OK (148 tests, 323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `6e5d525` and generated three comments:
+  - Markdown tables need escaping for user-controlled cohort labels and metric names,
+  - JSON sample rows should not emit the free-form metadata bag because it may contain secrets/provider payloads,
+  - `cohortSummaries()` should compute metric names once instead of scanning report data per cohort.
+- Addressed those comments by escaping Markdown table cells, removing full metadata from sample rows while keeping normalized `tags`, and reusing the metric-name list across cohort aggregation.
+- Full local gate passed after the second PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`

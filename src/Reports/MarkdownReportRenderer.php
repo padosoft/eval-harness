@@ -55,7 +55,7 @@ final class MarkdownReportRenderer
             $aggregate = $report->metricAggregate($name);
             $lines[] = sprintf(
                 '| %s | %.4f | %.4f | %.4f | %.4f |',
-                $name,
+                $this->tableCell($name),
                 $aggregate['mean'],
                 $aggregate['p50'],
                 $aggregate['p95'],
@@ -78,9 +78,9 @@ final class MarkdownReportRenderer
                 foreach ($cohort['metrics'] as $metricName => $aggregate) {
                     $lines[] = sprintf(
                         '| %s | %d | %s | %.4f | %.4f | %.4f | %.4f |',
-                        $cohort['label'],
+                        $this->tableCell($cohort['label']),
                         $cohort['sample_count'],
-                        $metricName,
+                        $this->tableCell($metricName),
                         $aggregate['mean'],
                         $aggregate['p50'],
                         $aggregate['p95'],
@@ -98,7 +98,7 @@ final class MarkdownReportRenderer
             $lines[] = '';
 
             foreach ($distributions as $metricName => $histogram) {
-                $lines[] = sprintf('### %s', $metricName);
+                $lines[] = sprintf('### %s', $this->headingText($metricName));
                 $lines[] = '';
                 $lines[] = '| score range | count |';
                 $lines[] = '| --- | --- |';
@@ -132,5 +132,26 @@ final class MarkdownReportRenderer
         }
 
         return implode("\n", $lines)."\n";
+    }
+
+    private function tableCell(string $value): string
+    {
+        $value = $this->singleLine($value);
+
+        return str_replace(
+            ['\\', '|', '`'],
+            ['\\\\', '\\|', '\\`'],
+            $value,
+        );
+    }
+
+    private function headingText(string $value): string
+    {
+        return $this->singleLine($value);
+    }
+
+    private function singleLine(string $value): string
+    {
+        return trim((string) preg_replace('/\s+/', ' ', $value));
     }
 }

@@ -73,7 +73,7 @@ final class JsonReportRendererTest extends TestCase
         $this->assertCount(1, $json['samples']);
         $this->assertSame('s1', $json['samples'][0]['id']);
         $this->assertSame([], $json['samples'][0]['tags']);
-        $this->assertSame([], $json['samples'][0]['metadata']);
+        $this->assertArrayNotHasKey('metadata', $json['samples'][0]);
         $this->assertSame(1.0, $json['samples'][0]['scores']['exact-match']['score']);
         $this->assertSame(['match' => true], $json['samples'][0]['scores']['exact-match']['details']);
     }
@@ -111,6 +111,33 @@ final class JsonReportRendererTest extends TestCase
         $this->assertSame([], $json['samples'][1]['tags']);
         $this->assertSame(1.0, $json['cohorts'][0]['metrics']['exact-match']['mean']);
         $this->assertTrue($json['cohorts'][2]['is_untagged']);
+    }
+
+    public function test_free_form_metadata_is_not_serialised_into_sample_rows(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'x',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'e',
+                        metadata: ['tags' => ['safe'], 'token' => 'secret-token'],
+                    ),
+                    actualOutput: 'e',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $json = (new JsonReportRenderer)->render($report);
+
+        $this->assertSame(['safe'], $json['samples'][0]['tags']);
+        $this->assertArrayNotHasKey('metadata', $json['samples'][0]);
     }
 
     public function test_failures_are_serialised(): void

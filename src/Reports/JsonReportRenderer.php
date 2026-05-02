@@ -29,7 +29,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   ],
  *   "macro_f1": 0.8,
  *   "samples": [
- *     {"id": "...", "tags": ["geography"], "metadata": {...}, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
+ *     {"id": "...", "tags": ["geography"], "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
  *   ],
  *   "failures": [
  *     {"sample_id": "...", "metric": "...", "error": "..."}
@@ -63,7 +63,6 @@ final class JsonReportRenderer
             $samples[] = [
                 'id' => $result->sample->id,
                 'tags' => $report->tagsForSample($result->sample),
-                'metadata' => $result->sample->metadata,
                 'actual_output' => $result->actualOutput,
                 'scores' => $scores,
             ];

@@ -247,6 +247,7 @@ final class EvalReport
         }
 
         $cohortKeys = $this->orderedCohortKeys($cohorts);
+        $metricNames = $this->metricNames();
         $summaries = [];
 
         foreach ($cohortKeys as $cohortKey) {
@@ -254,7 +255,7 @@ final class EvalReport
             $results = $cohort['results'];
             $metrics = [];
 
-            foreach ($this->metricNames() as $metricName) {
+            foreach ($metricNames as $metricName) {
                 $metrics[$metricName] = $this->aggregateValues(
                     $this->scoresForResults($results, $metricName),
                 );

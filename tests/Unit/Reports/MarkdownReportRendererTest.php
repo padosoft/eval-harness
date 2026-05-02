@@ -66,6 +66,34 @@ final class MarkdownReportRendererTest extends TestCase
         $this->assertStringContainsString('timeout', $md);
     }
 
+    public function test_table_cells_escape_user_controlled_labels(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'e',
+                        metadata: ['tags' => ["geo|bad\nline`tick"]],
+                    ),
+                    actualOutput: 'e',
+                    metricScores: ["exact|match\nbad`metric" => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('geo\\|bad line\\`tick', $md);
+        $this->assertStringContainsString('exact\\|match bad\\`metric', $md);
+        $this->assertStringNotContainsString("geo|bad\nline", $md);
+    }
+
     public function test_output_ends_with_newline(): void
     {
         $report = new EvalReport('x', [], [], 0.0, 0.0);
