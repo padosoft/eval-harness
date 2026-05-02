@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Contracts;
 
+use JsonException;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
@@ -26,6 +27,8 @@ final class SampleInvocation
         public readonly string $id,
         public readonly array $input,
     ) {
+        self::assertJsonQueueEncodable($input, $id);
+
         foreach ($input as $key => $value) {
             if (! is_string($key)) {
                 throw new EvalRunException(
@@ -71,5 +74,35 @@ final class SampleInvocation
                 get_debug_type($value),
             ),
         );
+    }
+
+    /**
+     * Laravel queue payloads are JSON encoded. Probe the input before the
+     * recursive type walk so cyclic arrays fail once instead of recursing
+     * indefinitely while validating nested values.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private static function assertJsonQueueEncodable(array $input, string $sampleId): void
+    {
+        try {
+            json_encode($input, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            if ($e->getCode() === JSON_ERROR_RECURSION) {
+                throw new EvalRunException(
+                    sprintf("SampleInvocation input for sample '%s' must not contain recursive arrays or objects.", $sampleId),
+                    previous: $e,
+                );
+            }
+
+            throw new EvalRunException(
+                sprintf(
+                    "SampleInvocation input for sample '%s' must be JSON-serializable for queue payloads: %s.",
+                    $sampleId,
+                    $e->getMessage(),
+                ),
+                previous: $e,
+            );
+        }
     }
 }

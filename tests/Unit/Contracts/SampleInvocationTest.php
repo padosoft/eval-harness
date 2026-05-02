@@ -39,4 +39,18 @@ final class SampleInvocationTest extends TestCase
             input: ['nested' => ['object' => new stdClass]],
         );
     }
+
+    public function test_rejects_recursive_input_arrays(): void
+    {
+        $recursive = [];
+        $recursive['self'] = &$recursive;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must not contain recursive arrays');
+
+        new SampleInvocation(
+            id: 's1',
+            input: ['recursive' => $recursive],
+        );
+    }
 }

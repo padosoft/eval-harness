@@ -88,13 +88,22 @@ final class EvalCommand extends Command
             return self::FAILURE;
         }
 
-        $sut = $engine->container()->bound('eval-harness.sut')
-            ? $engine->container()->make('eval-harness.sut')
-            : null;
+        if (! $engine->container()->bound('eval-harness.sut')) {
+            $this->error(
+                "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
+            );
+
+            return self::FAILURE;
+        }
+
+        $sut = $engine->container()->make('eval-harness.sut');
 
         if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
             $this->error(
-                "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
+                sprintf(
+                    "System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got %s. Update the binding to return a callable, or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
+                    get_debug_type($sut),
+                ),
             );
 
             return self::FAILURE;

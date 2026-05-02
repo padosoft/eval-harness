@@ -55,3 +55,7 @@
 - Non-runner array callables can also be typed as `SampleInvocation`; do not only test `[SampleRunner, 'run']` when validating array-callable reflection dispatch.
 - If a DTO is described as queue-safe, validate nested input values for queue-serializable primitives/arrays; removing obvious object fields is not enough when user-provided `input` remains `mixed`.
 - CLI error branches for invalid container bindings need command tests even if all valid binding forms are covered.
+- Runner-oriented dispatch should validate every `SampleInvocation` before the first SUT call. Otherwise an invalid later sample can produce partial side effects before the eval aborts.
+- Queue-safe recursive validators need an explicit recursion guard. A JSON-encoding probe catches cyclic arrays before the PHP recursive type walk can exhaust stack or memory.
+- CLI diagnostics should distinguish a missing `eval-harness.sut` binding from an existing binding that resolves to the wrong type; those are different operator actions.
+- Macro PRs that change `AGENTS.md` should leave `Current Priority` valid after merge, not only while the feature branch is active.

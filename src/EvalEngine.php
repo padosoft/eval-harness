@@ -110,11 +110,16 @@ final class EvalEngine
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
         $callableExpectsSampleInvocation = $sampleRunner === null
             && $this->callableExpectsSampleInvocation($systemUnderTest);
+        $sampleInvocations = $this->sampleInvocationsFor(
+            samples: $dataset->samples,
+            usesSampleInvocation: $sampleRunner instanceof SampleRunner || $callableExpectsSampleInvocation,
+        );
 
-        foreach ($dataset->samples as $sample) {
+        foreach ($dataset->samples as $index => $sample) {
             $actualOutput = $this->runSample(
                 systemUnderTest: $systemUnderTest,
                 sample: $sample,
+                sampleInvocation: $sampleInvocations[$index] ?? null,
                 sampleRunner: $sampleRunner,
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
             );
@@ -155,13 +160,14 @@ final class EvalEngine
     private function runSample(
         callable|SampleRunner $systemUnderTest,
         DatasetSample $sample,
+        ?SampleInvocation $sampleInvocation,
         ?SampleRunner $sampleRunner,
         bool $callableExpectsSampleInvocation,
     ): string {
         if ($sampleRunner instanceof SampleRunner) {
-            $actualOutput = $sampleRunner->run(SampleInvocation::fromDatasetSample($sample));
+            $actualOutput = $sampleRunner->run($this->requireSampleInvocation($sampleInvocation, $sample));
         } elseif ($callableExpectsSampleInvocation) {
-            $actualOutput = $systemUnderTest(SampleInvocation::fromDatasetSample($sample));
+            $actualOutput = $systemUnderTest($this->requireSampleInvocation($sampleInvocation, $sample));
         } else {
             $actualOutput = $systemUnderTest($sample->input);
         }
@@ -177,6 +183,35 @@ final class EvalEngine
         }
 
         return $actualOutput;
+    }
+
+    /**
+     * @param  list<DatasetSample>  $samples
+     * @return list<SampleInvocation>
+     */
+    private function sampleInvocationsFor(array $samples, bool $usesSampleInvocation): array
+    {
+        if (! $usesSampleInvocation) {
+            return [];
+        }
+
+        $sampleInvocations = [];
+        foreach ($samples as $sample) {
+            $sampleInvocations[] = SampleInvocation::fromDatasetSample($sample);
+        }
+
+        return $sampleInvocations;
+    }
+
+    private function requireSampleInvocation(?SampleInvocation $sampleInvocation, DatasetSample $sample): SampleInvocation
+    {
+        if ($sampleInvocation instanceof SampleInvocation) {
+            return $sampleInvocation;
+        }
+
+        throw new EvalRunException(
+            sprintf("SampleInvocation for sample '%s' was not prepared before runner dispatch.", $sample->id),
+        );
     }
 
     private function resolveSampleRunner(callable|SampleRunner $systemUnderTest): ?SampleRunner

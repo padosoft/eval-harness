@@ -73,4 +73,4 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 1 is active on `task/core-eval-contracts`: audit the v0.1 core, add versioned dataset/report contracts, and introduce runner abstractions needed by future queue/API work without breaking `eval-harness:run`.
+Macro Task 1 is closing through PR #8 on `task/core-eval-contracts`. After it merges to `main`, start Macro Task 2 on `task/metrics-reporting`: cohort aggregation by `metadata.tags`, histogram-ready report data, and JSON/API contracts needed by the separate Web UI package.

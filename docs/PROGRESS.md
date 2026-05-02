@@ -207,3 +207,14 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `135 tests, 275 assertions` result.
+- Copilot reviewed PR #8 again at head `db8100b` and generated four additional comments:
+  - `SampleInvocation` validation needed to fail fast before any runner/DTO callable receives earlier valid samples,
+  - invalid `eval-harness.sut` bindings needed a different CLI message from missing bindings,
+  - recursive input arrays needed explicit protection before recursive validation,
+  - `AGENTS.md` current priority would be stale after the macro PR merged.
+- Addressed those comments with precomputed `SampleInvocation` payloads, a JSON recursion probe in the DTO validator, a distinct invalid-binding command message, regression tests, and a merge-safe next-priority note in `AGENTS.md`.
+- Full local gate passed after the second PR #8 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (137 tests, 279 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

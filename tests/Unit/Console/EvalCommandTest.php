@@ -92,7 +92,7 @@ final class EvalCommandTest extends TestCase
         $this->app->instance('eval-harness.sut', new \stdClass);
 
         $this->artisan('eval-harness:run', ['dataset' => 'invalid-sut-binding'])
-            ->expectsOutputToContain("No system-under-test bound under 'eval-harness.sut'.")
+            ->expectsOutputToContain("System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got stdClass.")
             ->assertExitCode(1);
     }
 

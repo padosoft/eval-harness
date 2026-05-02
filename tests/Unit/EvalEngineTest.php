@@ -238,6 +238,41 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
+    public function test_sample_invocation_validation_fails_before_runner_receives_any_sample(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.fail-fast')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '1+1'], expectedOutput: '2'),
+                new DatasetSample(id: 's2', input: ['bad' => new \stdClass], expectedOutput: 'x'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $runner = new class implements SampleRunner
+        {
+            public int $calls = 0;
+
+            public function run(SampleInvocation $sample): string
+            {
+                $this->calls++;
+
+                return '2';
+            }
+        };
+
+        try {
+            $engine->run('rag.runner.fail-fast', $runner);
+            $this->fail('Expected SampleInvocation validation to fail before running samples.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('must be queue-serializable', $e->getMessage());
+        }
+
+        $this->assertSame(0, $runner->calls);
+    }
+
     public function test_run_routes_invokable_object_typed_as_sample_invocation(): void
     {
         /** @var EvalEngine $engine */
