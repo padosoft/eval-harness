@@ -28,7 +28,7 @@ use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
  */
 final class EvalReport
 {
-    public const UNTAGGED_COHORT = '__untagged__';
+    private const UNTAGGED_COHORT_KEY = "\0eval-harness.untagged";
 
     /**
      * @param  list<SampleResult>  $sampleResults
@@ -107,7 +107,12 @@ final class EvalReport
 
     public function meanScore(string $metricName): float
     {
-        return $this->aggregateValues($this->scoresFor($metricName))['mean'];
+        $values = $this->scoresFor($metricName);
+        if ($values === []) {
+            return 0.0;
+        }
+
+        return array_sum($values) / count($values);
     }
 
     public function percentile(string $metricName, float $percentile): float
@@ -193,7 +198,7 @@ final class EvalReport
         for ($index = 0; $index < $bucketCount; $index++) {
             $histogram[] = [
                 'min' => $index * $width,
-                'max' => ($index + 1) * $width,
+                'max' => $index === $bucketCount - 1 ? 1.0 : ($index + 1) * $width,
                 'count' => 0,
             ];
         }
@@ -207,25 +212,46 @@ final class EvalReport
     }
 
     /**
-     * @return list<array{name: string, label: string, sample_count: int, metrics: array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>}>
+     * @return list<array{name: string|null, label: string, is_untagged: bool, sample_count: int, metrics: array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>}>
      */
     public function cohortSummaries(): array
     {
-        /** @var array<string, list<SampleResult>> $cohortResults */
-        $cohortResults = [];
+        /** @var array<string, array{name: string|null, label: string, is_untagged: bool, results: list<SampleResult>}> $cohorts */
+        $cohorts = [];
 
         foreach ($this->sampleResults as $result) {
-            foreach ($this->tagsForSample($result->sample) as $tag) {
-                $cohortResults[$tag] ??= [];
-                $cohortResults[$tag][] = $result;
+            $tags = $this->tagsForSample($result->sample);
+
+            if ($tags === []) {
+                $cohorts[self::UNTAGGED_COHORT_KEY] ??= [
+                    'name' => null,
+                    'label' => '(untagged)',
+                    'is_untagged' => true,
+                    'results' => [],
+                ];
+                $cohorts[self::UNTAGGED_COHORT_KEY]['results'][] = $result;
+
+                continue;
+            }
+
+            foreach ($tags as $tag) {
+                $key = 'tag:'.$tag;
+                $cohorts[$key] ??= [
+                    'name' => $tag,
+                    'label' => $tag,
+                    'is_untagged' => false,
+                    'results' => [],
+                ];
+                $cohorts[$key]['results'][] = $result;
             }
         }
 
-        $cohortNames = $this->orderedCohortNames(array_keys($cohortResults));
+        $cohortKeys = $this->orderedCohortKeys($cohorts);
         $summaries = [];
 
-        foreach ($cohortNames as $cohortName) {
-            $results = $cohortResults[$cohortName];
+        foreach ($cohortKeys as $cohortKey) {
+            $cohort = $cohorts[$cohortKey];
+            $results = $cohort['results'];
             $metrics = [];
 
             foreach ($this->metricNames() as $metricName) {
@@ -235,8 +261,9 @@ final class EvalReport
             }
 
             $summaries[] = [
-                'name' => $cohortName,
-                'label' => $cohortName === self::UNTAGGED_COHORT ? '(untagged)' : $cohortName,
+                'name' => $cohort['name'],
+                'label' => $cohort['label'],
+                'is_untagged' => $cohort['is_untagged'],
                 'sample_count' => count($results),
                 'metrics' => $metrics,
             ];
@@ -275,7 +302,7 @@ final class EvalReport
 
         $tags = array_values(array_unique($tags));
 
-        return $tags === [] ? [self::UNTAGGED_COHORT] : $tags;
+        return $tags;
     }
 
     /**
@@ -356,23 +383,25 @@ final class EvalReport
     }
 
     /**
-     * @param  list<string>  $cohortNames
+     * @param  array<string, array{name: string|null, label: string, is_untagged: bool, results: list<SampleResult>}>  $cohorts
      * @return list<string>
      */
-    private function orderedCohortNames(array $cohortNames): array
+    private function orderedCohortKeys(array $cohorts): array
     {
-        $hasUntagged = in_array(self::UNTAGGED_COHORT, $cohortNames, true);
-        $cohortNames = array_values(array_filter(
-            $cohortNames,
-            static fn (string $name): bool => $name !== self::UNTAGGED_COHORT,
+        $tagKeys = array_values(array_filter(
+            array_keys($cohorts),
+            static fn (string $key): bool => $key !== self::UNTAGGED_COHORT_KEY,
         ));
-        sort($cohortNames, SORT_STRING);
+        usort(
+            $tagKeys,
+            static fn (string $left, string $right): int => strcmp($cohorts[$left]['label'], $cohorts[$right]['label']),
+        );
 
-        if ($hasUntagged) {
-            $cohortNames[] = self::UNTAGGED_COHORT;
+        if (isset($cohorts[self::UNTAGGED_COHORT_KEY])) {
+            $tagKeys[] = self::UNTAGGED_COHORT_KEY;
         }
 
-        return $cohortNames;
+        return $tagKeys;
     }
 
     public function toMarkdown(): string

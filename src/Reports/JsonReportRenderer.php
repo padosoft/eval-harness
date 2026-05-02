@@ -24,7 +24,8 @@ namespace Padosoft\EvalHarness\Reports;
  *     "exact-match": [{"min": 0.0, "max": 0.1, "count": 2}]
  *   },
  *   "cohorts": [
- *     {"name": "geography", "label": "geography", "sample_count": 4, "metrics": {...}}
+ *     {"name": "geography", "label": "geography", "is_untagged": false, "sample_count": 4, "metrics": {...}},
+ *     {"name": null, "label": "(untagged)", "is_untagged": true, "sample_count": 1, "metrics": {...}}
  *   ],
  *   "macro_f1": 0.8,
  *   "samples": [

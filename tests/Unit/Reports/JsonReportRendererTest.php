@@ -72,7 +72,7 @@ final class JsonReportRendererTest extends TestCase
 
         $this->assertCount(1, $json['samples']);
         $this->assertSame('s1', $json['samples'][0]['id']);
-        $this->assertSame(['__untagged__'], $json['samples'][0]['tags']);
+        $this->assertSame([], $json['samples'][0]['tags']);
         $this->assertSame([], $json['samples'][0]['metadata']);
         $this->assertSame(1.0, $json['samples'][0]['scores']['exact-match']['score']);
         $this->assertSame(['match' => true], $json['samples'][0]['scores']['exact-match']['details']);
@@ -106,10 +106,11 @@ final class JsonReportRendererTest extends TestCase
 
         $json = (new JsonReportRenderer)->render($report);
 
-        $this->assertSame(['easy', 'geography', '__untagged__'], array_column($json['cohorts'], 'name'));
+        $this->assertSame(['easy', 'geography', null], array_column($json['cohorts'], 'name'));
         $this->assertSame(['geography', 'easy'], $json['samples'][0]['tags']);
-        $this->assertSame(['__untagged__'], $json['samples'][1]['tags']);
+        $this->assertSame([], $json['samples'][1]['tags']);
         $this->assertSame(1.0, $json['cohorts'][0]['metrics']['exact-match']['mean']);
+        $this->assertTrue($json['cohorts'][2]['is_untagged']);
     }
 
     public function test_failures_are_serialised(): void

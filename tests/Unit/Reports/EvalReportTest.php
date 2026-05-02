@@ -217,13 +217,49 @@ final class EvalReportTest extends TestCase
 
         $cohorts = $report->cohortSummaries();
 
-        $this->assertSame(['easy', 'geography', EvalReport::UNTAGGED_COHORT], array_column($cohorts, 'name'));
+        $this->assertSame(['easy', 'geography', null], array_column($cohorts, 'name'));
         $this->assertSame(1, $cohorts[0]['sample_count']);
         $this->assertSame(2, $cohorts[1]['sample_count']);
         $this->assertSame('(untagged)', $cohorts[2]['label']);
+        $this->assertTrue($cohorts[2]['is_untagged']);
         $this->assertEqualsWithDelta(1.0, $cohorts[0]['metrics']['exact-match']['mean'], 1e-9);
         $this->assertEqualsWithDelta(0.5, $cohorts[1]['metrics']['exact-match']['mean'], 1e-9);
         $this->assertEqualsWithDelta(0.5, $cohorts[2]['metrics']['exact-match']['mean'], 1e-9);
+    }
+
+    public function test_literal_untagged_tag_does_not_merge_with_missing_tags(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'a',
+                        metadata: ['tags' => ['__untagged__']],
+                    ),
+                    actualOutput: 'a',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(id: 's2', input: [], expectedOutput: 'b'),
+                    actualOutput: 'x',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $cohorts = $report->cohortSummaries();
+
+        $this->assertSame(['__untagged__', null], array_column($cohorts, 'name'));
+        $this->assertFalse($cohorts[0]['is_untagged']);
+        $this->assertTrue($cohorts[1]['is_untagged']);
+        $this->assertEqualsWithDelta(1.0, $cohorts[0]['metrics']['exact-match']['mean'], 1e-9);
+        $this->assertEqualsWithDelta(0.0, $cohorts[1]['metrics']['exact-match']['mean'], 1e-9);
     }
 
     public function test_histogram_places_boundary_scores_in_stable_buckets(): void
@@ -258,5 +294,13 @@ final class EvalReportTest extends TestCase
             ['min' => 0.0, 'max' => 0.5, 'count' => 0],
             ['min' => 0.5, 'max' => 1.0, 'count' => 0],
         ], $report->histogramForMetric('llm-as-judge', 2));
+    }
+
+    public function test_histogram_final_bucket_max_is_exactly_one_for_fractional_widths(): void
+    {
+        $histogram = $this->reportWithScores([1.0])->histogramForMetric('exact-match', 3);
+
+        $this->assertSame(1.0, $histogram[2]['max']);
+        $this->assertSame(1, $histogram[2]['count']);
     }
 }

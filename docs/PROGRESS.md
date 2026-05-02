@@ -245,3 +245,19 @@
   - `vendor/bin/phpunit` => `OK (146 tests, 314 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened subtask PR #9 from `task/metrics-reporting-cohorts-histogram` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- PR #9 CI passed across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Copilot reviewed PR #9 at head `27c5997` and generated two comments:
+  - final histogram bucket max should be exactly `1.0` for bucket counts such as 3, 6, or 7,
+  - `meanScore()` should not pay for aggregate percentile/pass-rate work, and renderers should avoid repeated aggregate loops/sorts.
+- Codex also generated one actionable review comment:
+  - missing tags should not be represented as a fake `__untagged__` tag because a real sample can use that literal tag.
+- Addressed those comments by restoring mean-only `meanScore()`, using `metricAggregate()` once per Markdown metric row, forcing the final histogram bucket max to `1.0`, and separating missing-tag cohorts with `name: null` / `is_untagged: true` while leaving sample `tags` as real user tags only.
+- Targeted report tests and PHPStan passed after review fixes:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (24 tests, 85 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after PR #9 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (148 tests, 323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

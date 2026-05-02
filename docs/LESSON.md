@@ -63,5 +63,7 @@
 - Same-source replacement APIs should fail closed. If a YAML or programmatic replacement attempt throws, clear the old pending source so a caught exception cannot accidentally register stale samples.
 - When adding wrapper branches for queue JSON encoding errors, test a non-recursive JSON failure such as invalid UTF-8 in addition to recursion.
 - `gh pr edit` can be blocked by a missing `read:project` scope even for body edits. Use `gh api -X PATCH repos/$repo/pulls/$number -f body="$body"` with a here-string to preserve Markdown formatting.
-- Cohort reporting should normalize `metadata.tags` as either a string or a string list, count multi-tag samples in every matching cohort, and put missing/empty/non-string tags into a stable `__untagged__` bucket.
+- Cohort reporting should normalize `metadata.tags` as either a string or a string list, count multi-tag samples in every matching cohort, and put missing/empty/non-string tags into an explicit untagged cohort.
 - Histogram buckets for [0, 1] scores should make score `1.0` land in the final bucket and should still return zero-count buckets for metrics that only have failures.
+- Do not model missing tags as a fake string tag inside sample `tags`; a real dataset can use the same literal. Keep sample tags as real user tags, represent missing-tag cohorts with `name: null` plus `is_untagged: true`.
+- Markdown renderers should use `metricAggregate()` once per metric row. Calling `meanScore()`, two percentiles, and pass-rate separately repeats loops/sorts and makes report rendering scale worse.

@@ -52,13 +52,14 @@ final class MarkdownReportRenderer
         $lines[] = '| --- | --- | --- | --- | --- |';
 
         foreach ($report->metricNames() as $name) {
+            $aggregate = $report->metricAggregate($name);
             $lines[] = sprintf(
                 '| %s | %.4f | %.4f | %.4f | %.4f |',
                 $name,
-                $report->meanScore($name),
-                $report->percentile($name, 50.0),
-                $report->percentile($name, 95.0),
-                $report->macroF1($name),
+                $aggregate['mean'],
+                $aggregate['p50'],
+                $aggregate['p95'],
+                $aggregate['pass_rate'],
             );
         }
 
