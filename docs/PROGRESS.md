@@ -169,4 +169,14 @@
   - `vendor/bin/phpunit` => `OK (132 tests, 270 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `132 tests, 270 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `132 tests, 270 assertions` result.
+- Copilot reviewed PR #6 at head `fc6e2fa` and generated two additional comments:
+  - plain non-runner array callables typed as `SampleInvocation` needed regression coverage,
+  - README still needed to say SampleInvocation-typed callables, not only runners, can receive the DTO.
+- Added non-runner array callable coverage and clarified the README architecture diagram.
+- Full local gate passed after the ninth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `133 tests, 271 assertions` result.

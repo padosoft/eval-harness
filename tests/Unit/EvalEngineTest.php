@@ -107,6 +107,31 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
+    public function test_run_routes_plain_array_callable_typed_as_sample_invocation(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.plain-array-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '10+10'], expectedOutput: '20'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $callable = new class
+        {
+            public function answer(SampleInvocation $sample): string
+            {
+                return $sample->id === 's1' && $sample->input['q'] === '10+10' ? '20' : '';
+            }
+        };
+
+        $report = $engine->run('rag.runner.plain-array-callable', [$callable, 'answer']);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
     public function test_run_routes_first_class_runner_callable_to_runner_contract(): void
     {
         /** @var EvalEngine $engine */
