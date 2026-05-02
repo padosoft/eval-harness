@@ -340,3 +340,12 @@
   - `vendor/bin/phpunit` => `OK (173 tests, 377 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `601f653` and generated two comments:
+  - `Metric` docs should point to the public `MetricResolver::aliases()` accessor instead of the private alias map,
+  - regex failures should not always blame an invalid pattern because `preg_match()` can also fail on subject/modifier execution errors.
+- Addressed those comments by fixing the docblock, generalizing the regex evaluation failure message, preserving PCRE error details when available, and adding coverage for `/u` plus invalid UTF-8 input.
+- Full local gate passed after the second PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

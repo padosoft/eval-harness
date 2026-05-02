@@ -34,8 +34,17 @@ final class RegexMetric implements Metric
 
         $result = @preg_match($sample->expectedOutput, $actualOutput);
         if ($result === false) {
+            $error = preg_last_error();
+            $suffix = $error === PREG_NO_ERROR
+                ? ''
+                : sprintf(' PCRE error: %s.', preg_last_error_msg());
+
             throw new MetricException(
-                sprintf("Sample '%s' expected_output is not a valid regex pattern for regex metric.", $sample->id),
+                sprintf(
+                    "Sample '%s' regex metric could not evaluate expected_output against actual output.%s",
+                    $sample->id,
+                    $suffix,
+                ),
             );
         }
 

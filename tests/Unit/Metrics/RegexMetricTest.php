@@ -36,11 +36,22 @@ final class RegexMetricTest extends TestCase
     public function test_invalid_regex_throws_metric_exception(): void
     {
         $this->expectException(MetricException::class);
-        $this->expectExceptionMessage('not a valid regex pattern');
+        $this->expectExceptionMessage('regex metric could not evaluate expected_output against actual output');
 
         (new RegexMetric)->score(
             new DatasetSample(id: 's1', input: [], expectedOutput: '/unterminated'),
             'anything',
+        );
+    }
+
+    public function test_regex_execution_failure_throws_metric_exception(): void
+    {
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('regex metric could not evaluate expected_output against actual output');
+
+        (new RegexMetric)->score(
+            new DatasetSample(id: 's1', input: [], expectedOutput: '/./u'),
+            "\xB1\x31",
         );
     }
 }
