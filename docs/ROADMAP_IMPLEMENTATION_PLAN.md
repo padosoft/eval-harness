@@ -36,7 +36,7 @@ Done when:
 
 - `composer validate --strict`
 - `vendor/bin/phpunit`
-- `vendor/bin/phpstan analyse`
+- `vendor/bin/phpstan analyse --memory-limit=512M`
 - `vendor/bin/pint --test`
 - PR loop to macro branch/main follows the documented Copilot process.
 

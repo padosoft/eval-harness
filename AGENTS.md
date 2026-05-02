@@ -64,9 +64,9 @@ Run these before every PR unless the task explicitly does not touch that surface
 
 ```powershell
 composer validate --strict
-vendor\bin\phpunit
-vendor\bin\phpstan analyse --memory-limit=512M
-vendor\bin\pint --test
+vendor/bin/phpunit
+vendor/bin/phpstan analyse --memory-limit=512M
+vendor/bin/pint --test
 ```
 
 Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo unless a future task intentionally adds UI assets. For API-only work, use PHP feature tests instead.

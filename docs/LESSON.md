@@ -21,3 +21,5 @@
 - Copilot PR #5 caught a stale plan sentence saying README had no competitor names after `origin/main` had already added the comparison table. When main moves under an open PR, re-scan docs for statements that were true only before the merge.
 - Copilot PR #5 prefers copy/paste reviewer examples without a leading `@`: use `gh pr edit <PR> --add-reviewer copilot` in docs, then fall back to GraphQL with `copilot-pull-request-reviewer[bot]` when the CLI path is blocked.
 - Copilot PR #5 flagged accessibility/punctuation drift introduced during conflict resolution: use descriptive image alt text and avoid ambiguous plain hyphen dashes in XML/YAML comments and workflow step names.
+- Copilot PR #5 flagged Windows-only backslash examples in `AGENTS.md`; use forward-slash Composer vendor binary paths in docs because they work cross-platform in Composer scripts and CI docs.
+- PR template placeholders wrapped in raw angle brackets can render as invalid HTML tags. Wrap placeholders in backticks or use parentheses.

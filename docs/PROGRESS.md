@@ -45,3 +45,8 @@
   - clean up plain hyphen dash wording in `phpunit.xml`
   - reword the Unit-suite CI step name
 - Applied those review fixes.
+- Copilot reviewed PR #5 at head `3992221` and generated three additional comments:
+  - use forward-slash vendor binary paths in `AGENTS.md`
+  - include `--memory-limit=512M` in the plan's PHPStan gate
+  - avoid raw angle-bracket placeholders in the PR template
+- Applied those review fixes.
