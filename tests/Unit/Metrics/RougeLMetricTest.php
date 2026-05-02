@@ -33,6 +33,16 @@ final class RougeLMetricTest extends TestCase
         $this->assertSame(2, $score->details['lcs_tokens']);
     }
 
+    public function test_tokenization_uses_unicode_aware_lowercasing(): void
+    {
+        $score = (new RougeLMetric)->score(
+            new DatasetSample(id: 's1', input: [], expectedOutput: 'École supérieure'),
+            'école supérieure',
+        );
+
+        $this->assertSame(1.0, $score->score);
+    }
+
     public function test_scores_empty_expected_and_empty_actual_as_one(): void
     {
         $score = (new RougeLMetric)->score(
@@ -51,6 +61,17 @@ final class RougeLMetricTest extends TestCase
         (new RougeLMetric)->score(
             new DatasetSample(id: 's1', input: [], expectedOutput: ['expected']),
             'actual',
+        );
+    }
+
+    public function test_invalid_utf8_throws_metric_exception(): void
+    {
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('must be valid UTF-8');
+
+        (new RougeLMetric)->score(
+            new DatasetSample(id: 's1', input: [], expectedOutput: 'expected'),
+            "\xB1\x31",
         );
     }
 }

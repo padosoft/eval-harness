@@ -43,4 +43,15 @@ final class ContainsMetricTest extends TestCase
             'Paris',
         );
     }
+
+    public function test_expected_output_must_not_be_empty(): void
+    {
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('expected_output must not be empty');
+
+        (new ContainsMetric)->score(
+            new DatasetSample(id: 's1', input: [], expectedOutput: ''),
+            'Any output would otherwise match.',
+        );
+    }
 }

@@ -328,3 +328,15 @@
   - `vendor/bin/phpunit` => `OK (170 tests, 372 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Codex reviewed PR #10 at head `dbf9815` and generated two comments:
+  - `contains` should reject empty `expected_output`,
+  - ROUGE-L should use Unicode-aware lowercasing.
+- Copilot reviewed PR #10 at head `dbf9815` and generated two comments:
+  - invalid regex errors should not append misleading `preg_last_error_msg()` text,
+  - ROUGE-L tokenization should handle invalid UTF-8 deterministically.
+- Addressed those comments with empty-needle validation, a clearer regex invalid-pattern error, UTF-8 validation, Unicode-aware lowercasing, and new regression tests.
+- Full local gate passed after the first PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (173 tests, 377 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

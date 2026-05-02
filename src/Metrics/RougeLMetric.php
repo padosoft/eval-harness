@@ -33,8 +33,8 @@ final class RougeLMetric implements Metric
             );
         }
 
-        $expectedTokens = $this->tokens($sample->expectedOutput);
-        $actualTokens = $this->tokens($actualOutput);
+        $expectedTokens = $this->tokens($sample->expectedOutput, $sample->id, 'expected_output');
+        $actualTokens = $this->tokens($actualOutput, $sample->id, 'actual_output');
 
         if ($expectedTokens === [] && $actualTokens === []) {
             return new MetricScore(1.0, ['lcs_tokens' => 0, 'precision' => 1.0, 'recall' => 1.0]);
@@ -64,9 +64,24 @@ final class RougeLMetric implements Metric
     /**
      * @return list<string>
      */
-    private function tokens(string $value): array
+    private function tokens(string $value, string $sampleId, string $field): array
     {
-        preg_match_all('/[[:alnum:]]+/u', strtolower($value), $matches);
+        if (preg_match('//u', $value) !== 1) {
+            throw new MetricException(
+                sprintf("Sample '%s' %s must be valid UTF-8 for rouge-l metric.", $sampleId, $field),
+            );
+        }
+
+        $lowercased = function_exists('mb_strtolower')
+            ? mb_strtolower($value, 'UTF-8')
+            : strtolower($value);
+
+        $result = preg_match_all('/[[:alnum:]]+/u', $lowercased, $matches);
+        if ($result === false) {
+            throw new MetricException(
+                sprintf("Sample '%s' %s could not be tokenized for rouge-l metric.", $sampleId, $field),
+            );
+        }
 
         /** @var list<string> $tokens */
         $tokens = $matches[0];

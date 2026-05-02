@@ -33,6 +33,12 @@ final class ContainsMetric implements Metric
             );
         }
 
+        if ($sample->expectedOutput === '') {
+            throw new MetricException(
+                sprintf("Sample '%s' expected_output must not be empty for contains metric.", $sample->id),
+            );
+        }
+
         $matched = str_contains($actualOutput, $sample->expectedOutput);
 
         return new MetricScore(

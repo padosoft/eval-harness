@@ -35,11 +35,7 @@ final class RegexMetric implements Metric
         $result = @preg_match($sample->expectedOutput, $actualOutput);
         if ($result === false) {
             throw new MetricException(
-                sprintf(
-                    "Sample '%s' expected_output is not a valid regex pattern for regex metric: %s.",
-                    $sample->id,
-                    preg_last_error_msg(),
-                ),
+                sprintf("Sample '%s' expected_output is not a valid regex pattern for regex metric.", $sample->id),
             );
         }
 

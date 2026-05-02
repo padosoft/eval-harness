@@ -78,3 +78,5 @@
 - Histogram bucket assignment is most stable when it compares normalized scores against the precomputed rounded bucket boundaries instead of multiplying and flooring the score again.
 - Keep offline metrics deterministic and side-effect free. `contains`, `regex`, `rouge-l`, and baseline `citation-groundedness` should rely only on sample data and actual output so they remain safe for unit tests and CI without HTTP fakes.
 - Citation groundedness baseline currently uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output; advanced span/evidence validation remains a later metric.
+- Contains-style metrics must reject empty expected strings because `str_contains($actual, '')` always returns true and can silently inflate pass rates.
+- ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower` when available; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
