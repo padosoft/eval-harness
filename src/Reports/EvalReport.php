@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Reports;
 
+use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
 
@@ -27,6 +28,8 @@ use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
  */
 final class EvalReport
 {
+    public const UNTAGGED_COHORT = '__untagged__';
+
     /**
      * @param  list<SampleResult>  $sampleResults
      * @param  list<SampleFailure>  $failures
@@ -104,12 +107,7 @@ final class EvalReport
 
     public function meanScore(string $metricName): float
     {
-        $values = $this->scoresFor($metricName);
-        if ($values === []) {
-            return 0.0;
-        }
-
-        return array_sum($values) / count($values);
+        return $this->aggregateValues($this->scoresFor($metricName))['mean'];
     }
 
     public function percentile(string $metricName, float $percentile): float
@@ -118,21 +116,7 @@ final class EvalReport
             return 0.0;
         }
 
-        $values = $this->scoresFor($metricName);
-        if ($values === []) {
-            return 0.0;
-        }
-
-        sort($values);
-        $rank = ($percentile / 100.0) * (count($values) - 1);
-        $lower = (int) floor($rank);
-        $upper = (int) ceil($rank);
-        if ($lower === $upper) {
-            return $values[$lower];
-        }
-        $weight = $rank - $lower;
-
-        return $values[$lower] * (1.0 - $weight) + $values[$upper] * $weight;
+        return $this->percentileForValues($this->scoresFor($metricName), $percentile);
     }
 
     /**
@@ -177,12 +161,139 @@ final class EvalReport
     }
 
     /**
+     * @return array{mean: float, p50: float, p95: float, pass_rate: float}
+     */
+    public function metricAggregate(string $metricName): array
+    {
+        return $this->aggregateValues($this->scoresFor($metricName));
+    }
+
+    /**
+     * @return array<string, list<array{min: float, max: float, count: int}>>
+     */
+    public function metricDistributions(int $buckets = 10): array
+    {
+        $distributions = [];
+        foreach ($this->metricNames() as $metricName) {
+            $distributions[$metricName] = $this->histogramForMetric($metricName, $buckets);
+        }
+
+        return $distributions;
+    }
+
+    /**
+     * @return list<array{min: float, max: float, count: int}>
+     */
+    public function histogramForMetric(string $metricName, int $buckets = 10): array
+    {
+        $bucketCount = max(1, $buckets);
+        $width = 1.0 / $bucketCount;
+
+        $histogram = [];
+        for ($index = 0; $index < $bucketCount; $index++) {
+            $histogram[] = [
+                'min' => $index * $width,
+                'max' => ($index + 1) * $width,
+                'count' => 0,
+            ];
+        }
+
+        foreach ($this->scoresFor($metricName) as $score) {
+            $index = min($bucketCount - 1, max(0, (int) floor($score * $bucketCount)));
+            $histogram[$index]['count']++;
+        }
+
+        return $histogram;
+    }
+
+    /**
+     * @return list<array{name: string, label: string, sample_count: int, metrics: array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>}>
+     */
+    public function cohortSummaries(): array
+    {
+        /** @var array<string, list<SampleResult>> $cohortResults */
+        $cohortResults = [];
+
+        foreach ($this->sampleResults as $result) {
+            foreach ($this->tagsForSample($result->sample) as $tag) {
+                $cohortResults[$tag] ??= [];
+                $cohortResults[$tag][] = $result;
+            }
+        }
+
+        $cohortNames = $this->orderedCohortNames(array_keys($cohortResults));
+        $summaries = [];
+
+        foreach ($cohortNames as $cohortName) {
+            $results = $cohortResults[$cohortName];
+            $metrics = [];
+
+            foreach ($this->metricNames() as $metricName) {
+                $metrics[$metricName] = $this->aggregateValues(
+                    $this->scoresForResults($results, $metricName),
+                );
+            }
+
+            $summaries[] = [
+                'name' => $cohortName,
+                'label' => $cohortName === self::UNTAGGED_COHORT ? '(untagged)' : $cohortName,
+                'sample_count' => count($results),
+                'metrics' => $metrics,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function tagsForSample(DatasetSample $sample): array
+    {
+        $rawTags = $sample->metadata['tags'] ?? null;
+        $tags = [];
+
+        if (is_string($rawTags)) {
+            $tag = trim($rawTags);
+            if ($tag !== '') {
+                $tags[] = $tag;
+            }
+        }
+
+        if (is_array($rawTags)) {
+            foreach ($rawTags as $rawTag) {
+                if (! is_string($rawTag)) {
+                    continue;
+                }
+
+                $tag = trim($rawTag);
+                if ($tag !== '') {
+                    $tags[] = $tag;
+                }
+            }
+        }
+
+        $tags = array_values(array_unique($tags));
+
+        return $tags === [] ? [self::UNTAGGED_COHORT] : $tags;
+    }
+
+    /**
      * @return list<float>
      */
     private function scoresFor(string $metricName): array
     {
+        return $this->scoresForResults($this->sampleResults, $metricName);
+    }
+
+    /**
+     * @param  list<SampleResult>  $results
+     * @return list<float>
+     */
+    private function scoresForResults(array $results, string $metricName): array
+    {
         $values = [];
-        foreach ($this->sampleResults as $result) {
+        foreach ($results as $result) {
             $score = $result->metricScores[$metricName] ?? null;
             if ($score === null) {
                 continue;
@@ -191,6 +302,77 @@ final class EvalReport
         }
 
         return $values;
+    }
+
+    /**
+     * @param  list<float>  $values
+     * @return array{mean: float, p50: float, p95: float, pass_rate: float}
+     */
+    private function aggregateValues(array $values): array
+    {
+        if ($values === []) {
+            return [
+                'mean' => 0.0,
+                'p50' => 0.0,
+                'p95' => 0.0,
+                'pass_rate' => 0.0,
+            ];
+        }
+
+        $passed = 0;
+        foreach ($values as $value) {
+            if ($value >= 0.5) {
+                $passed++;
+            }
+        }
+
+        return [
+            'mean' => array_sum($values) / count($values),
+            'p50' => $this->percentileForValues($values, 50.0),
+            'p95' => $this->percentileForValues($values, 95.0),
+            'pass_rate' => (float) ($passed / count($values)),
+        ];
+    }
+
+    /**
+     * @param  list<float>  $values
+     */
+    private function percentileForValues(array $values, float $percentile): float
+    {
+        if ($values === []) {
+            return 0.0;
+        }
+
+        sort($values);
+        $rank = ($percentile / 100.0) * (count($values) - 1);
+        $lower = (int) floor($rank);
+        $upper = (int) ceil($rank);
+        if ($lower === $upper) {
+            return $values[$lower];
+        }
+        $weight = $rank - $lower;
+
+        return $values[$lower] * (1.0 - $weight) + $values[$upper] * $weight;
+    }
+
+    /**
+     * @param  list<string>  $cohortNames
+     * @return list<string>
+     */
+    private function orderedCohortNames(array $cohortNames): array
+    {
+        $hasUntagged = in_array(self::UNTAGGED_COHORT, $cohortNames, true);
+        $cohortNames = array_values(array_filter(
+            $cohortNames,
+            static fn (string $name): bool => $name !== self::UNTAGGED_COHORT,
+        ));
+        sort($cohortNames, SORT_STRING);
+
+        if ($hasUntagged) {
+            $cohortNames[] = self::UNTAGGED_COHORT;
+        }
+
+        return $cohortNames;
     }
 
     public function toMarkdown(): string

@@ -31,6 +31,8 @@ final class JsonReportRendererTest extends TestCase
             'total_samples',
             'total_failures',
             'metrics',
+            'metric_distributions',
+            'cohorts',
             'macro_f1',
             'samples',
             'failures',
@@ -66,11 +68,48 @@ final class JsonReportRendererTest extends TestCase
         $this->assertSame(1.0, $json['metrics']['exact-match']['p50']);
         $this->assertSame(1.0, $json['metrics']['exact-match']['p95']);
         $this->assertSame(1.0, $json['metrics']['exact-match']['pass_rate']);
+        $this->assertSame(10, count($json['metric_distributions']['exact-match']));
 
         $this->assertCount(1, $json['samples']);
         $this->assertSame('s1', $json['samples'][0]['id']);
+        $this->assertSame(['__untagged__'], $json['samples'][0]['tags']);
+        $this->assertSame([], $json['samples'][0]['metadata']);
         $this->assertSame(1.0, $json['samples'][0]['scores']['exact-match']['score']);
         $this->assertSame(['match' => true], $json['samples'][0]['scores']['exact-match']['details']);
+    }
+
+    public function test_cohorts_are_serialised_for_future_ui_consumers(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'x',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'geo-1',
+                        input: [],
+                        expectedOutput: 'e',
+                        metadata: ['tags' => ['geography', 'easy']],
+                    ),
+                    actualOutput: 'e',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(id: 'untagged-1', input: [], expectedOutput: 'e'),
+                    actualOutput: 'x',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $json = (new JsonReportRenderer)->render($report);
+
+        $this->assertSame(['easy', 'geography', '__untagged__'], array_column($json['cohorts'], 'name'));
+        $this->assertSame(['geography', 'easy'], $json['samples'][0]['tags']);
+        $this->assertSame(['__untagged__'], $json['samples'][1]['tags']);
+        $this->assertSame(1.0, $json['cohorts'][0]['metrics']['exact-match']['mean']);
     }
 
     public function test_failures_are_serialised(): void

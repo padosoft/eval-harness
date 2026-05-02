@@ -230,3 +230,18 @@
   - `vendor/bin/phpunit` => `OK (142 tests, 291 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Macro PR #8 merged into `main` at `493d261`.
+- Started Macro Task 2 on `task/metrics-reporting` and pushed the macro branch.
+- Started subtask branch `task/metrics-reporting-cohorts-histogram` from the macro branch.
+- Implemented the first reporting slice:
+  - `EvalReport` now exposes per-metric aggregate arrays, metric histograms, normalized sample tags, and cohort summaries grouped by `metadata.tags`,
+  - JSON reports now include `metric_distributions`, `cohorts`, sample `tags`, and sample `metadata` for the future separate UI package,
+  - Markdown reports now include a summary table, cohort table, and score histogram sections,
+  - README now documents the cohort/histogram report shape and adds competitor-informed planned items for standalone assertions plus dataset split/filter workflows.
+- Targeted report tests passed:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (22 tests, 76 assertions)`
+- Full local gate passed before opening the reporting subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (146 tests, 314 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

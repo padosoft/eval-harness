@@ -178,4 +178,85 @@ final class EvalReportTest extends TestCase
         sort($names);
         $this->assertSame(['cosine-embedding', 'exact-match'], $names);
     }
+
+    public function test_cohort_summaries_group_by_tags_and_missing_tags(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'a',
+                        metadata: ['tags' => ['geography', 'easy']],
+                    ),
+                    actualOutput: 'a',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's2',
+                        input: [],
+                        expectedOutput: 'b',
+                        metadata: ['tags' => 'geography'],
+                    ),
+                    actualOutput: 'x',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(id: 's3', input: [], expectedOutput: 'c'),
+                    actualOutput: 'c',
+                    metricScores: ['exact-match' => new MetricScore(0.5)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $cohorts = $report->cohortSummaries();
+
+        $this->assertSame(['easy', 'geography', EvalReport::UNTAGGED_COHORT], array_column($cohorts, 'name'));
+        $this->assertSame(1, $cohorts[0]['sample_count']);
+        $this->assertSame(2, $cohorts[1]['sample_count']);
+        $this->assertSame('(untagged)', $cohorts[2]['label']);
+        $this->assertEqualsWithDelta(1.0, $cohorts[0]['metrics']['exact-match']['mean'], 1e-9);
+        $this->assertEqualsWithDelta(0.5, $cohorts[1]['metrics']['exact-match']['mean'], 1e-9);
+        $this->assertEqualsWithDelta(0.5, $cohorts[2]['metrics']['exact-match']['mean'], 1e-9);
+    }
+
+    public function test_histogram_places_boundary_scores_in_stable_buckets(): void
+    {
+        $report = $this->reportWithScores([0.0, 0.05, 0.5, 1.0]);
+
+        $histogram = $report->histogramForMetric('exact-match', 2);
+
+        $this->assertSame([
+            ['min' => 0.0, 'max' => 0.5, 'count' => 2],
+            ['min' => 0.5, 'max' => 1.0, 'count' => 2],
+        ], $histogram);
+    }
+
+    public function test_histogram_for_metric_without_scores_returns_zero_buckets(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [],
+                ),
+            ],
+            failures: [new SampleFailure(sampleId: 's1', metricName: 'llm-as-judge', error: 'timeout')],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $this->assertSame([
+            ['min' => 0.0, 'max' => 0.5, 'count' => 0],
+            ['min' => 0.5, 'max' => 1.0, 'count' => 0],
+        ], $report->histogramForMetric('llm-as-judge', 2));
+    }
 }

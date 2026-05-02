@@ -11,6 +11,8 @@ namespace Padosoft\EvalHarness\Reports;
  *   - H1 with dataset name + run timestamp.
  *   - Summary table: total samples, total failures, duration.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
+ *   - Cohort table by metadata.tags.
+ *   - Per-metric score histograms.
  *   - Failure list (if any).
  *
  * Designed to be diffed across runs — section ordering is stable
@@ -29,6 +31,18 @@ final class MarkdownReportRenderer
             $report->durationSeconds(),
             $report->totalSamples(),
             $report->totalFailures(),
+        );
+        $lines[] = '';
+
+        $lines[] = '## Summary';
+        $lines[] = '';
+        $lines[] = '| total samples | total failures | duration seconds |';
+        $lines[] = '| --- | --- | --- |';
+        $lines[] = sprintf(
+            '| %d | %d | %.2f |',
+            $report->totalSamples(),
+            $report->totalFailures(),
+            $report->durationSeconds(),
         );
         $lines[] = '';
 
@@ -51,6 +65,56 @@ final class MarkdownReportRenderer
         $lines[] = '';
         $lines[] = sprintf('## Macro-F1 (avg pass-rate across all metrics): %.4f', $report->macroF1());
         $lines[] = '';
+
+        $cohorts = $report->cohortSummaries();
+        if ($cohorts !== []) {
+            $lines[] = '## Cohorts by metadata.tags';
+            $lines[] = '';
+            $lines[] = '| cohort | samples | metric | mean | p50 | p95 | pass-rate (>= 0.5) |';
+            $lines[] = '| --- | --- | --- | --- | --- | --- | --- |';
+
+            foreach ($cohorts as $cohort) {
+                foreach ($cohort['metrics'] as $metricName => $aggregate) {
+                    $lines[] = sprintf(
+                        '| %s | %d | %s | %.4f | %.4f | %.4f | %.4f |',
+                        $cohort['label'],
+                        $cohort['sample_count'],
+                        $metricName,
+                        $aggregate['mean'],
+                        $aggregate['p50'],
+                        $aggregate['p95'],
+                        $aggregate['pass_rate'],
+                    );
+                }
+            }
+
+            $lines[] = '';
+        }
+
+        $distributions = $report->metricDistributions();
+        if ($distributions !== []) {
+            $lines[] = '## Score histograms';
+            $lines[] = '';
+
+            foreach ($distributions as $metricName => $histogram) {
+                $lines[] = sprintf('### %s', $metricName);
+                $lines[] = '';
+                $lines[] = '| score range | count |';
+                $lines[] = '| --- | --- |';
+
+                foreach ($histogram as $bucket) {
+                    $lines[] = sprintf(
+                        '| %.1f-%.1f%s | %d |',
+                        $bucket['min'],
+                        $bucket['max'],
+                        $bucket['max'] >= 1.0 ? ' inclusive' : '',
+                        $bucket['count'],
+                    );
+                }
+
+                $lines[] = '';
+            }
+        }
 
         if ($report->totalFailures() > 0) {
             $lines[] = '## Failures';

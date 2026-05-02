@@ -20,9 +20,15 @@ namespace Padosoft\EvalHarness\Reports;
  *   "metrics": {
  *     "exact-match": {"mean": 0.8, "p50": 1.0, "p95": 1.0, "pass_rate": 0.8}
  *   },
+ *   "metric_distributions": {
+ *     "exact-match": [{"min": 0.0, "max": 0.1, "count": 2}]
+ *   },
+ *   "cohorts": [
+ *     {"name": "geography", "label": "geography", "sample_count": 4, "metrics": {...}}
+ *   ],
  *   "macro_f1": 0.8,
  *   "samples": [
- *     {"id": "...", "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
+ *     {"id": "...", "tags": ["geography"], "metadata": {...}, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
  *   ],
  *   "failures": [
  *     {"sample_id": "...", "metric": "...", "error": "..."}
@@ -41,12 +47,7 @@ final class JsonReportRenderer
     {
         $metrics = [];
         foreach ($report->metricNames() as $name) {
-            $metrics[$name] = [
-                'mean' => $report->meanScore($name),
-                'p50' => $report->percentile($name, 50.0),
-                'p95' => $report->percentile($name, 95.0),
-                'pass_rate' => $report->macroF1($name),
-            ];
+            $metrics[$name] = $report->metricAggregate($name);
         }
 
         $samples = [];
@@ -60,6 +61,8 @@ final class JsonReportRenderer
             }
             $samples[] = [
                 'id' => $result->sample->id,
+                'tags' => $report->tagsForSample($result->sample),
+                'metadata' => $result->sample->metadata,
                 'actual_output' => $result->actualOutput,
                 'scores' => $scores,
             ];
@@ -84,6 +87,8 @@ final class JsonReportRenderer
             'total_samples' => $report->totalSamples(),
             'total_failures' => $report->totalFailures(),
             'metrics' => $metrics,
+            'metric_distributions' => $report->metricDistributions(),
+            'cohorts' => $report->cohortSummaries(),
             'macro_f1' => $report->macroF1(),
             'samples' => $samples,
             'failures' => $failures,

@@ -38,8 +38,13 @@ final class MarkdownReportRendererTest extends TestCase
         $md = (new MarkdownReportRenderer)->render($report);
 
         $this->assertStringContainsString('# Eval report — demo', $md);
+        $this->assertStringContainsString('## Summary', $md);
         $this->assertStringContainsString('| exact-match |', $md);
         $this->assertStringContainsString('## Macro-F1', $md);
+        $this->assertStringContainsString('## Cohorts by metadata.tags', $md);
+        $this->assertStringContainsString('## Score histograms', $md);
+        $this->assertStringContainsString('(untagged)', $md);
+        $this->assertStringContainsString('| 0.0-0.1 |', $md);
         $this->assertStringNotContainsString('## Failures', $md);
     }
 
