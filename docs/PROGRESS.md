@@ -58,3 +58,7 @@
   - clarify the live-suite XML comment wording
   - make the PR template ID example concrete
 - Applied those review fixes.
+- Copilot reviewed PR #5 at head `795e802` and generated two additional comments:
+  - make the concrete PR template ID visibly replaceable
+  - make the live-suite XML comment a complete sentence
+- Applied those review fixes. The banner-size thread was already addressed by adding `resources/` to `.gitattributes export-ignore`.

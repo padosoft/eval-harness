@@ -26,3 +26,5 @@
 - Copilot PR #5 also flagged raw `<N>` placeholders in normal prose; use `Macro Task N` or wrap the full placeholder in backticks.
 - Copilot PR #5 flagged hard-coded repository names in GitHub API examples. Prefer `gh repo view --json nameWithOwner --jq .nameWithOwner` for reusable docs.
 - README-only assets such as `resources/banner.png` should be `export-ignore`d in `.gitattributes` so Packagist/git archive artifacts stay small.
+- PR template examples should be visibly replaceable. Use a placeholder plus a concrete example, not only a concrete value that can be copied into unrelated PRs.
+- XML comments should use complete sentences when documenting skipped suites or CI behavior; sentence fragments tend to trigger review churn.

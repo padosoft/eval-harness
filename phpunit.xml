@@ -28,8 +28,8 @@
              integration concern; the live suite covers the harness
              contract end-to-end against any OpenAI-compatible
              endpoint. Requires EVAL_HARNESS_LIVE_API_KEY env var
-             (otherwise every test self-skips). NOT run in CI;
-             invoke it explicitly. See README "Running the live test
+             (otherwise every test self-skips). This suite is not run
+             in CI; invoke it explicitly. See README "Running the live test
              suite". -->
         <testsuite name="Live">
             <directory>tests/Live</directory>
