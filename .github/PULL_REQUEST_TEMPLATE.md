@@ -1,6 +1,6 @@
 ## Sottotask
 ID: `v0.x|v1.0 macro.subtask`
-Plan ref: `docs/ROADMAP_IMPLEMENTATION_PLAN.md` sezione Macro Task <N>
+Plan ref: `docs/ROADMAP_IMPLEMENTATION_PLAN.md` sezione `Macro Task N`
 
 ## Summary
 1-2 sentences description.

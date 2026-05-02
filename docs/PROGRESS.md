@@ -50,3 +50,5 @@
   - include `--memory-limit=512M` in the plan's PHPStan gate
   - avoid raw angle-bracket placeholders in the PR template
 - Applied those review fixes.
+- Copilot reviewed PR #5 at head `f2affe5` and generated one additional PR-template comment about raw `<N>` placeholder rendering.
+- Replaced that placeholder with `Macro Task N`.
