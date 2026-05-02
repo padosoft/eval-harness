@@ -46,3 +46,5 @@
 - First-class callables (`$runner->run(...)`) and `Closure::fromCallable([$runner, 'run'])` hide the runner instance behind a `Closure`. Detect callables whose first parameter is `SampleInvocation` and pass the DTO instead of `sample.input`.
 - Compute SUT dispatch mode once before iterating samples. Reflection and DTO allocation in the hot eval loop are easy to introduce when supporting multiple callable shapes.
 - Public DTOs that define future queue payload shape need direct unit tests, not only indirect tests through `EvalEngine`.
+- Architecture docs must name `SampleInvocation` explicitly. Saying "SampleRunner sample" is ambiguous and can reintroduce the full-`DatasetSample` payload mistake.
+- When adding reflection branches for callable shapes, cover every branch: function string, static `Class::method` string, invokable object, array method reference, first-class callable, and `Closure::fromCallable()`.

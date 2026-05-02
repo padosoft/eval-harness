@@ -171,6 +171,23 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
+    public function test_run_routes_static_method_string_callable_typed_as_sample_invocation(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.static-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '8+8'], expectedOutput: '16'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->run('rag.runner.static-callable', StaticSampleInvocationCallable::class.'::run');
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
     public function test_run_routes_invokable_object_typed_as_sample_invocation(): void
     {
         /** @var EvalEngine $engine */
@@ -272,4 +289,12 @@ final class EvalEngineTest extends TestCase
 function sample_invocation_string_runner(SampleInvocation $sample): string
 {
     return $sample->id === 's1' && $sample->input['q'] === '6+6' ? '12' : '';
+}
+
+final class StaticSampleInvocationCallable
+{
+    public static function run(SampleInvocation $sample): string
+    {
+        return $sample->id === 's1' && $sample->input['q'] === '8+8' ? '16' : '';
+    }
 }

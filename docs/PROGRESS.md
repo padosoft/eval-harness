@@ -137,4 +137,14 @@
   - `vendor/bin/phpunit` => `OK (128 tests, 264 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `128 tests, 264 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `128 tests, 264 assertions` result.
+- Copilot reviewed PR #6 at head `1b65bb9` and generated two additional comments:
+  - README architecture wording still implied `SampleRunner` receives the full sample,
+  - static `Class::method` string callables needed direct regression coverage.
+- Updated the README architecture diagram to name `SampleInvocation` and added static-method string callable coverage.
+- Full local gate passed after the sixth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (129 tests, 265 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `129 tests, 265 assertions` result.
