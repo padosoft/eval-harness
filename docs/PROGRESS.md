@@ -180,3 +180,12 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `133 tests, 271 assertions` result.
+- Copilot reviewed PR #6 at head `8f45bb8` and generated no new comments.
+- Verified PR #6 CI green across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Resolved all 24 PR #6 review threads and merged the subtask into `task/core-eval-contracts` at merge commit `e1b5d1d`.
+- Macro Task 1 implementation scope is now ready for the macro PR to `main`: versioned dataset/report contracts, `SampleRunner`/`SampleInvocation` invocation contracts, compatibility tests, and README/lesson updates are all on the macro branch.
+- Macro branch local gate passed before opening the PR to `main`:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
