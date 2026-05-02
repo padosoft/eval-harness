@@ -107,8 +107,17 @@ final class EvalEngine
         $sampleResults = [];
         $failures = [];
 
+        $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
+        $callableExpectsSampleInvocation = $sampleRunner === null
+            && $this->callableExpectsSampleInvocation($systemUnderTest);
+
         foreach ($dataset->samples as $sample) {
-            $actualOutput = $this->runSample($systemUnderTest, $sample);
+            $actualOutput = $this->runSample(
+                systemUnderTest: $systemUnderTest,
+                sample: $sample,
+                sampleRunner: $sampleRunner,
+                callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
+            );
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -143,15 +152,16 @@ final class EvalEngine
     /**
      * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
      */
-    private function runSample(callable|SampleRunner $systemUnderTest, DatasetSample $sample): string
-    {
-        $runner = $this->resolveSampleRunner($systemUnderTest);
-        $invocation = SampleInvocation::fromDatasetSample($sample);
-
-        if ($runner instanceof SampleRunner) {
-            $actualOutput = $runner->run($invocation);
-        } elseif ($this->callableExpectsSampleInvocation($systemUnderTest)) {
-            $actualOutput = $systemUnderTest($invocation);
+    private function runSample(
+        callable|SampleRunner $systemUnderTest,
+        DatasetSample $sample,
+        ?SampleRunner $sampleRunner,
+        bool $callableExpectsSampleInvocation,
+    ): string {
+        if ($sampleRunner instanceof SampleRunner) {
+            $actualOutput = $sampleRunner->run(SampleInvocation::fromDatasetSample($sample));
+        } elseif ($callableExpectsSampleInvocation) {
+            $actualOutput = $systemUnderTest(SampleInvocation::fromDatasetSample($sample));
         } else {
             $actualOutput = $systemUnderTest($sample->input);
         }

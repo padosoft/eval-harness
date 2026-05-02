@@ -126,4 +126,15 @@
   - `vendor/bin/phpunit` => `OK (125 tests, 258 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `125 tests, 258 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `125 tests, 258 assertions` result.
+- Copilot reviewed PR #6 at head `ecf8ac5` and generated three additional comments:
+  - dispatch mode should be computed once before the hot sample loop,
+  - `SampleInvocation` needed direct unit coverage for its input-only contract,
+  - string callables and invokable objects typed as `SampleInvocation` needed regression coverage.
+- Moved runner/callable dispatch detection out of the per-sample loop, added `SampleInvocationTest`, and covered string-callable plus invokable-object routing.
+- Full local gate passed after the fifth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (128 tests, 264 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `128 tests, 264 assertions` result.

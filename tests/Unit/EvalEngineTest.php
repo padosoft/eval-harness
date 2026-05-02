@@ -154,6 +154,48 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
+    public function test_run_routes_string_callable_typed_as_sample_invocation(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.string-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '6+6'], expectedOutput: '12'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->run('rag.runner.string-callable', __NAMESPACE__.'\\sample_invocation_string_runner');
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
+    public function test_run_routes_invokable_object_typed_as_sample_invocation(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.invokable-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '7+7'], expectedOutput: '14'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $callable = new class
+        {
+            public function __invoke(SampleInvocation $sample): string
+            {
+                return $sample->id === 's1' && $sample->input['q'] === '7+7' ? '14' : '';
+            }
+        };
+
+        $report = $engine->run('rag.runner.invokable-callable', $callable);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
     public function test_metric_failure_is_captured_not_thrown(): void
     {
         Http::fake([
@@ -225,4 +267,9 @@ final class EvalEngineTest extends TestCase
         $report = EvalFacade::run('facade.test', fn () => 'x');
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
+}
+
+function sample_invocation_string_runner(SampleInvocation $sample): string
+{
+    return $sample->id === 's1' && $sample->input['q'] === '6+6' ? '12' : '';
 }

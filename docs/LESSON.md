@@ -44,3 +44,5 @@
 - Treat `[SampleRunnerInstance, 'run']` as the runner contract path, not the legacy callable path, otherwise PHP method references receive `sample.input` and can fail with a `TypeError`.
 - CLI error messages for new extension points should show both supported binding patterns: closure callable and concrete class binding.
 - First-class callables (`$runner->run(...)`) and `Closure::fromCallable([$runner, 'run'])` hide the runner instance behind a `Closure`. Detect callables whose first parameter is `SampleInvocation` and pass the DTO instead of `sample.input`.
+- Compute SUT dispatch mode once before iterating samples. Reflection and DTO allocation in the hot eval loop are easy to introduce when supporting multiple callable shapes.
+- Public DTOs that define future queue payload shape need direct unit tests, not only indirect tests through `EvalEngine`.
