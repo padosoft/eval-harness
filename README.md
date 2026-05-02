@@ -21,7 +21,7 @@
 7. [Usage examples](#usage-examples)
 8. [Configuration](#configuration)
 9. [Architecture](#architecture)
-10. [AI vibe-coding pack included](#-ai-vibe-coding-pack-included)
+10. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
 11. [Testing](#testing)
 12. [Roadmap](#roadmap)
 13. [Contributing](#contributing)

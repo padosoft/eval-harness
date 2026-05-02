@@ -16,14 +16,25 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *     embeddings endpoint).
  *   - {@see LlmAsJudgeMetric} — strict-JSON LLM grading.
  *
- * Adding a new metric: implement this interface, register the
- * concrete class in `config/eval-harness.php` under `metrics.aliases`,
- * and the {@see MetricResolver} will pick it up automatically.
+ * Adding a new metric:
+ *   1. Implement this interface.
+ *   2. EITHER pass the FQCN directly to `withMetrics([...])` (the
+ *      {@see MetricResolver} resolves it via the container so
+ *      constructor deps are auto-wired), OR register a container
+ *      alias in your service provider — e.g.
+ *      `$this->app->bind('my-metric', MyMetric::class);` — and pass
+ *      `'my-metric'` to `withMetrics([...])`.
  *
- * Per R23 (pluggable pipeline registry): every Metric registered
- * via the resolver is FQCN-validated at boot to confirm it really
- * implements this interface; mis-typed entries fail fast with a
- * descriptive container resolution error.
+ * Note: the harness does NOT read a static `metrics.aliases` config
+ * key. Built-in aliases ('exact-match', 'cosine-embedding',
+ * 'llm-as-judge') live in {@see MetricResolver::ALIASES}; downstream
+ * extension goes through container bindings, not config.
+ *
+ * Per R23 (pluggable pipeline registry): every concrete class
+ * resolved by {@see MetricResolver} is asserted to implement this
+ * interface; mis-typed entries fail fast with a descriptive
+ * container resolution error rather than a runtime "method does not
+ * exist" downstream.
  */
 interface Metric
 {

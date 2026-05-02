@@ -19,12 +19,18 @@
             <directory>tests/Architecture</directory>
         </testsuite>
 
-        <!-- Opt-in live suite: hits a real LLM provider configured
-             via the laravel/ai SDK to validate end-to-end metric
-             wire compatibility. Requires EVAL_HARNESS_LIVE_API_KEY
-             env var (otherwise every test self-skips). NOT run in
-             CI — invoked explicitly. See README "Running the live
-             test suite". -->
+        <!-- Opt-in live suite: hits a real LLM provider over raw HTTP
+             (Illuminate\Http\Client\Factory, configurable via the
+             EVAL_HARNESS_JUDGE_ENDPOINT / EVAL_HARNESS_JUDGE_MODEL
+             env vars) to validate end-to-end metric wire format and
+             provider compatibility. The metrics shipped today do NOT
+             route through the laravel/ai SDK — that's a downstream
+             integration concern; the live suite covers the harness
+             contract end-to-end against any OpenAI-compatible
+             endpoint. Requires EVAL_HARNESS_LIVE_API_KEY env var
+             (otherwise every test self-skips). NOT run in CI —
+             invoked explicitly. See README "Running the live test
+             suite". -->
         <testsuite name="Live">
             <directory>tests/Live</directory>
         </testsuite>

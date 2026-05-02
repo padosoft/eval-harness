@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
+use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -87,7 +88,38 @@ final class EvalCommandTest extends TestCase
             'dataset' => 'any.dataset',
             '--registrar' => 'App\\NonExistent\\Registrar',
         ])
-            ->expectsOutputToContain("does not exist")
+            ->expectsOutputToContain('does not exist')
             ->assertExitCode(1);
+    }
+
+    /**
+     * Regression: --json must surface json_encode failures as a
+     * command-level error instead of writing an empty payload + exit 0.
+     * The InvalidUtf8Registrar's SUT returns a string with a stray
+     * 0xFF byte that cannot be encoded without
+     * JSON_INVALID_UTF8_SUBSTITUTE.
+     */
+    public function test_json_encoding_failure_surfaces_as_error(): void
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'eval-out-');
+        $this->assertNotFalse($tmp);
+
+        try {
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'cli.invalid-utf8',
+                '--registrar' => InvalidUtf8Registrar::class,
+                '--json' => true,
+                '--out' => $tmp,
+            ])
+                ->expectsOutputToContain('Failed to encode report as JSON')
+                ->assertExitCode(1);
+
+            // Output file must NOT have been created with empty
+            // contents masquerading as a successful run.
+            $contents = (string) file_get_contents($tmp);
+            $this->assertSame('', $contents, 'Failure path must not write a payload.');
+        } finally {
+            @unlink($tmp);
+        }
     }
 }

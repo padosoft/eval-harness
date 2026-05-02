@@ -13,13 +13,20 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  * via {@see DatasetBuilder::withMetrics()}
  * into concrete {@see Metric} instances.
  *
- * Three input shapes are supported:
+ * Four input shapes are supported:
  *   1. Metric instance — returned verbatim. Used when the caller
  *      needs custom constructor wiring.
  *   2. FQCN string — resolved through the container so constructor
  *      dependencies (HTTP client, config) are auto-wired.
- *   3. Alias string — looked up against the static map below, then
- *      resolved through the container.
+ *   3. Built-in alias string ('exact-match', 'cosine-embedding',
+ *      'llm-as-judge') — looked up against the static map below
+ *      and then resolved through the container.
+ *   4. Container alias / abstract — any string the container can
+ *      `make()` (e.g. an `$app->bind('my-metric', MyMetric::class)`
+ *      registered by a downstream package). Bound entries are
+ *      preferred over both the alias map and class autoloading,
+ *      so consumers can override built-ins by binding their own
+ *      implementation under the alias.
  *
  * Mirrors R23 (pluggable pipeline registry): every concrete class
  * is asserted to implement the {@see Metric} interface so a typo'd
@@ -58,26 +65,35 @@ final class MetricResolver
             );
         }
 
-        $class = self::ALIASES[$spec] ?? $spec;
+        // Resolution order:
+        //   1. Container binding under the spec verbatim (lets
+        //      consumers register `$app->bind('my-metric', ...)`
+        //      and have it picked up before alias / class lookup).
+        //   2. Built-in alias map.
+        //   3. FQCN string the autoloader can resolve.
+        $abstract = self::ALIASES[$spec] ?? $spec;
+        $isContainerBound = $this->container->bound($spec);
 
-        if (! class_exists($class)) {
+        if (! $isContainerBound && ! $this->container->bound($abstract) && ! class_exists($abstract)) {
             throw new MetricException(
                 sprintf(
-                    "Metric '%s' resolves to class '%s' which does not exist.",
+                    "Metric '%s' resolves to class '%s' which does not exist and is not bound in the container.",
                     $spec,
-                    $class,
+                    $abstract,
                 ),
             );
         }
 
-        $instance = $this->container->make($class);
+        $instance = $isContainerBound
+            ? $this->container->make($spec)
+            : $this->container->make($abstract);
 
         if (! $instance instanceof Metric) {
             throw new MetricException(
                 sprintf(
                     "Metric '%s' resolves to '%s' which does not implement %s.",
                     $spec,
-                    $class,
+                    is_object($instance) ? $instance::class : get_debug_type($instance),
                     Metric::class,
                 ),
             );

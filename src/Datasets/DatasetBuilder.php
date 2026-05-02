@@ -37,8 +37,6 @@ final class DatasetBuilder
     /** @var list<DatasetSample>|null */
     private ?array $explicitSamples = null;
 
-    private ?string $explicitName = null;
-
     public function __construct(
         private readonly EvalEngine $engine,
         private readonly MetricResolver $metricResolver,
@@ -75,7 +73,17 @@ final class DatasetBuilder
         }
 
         $seen = [];
-        foreach ($samples as $sample) {
+        foreach ($samples as $index => $sample) {
+            if (! $sample instanceof DatasetSample) {
+                throw new DatasetSchemaException(
+                    sprintf(
+                        'withSamples() entry at index %d must be a %s instance; got %s.',
+                        $index,
+                        DatasetSample::class,
+                        get_debug_type($sample),
+                    ),
+                );
+            }
             if (isset($seen[$sample->id])) {
                 throw new DatasetSchemaException(
                     sprintf("Duplicate sample id '%s' in withSamples() input.", $sample->id),
@@ -85,7 +93,6 @@ final class DatasetBuilder
         }
 
         $this->explicitSamples = $samples;
-        $this->explicitName = $this->name;
 
         return $this;
     }
@@ -140,7 +147,24 @@ final class DatasetBuilder
         // is null then $parsed is non-null, and vice versa. The
         // ?: chain just picks whichever was set.
         $samples = $this->explicitSamples ?? ($this->parsed !== null ? $this->parsed->samples : []);
-        $name = $this->explicitName ?? ($this->parsed !== null ? $this->parsed->name : $this->name);
+
+        // Always honour the builder name passed to dataset($name).
+        // If a YAML file declares a different `name:` field, that's a
+        // misconfiguration (or a typo) — we surface it loudly rather
+        // than silently storing the dataset under an unexpected key
+        // that would later break `engine->run($expected, ...)`.
+        if ($this->parsed !== null && $this->parsed->name !== $this->name) {
+            throw new DatasetSchemaException(
+                sprintf(
+                    "Dataset name mismatch: builder was created with name '%s' but the loaded YAML declares 'name: %s'. Either rename the YAML or call dataset('%s') instead.",
+                    $this->name,
+                    $this->parsed->name,
+                    $this->parsed->name,
+                ),
+            );
+        }
+
+        $name = $this->name;
 
         $metrics = array_map(
             fn ($spec): Metric => $this->metricResolver->resolve($spec),

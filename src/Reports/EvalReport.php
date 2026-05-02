@@ -52,6 +52,12 @@ final class EvalReport
     }
 
     /**
+     * Collect every metric name observed in this run, INCLUDING
+     * metrics that failed on every sample. Without the failures
+     * walk, a metric whose entire surface raised would disappear
+     * from the report and a total outage would render as "metric
+     * was never configured", which is misleading.
+     *
      * @return list<string>
      */
     public function metricNames(): array
@@ -61,6 +67,9 @@ final class EvalReport
             foreach ($result->metricScores as $name => $_score) {
                 $names[$name] = true;
             }
+        }
+        foreach ($this->failures as $failure) {
+            $names[$failure->metricName] = true;
         }
 
         return array_keys($names);

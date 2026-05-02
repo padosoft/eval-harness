@@ -154,4 +154,63 @@ final class YamlDatasetLoaderTest extends TestCase
             @unlink($tmp);
         }
     }
+
+    /**
+     * Regression: 'input' is documented as an associative array but
+     * a YAML list (e.g. `input: [1, 2]`) was previously accepted and
+     * would surface as a confusing downstream error when the SUT
+     * looked up a named key. The schema check now rejects lists at
+     * load time with a message that names the offending field.
+     */
+    public function test_sample_input_must_be_associative_array(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage("'input' must be an associative array");
+
+        $yaml = <<<'YAML'
+        name: x
+        samples:
+          - id: s1
+            input: [1, 2, 3]
+            expected_output: y
+        YAML;
+        $this->loader()->loadString($yaml);
+    }
+
+    /**
+     * Regression: 'metadata' is documented as an associative array
+     * but a YAML list slipped through the previous shape check. The
+     * loader now rejects lists at this boundary too.
+     */
+    public function test_sample_metadata_must_be_associative_array_not_list(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage("'metadata' must be an associative array");
+
+        $yaml = <<<'YAML'
+        name: x
+        samples:
+          - id: s1
+            input: {q: 1}
+            expected_output: y
+            metadata: [tag1, tag2]
+        YAML;
+        $this->loader()->loadString($yaml);
+    }
+
+    public function test_sample_input_empty_associative_is_accepted(): void
+    {
+        // `input: {}` is legitimate — a sample that takes no keyed
+        // input. PHP's array_is_list returns true for [], so the
+        // schema check special-cases empty arrays as associative.
+        $yaml = <<<'YAML'
+        name: x
+        samples:
+          - id: s1
+            input: {}
+            expected_output: y
+        YAML;
+        $parsed = $this->loader()->loadString($yaml);
+        $this->assertSame([], $parsed->samples[0]->input);
+    }
 }

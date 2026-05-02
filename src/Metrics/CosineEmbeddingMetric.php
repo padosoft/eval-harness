@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * Semantic-similarity metric: embed expected + actual via an
@@ -87,8 +88,15 @@ final class CosineEmbeddingMetric implements Metric
             'eval-harness.metrics.cosine_embedding.model',
             'text-embedding-3-small',
         );
-        $timeout = (int) $this->config->get(
-            'eval-harness.metrics.cosine_embedding.timeout_seconds',
+        // Defensive: any non-positive / non-numeric env value collapses
+        // a naive (int) cast to 0, which Http::timeout(0) interprets
+        // as "no timeout" — a misconfigured
+        // EVAL_HARNESS_EMBEDDINGS_TIMEOUT would then hang forever
+        // instead of falling back to the documented default.
+        // TimeoutNormalizer enforces a positive int with the default
+        // fallback.
+        $timeout = TimeoutNormalizer::normalize(
+            $this->config->get('eval-harness.metrics.cosine_embedding.timeout_seconds'),
             30,
         );
 

@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Reports;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Metrics\MetricScore;
 use Padosoft\EvalHarness\Reports\EvalReport;
+use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
 use PHPUnit\Framework\TestCase;
 
@@ -84,5 +85,66 @@ final class EvalReportTest extends TestCase
         $report = $this->reportWithScores([0.5]);
         $this->assertSame(0.0, $report->meanScore('does-not-exist'));
         $this->assertSame(0.0, $report->percentile('does-not-exist', 50.0));
+    }
+
+    /**
+     * Regression: a metric that fails on every sample previously
+     * disappeared from metricNames() because the method only looked
+     * at successful metricScores. metricNames() now also walks
+     * $failures so a total outage is visible in the aggregate row
+     * (with 0.0 values + a non-empty failures list) instead of
+     * looking like the metric was never configured.
+     */
+    public function test_metric_names_includes_metrics_that_failed_on_every_sample(): void
+    {
+        $sample1 = new DatasetSample(id: 's1', input: [], expectedOutput: 'a');
+        $sample2 = new DatasetSample(id: 's2', input: [], expectedOutput: 'b');
+
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(sample: $sample1, actualOutput: 'a', metricScores: []),
+                new SampleResult(sample: $sample2, actualOutput: 'b', metricScores: []),
+            ],
+            failures: [
+                new SampleFailure(sampleId: 's1', metricName: 'cosine-embedding', error: 'HTTP 500'),
+                new SampleFailure(sampleId: 's2', metricName: 'cosine-embedding', error: 'HTTP 500'),
+            ],
+            startedAt: 0.0,
+            finishedAt: 0.5,
+        );
+
+        $this->assertSame(['cosine-embedding'], $report->metricNames());
+        // Aggregates collapse to 0.0 when every sample failed — the
+        // important property is that the metric is REPRESENTED.
+        $this->assertSame(0.0, $report->meanScore('cosine-embedding'));
+        $this->assertSame(2, $report->totalFailures());
+    }
+
+    public function test_metric_names_merges_successful_and_failed(): void
+    {
+        $sample1 = new DatasetSample(id: 's1', input: [], expectedOutput: 'a');
+        $sample2 = new DatasetSample(id: 's2', input: [], expectedOutput: 'b');
+
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: $sample1,
+                    actualOutput: 'a',
+                    metricScores: ['exact-match' => new MetricScore(score: 1.0)],
+                ),
+                new SampleResult(sample: $sample2, actualOutput: 'b', metricScores: []),
+            ],
+            failures: [
+                new SampleFailure(sampleId: 's2', metricName: 'cosine-embedding', error: 'HTTP 500'),
+            ],
+            startedAt: 0.0,
+            finishedAt: 0.5,
+        );
+
+        $names = $report->metricNames();
+        sort($names);
+        $this->assertSame(['cosine-embedding', 'exact-match'], $names);
     }
 }

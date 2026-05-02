@@ -114,4 +114,53 @@ final class DatasetBuilderTest extends TestCase
         $this->assertSame(1, $dataset->sampleCount());
         $this->assertTrue($engine->hasDataset('yaml.builder'));
     }
+
+    /**
+     * Regression: passing an array with non-DatasetSample entries to
+     * withSamples() previously crashed with a generic Error on
+     * `$sample->id`. The public API now surfaces a typed
+     * DatasetSchemaException with the offending index named.
+     */
+    public function test_with_samples_rejects_non_dataset_sample_entries(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('must be a Padosoft\\EvalHarness\\Datasets\\DatasetSample instance');
+
+        /** @phpstan-ignore-next-line — the test asserts behaviour on bad input shape. */
+        $engine->dataset('bad-samples')->withSamples([
+            new DatasetSample(id: 'good', input: [], expectedOutput: 'a'),
+            ['id' => 'array-not-instance'],
+        ]);
+    }
+
+    /**
+     * Regression: when YAML's `name:` field doesn't match the builder
+     * name, the previous code silently registered the dataset under
+     * the YAML name, breaking `engine->run($builderName, ...)`. The
+     * builder now surfaces the mismatch as a schema error.
+     */
+    public function test_register_rejects_yaml_name_mismatch(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('Dataset name mismatch');
+
+        $yaml = <<<'YAML'
+        name: yaml.has.different.name
+        samples:
+          - id: s1
+            input: {q: hello}
+            expected_output: hi
+        YAML;
+
+        $engine->dataset('caller.passed.this.name')
+            ->loadFromYamlString($yaml)
+            ->withMetrics(['exact-match'])
+            ->register();
+    }
 }

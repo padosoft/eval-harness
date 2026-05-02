@@ -133,6 +133,16 @@ final class YamlDatasetLoader
             );
         }
 
+        if (! self::isAssociativeOrEmpty($sample['input'])) {
+            throw new DatasetSchemaException(
+                sprintf(
+                    "Sample '%s' (index %d) field 'input' must be an associative array (got a YAML list).",
+                    $id,
+                    $index,
+                ),
+            );
+        }
+
         if (! array_key_exists('expected_output', $sample)) {
             throw new DatasetSchemaException(
                 sprintf("Sample '%s' (index %d) missing required field 'expected_output'.", $id, $index),
@@ -144,6 +154,15 @@ final class YamlDatasetLoader
             if (! is_array($sample['metadata'])) {
                 throw new DatasetSchemaException(
                     sprintf("Sample '%s' (index %d) field 'metadata' must be an associative array.", $id, $index),
+                );
+            }
+            if (! self::isAssociativeOrEmpty($sample['metadata'])) {
+                throw new DatasetSchemaException(
+                    sprintf(
+                        "Sample '%s' (index %d) field 'metadata' must be an associative array (got a YAML list).",
+                        $id,
+                        $index,
+                    ),
                 );
             }
             $metadata = $sample['metadata'];
@@ -159,5 +178,28 @@ final class YamlDatasetLoader
             expectedOutput: $sample['expected_output'],
             metadata: $metadata,
         );
+    }
+
+    /**
+     * An array is "associative" if it has at least one non-integer
+     * key OR is empty. Symfony YAML maps `{a: 1, b: 2}` and
+     * `key: {...}` to associative arrays in PHP, but lists like
+     * `[1, 2, 3]` end up as zero-indexed sequential arrays which
+     * look like an array but aren't a map.
+     *
+     * Empty arrays are treated as valid associative-or-empty so a
+     * sample legitimately declaring an empty `input: {}` doesn't
+     * trip the check — `array_is_list([])` returns `true`, so we
+     * special-case it.
+     *
+     * @param  array<mixed>  $array
+     */
+    private static function isAssociativeOrEmpty(array $array): bool
+    {
+        if ($array === []) {
+            return true;
+        }
+
+        return ! array_is_list($array);
     }
 }

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+
 return [
     /*
     |--------------------------------------------------------------------------
@@ -24,7 +26,14 @@ return [
             ),
             'api_key' => env('EVAL_HARNESS_EMBEDDINGS_API_KEY', env('OPENAI_API_KEY', '')),
             'model' => env('EVAL_HARNESS_EMBEDDINGS_MODEL', 'text-embedding-3-small'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT', 30),
+            // Validated via TimeoutNormalizer so a typo'd env value
+            // (e.g. `abc`) falls back to the documented default
+            // instead of collapsing to 0, which Http::timeout(0)
+            // would interpret as "no timeout" and hang the eval run.
+            'timeout_seconds' => TimeoutNormalizer::normalize(
+                env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT'),
+                30,
+            ),
         ],
 
         'llm_as_judge' => [
@@ -34,7 +43,12 @@ return [
             ),
             'api_key' => env('EVAL_HARNESS_JUDGE_API_KEY', env('OPENAI_API_KEY', '')),
             'model' => env('EVAL_HARNESS_JUDGE_MODEL', 'gpt-4o-mini'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_JUDGE_TIMEOUT', 60),
+            // Validated via TimeoutNormalizer; same rationale as the
+            // embeddings timeout above.
+            'timeout_seconds' => TimeoutNormalizer::normalize(
+                env('EVAL_HARNESS_JUDGE_TIMEOUT'),
+                60,
+            ),
 
             // Override to inject a custom prompt template. Placeholders
             // {expected} {actual} {question} are interpolated from the

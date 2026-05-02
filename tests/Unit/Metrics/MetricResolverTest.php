@@ -82,4 +82,34 @@ final class MetricResolverTest extends TestCase
         $this->assertArrayHasKey('cosine-embedding', $aliases);
         $this->assertArrayHasKey('llm-as-judge', $aliases);
     }
+
+    /**
+     * Regression: the resolver previously hard-failed on `class_exists`
+     * for any non-built-in string, which broke the advertised IoC
+     * extension path. Container bindings under an arbitrary string key
+     * are now resolved through the container, just like aliases and
+     * FQCNs.
+     */
+    public function test_container_alias_is_resolved_via_make(): void
+    {
+        $this->app->bind('my-custom-metric', static fn () => new ExactMatchMetric);
+
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+
+        $this->assertInstanceOf(ExactMatchMetric::class, $resolver->resolve('my-custom-metric'));
+    }
+
+    public function test_container_alias_takes_precedence_over_built_in(): void
+    {
+        // Allow downstream packages to override a built-in by binding
+        // their own implementation under the same alias.
+        $sentinel = new ExactMatchMetric;
+        $this->app->bind('exact-match', static fn () => $sentinel);
+
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+
+        $this->assertSame($sentinel, $resolver->resolve('exact-match'));
+    }
 }
