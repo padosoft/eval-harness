@@ -92,7 +92,7 @@ surface small and the offline path fast.
 
 ---
 
-![banner.png](resources/banner.png)
+![eval-harness report banner](resources/banner.png)
 
 ## Features
 

@@ -19,3 +19,5 @@
 - The roadmap must now treat Macro Task 1 as an audit/fill-gaps task over the v0.1 core, not a greenfield implementation.
 - PHPStan on the v0.1 core can exhaust the default 128 MB memory limit on Windows/PHP 8.4. Use `vendor/bin/phpstan analyse --memory-limit=512M` locally and in CI.
 - Copilot PR #5 caught a stale plan sentence saying README had no competitor names after `origin/main` had already added the comparison table. When main moves under an open PR, re-scan docs for statements that were true only before the merge.
+- Copilot PR #5 prefers copy/paste reviewer examples without a leading `@`: use `gh pr edit <PR> --add-reviewer copilot` in docs, then fall back to GraphQL with `copilot-pull-request-reviewer[bot]` when the CLI path is blocked.
+- Copilot PR #5 flagged accessibility/punctuation drift introduced during conflict resolution: use descriptive image alt text and avoid ambiguous plain hyphen dashes in XML/YAML comments and workflow step names.

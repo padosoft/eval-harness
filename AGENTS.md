@@ -51,7 +51,7 @@ At the end of a macro task, open a PR from the macro branch into `main` and run 
 Copilot review means GitHub Copilot Code Review through the PR Reviewers menu or:
 
 ```powershell
-gh pr edit <PR> --add-reviewer @copilot
+gh pr edit <PR> --add-reviewer copilot
 ```
 
 If that fails before requesting the review because GitHub CLI needs `read:project`, use the GraphQL fallback documented in `docs/RULES.md`. Do not use `@codex review` as a substitute unless the user explicitly asks for it.

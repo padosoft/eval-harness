@@ -60,7 +60,7 @@ If a tool is unavailable, blocked, or remote-only, record the exact blocker in `
 - Request GitHub Copilot Code Review through the PR Reviewers menu or:
 
 ```text
-gh pr edit <PR> --add-reviewer @copilot
+gh pr edit <PR> --add-reviewer copilot
 ```
 
 - If `gh pr edit` fails before requesting Copilot because of missing `read:project`, resolve the PR node ID:

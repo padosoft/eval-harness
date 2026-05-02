@@ -48,7 +48,7 @@ vendor/bin/pint --test
 Prefer:
 
 ```text
-gh pr edit <PR> --add-reviewer @copilot
+gh pr edit <PR> --add-reviewer copilot
 ```
 
 If that fails before requesting the review because `read:project` is missing, use the GraphQL `requestReviewsByLogin` fallback documented in `docs/RULES.md`.
