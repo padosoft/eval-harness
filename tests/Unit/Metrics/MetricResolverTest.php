@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Metrics;
 
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Metrics\CitationGroundednessMetric;
+use Padosoft\EvalHarness\Metrics\ContainsMetric;
 use Padosoft\EvalHarness\Metrics\CosineEmbeddingMetric;
 use Padosoft\EvalHarness\Metrics\ExactMatchMetric;
 use Padosoft\EvalHarness\Metrics\LlmAsJudgeMetric;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Metrics\RegexMetric;
+use Padosoft\EvalHarness\Metrics\RougeLMetric;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class MetricResolverTest extends TestCase
@@ -25,6 +29,34 @@ final class MetricResolverTest extends TestCase
         /** @var MetricResolver $resolver */
         $resolver = $this->app->make(MetricResolver::class);
         $this->assertInstanceOf(CosineEmbeddingMetric::class, $resolver->resolve('cosine-embedding'));
+    }
+
+    public function test_alias_resolves_contains(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(ContainsMetric::class, $resolver->resolve('contains'));
+    }
+
+    public function test_alias_resolves_regex(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(RegexMetric::class, $resolver->resolve('regex'));
+    }
+
+    public function test_alias_resolves_rouge_l(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(RougeLMetric::class, $resolver->resolve('rouge-l'));
+    }
+
+    public function test_alias_resolves_citation_groundedness(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(CitationGroundednessMetric::class, $resolver->resolve('citation-groundedness'));
     }
 
     public function test_alias_resolves_llm_as_judge(): void
@@ -79,6 +111,10 @@ final class MetricResolverTest extends TestCase
     {
         $aliases = MetricResolver::aliases();
         $this->assertArrayHasKey('exact-match', $aliases);
+        $this->assertArrayHasKey('contains', $aliases);
+        $this->assertArrayHasKey('regex', $aliases);
+        $this->assertArrayHasKey('rouge-l', $aliases);
+        $this->assertArrayHasKey('citation-groundedness', $aliases);
         $this->assertArrayHasKey('cosine-embedding', $aliases);
         $this->assertArrayHasKey('llm-as-judge', $aliases);
     }

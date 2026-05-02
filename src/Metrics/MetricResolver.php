@@ -18,7 +18,8 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  *      needs custom constructor wiring.
  *   2. FQCN string — resolved through the container so constructor
  *      dependencies (HTTP client, config) are auto-wired.
- *   3. Built-in alias string ('exact-match', 'cosine-embedding',
+ *   3. Built-in alias string ('exact-match', 'contains', 'regex',
+ *      'rouge-l', 'citation-groundedness', 'cosine-embedding',
  *      'llm-as-judge') — looked up against the static map below
  *      and then resolved through the container.
  *   4. Container alias / abstract — any string the container can
@@ -44,6 +45,10 @@ final class MetricResolver
      */
     private const ALIASES = [
         'exact-match' => ExactMatchMetric::class,
+        'contains' => ContainsMetric::class,
+        'regex' => RegexMetric::class,
+        'rouge-l' => RougeLMetric::class,
+        'citation-groundedness' => CitationGroundednessMetric::class,
         'cosine-embedding' => CosineEmbeddingMetric::class,
         'llm-as-judge' => LlmAsJudgeMetric::class,
     ];

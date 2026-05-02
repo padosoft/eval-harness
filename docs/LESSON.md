@@ -76,3 +76,5 @@
 - Histogram bucket assignment must normalize scores with the same precision used for bucket boundaries, otherwise boundary-like values such as `0.7 - 0.4` can count in the previous bucket while the displayed range says otherwise.
 - Markdown inline code cannot safely escape backticks with backslashes inside a code span. Use HTML `<code>` with `htmlspecialchars()` for user-controlled identifiers.
 - Histogram bucket assignment is most stable when it compares normalized scores against the precomputed rounded bucket boundaries instead of multiplying and flooring the score again.
+- Keep offline metrics deterministic and side-effect free. `contains`, `regex`, `rouge-l`, and baseline `citation-groundedness` should rely only on sample data and actual output so they remain safe for unit tests and CI without HTTP fakes.
+- Citation groundedness baseline currently uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output; advanced span/evidence validation remains a later metric.

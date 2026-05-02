@@ -316,3 +316,15 @@
   - `vendor/bin/phpunit` => `OK (153 tests, 339 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Started subtask branch `task/metrics-reporting-offline-metrics` from `task/metrics-reporting`.
+- Implemented offline metric aliases and classes:
+  - `contains`,
+  - `regex`,
+  - `rouge-l`,
+  - `citation-groundedness` baseline over `metadata.citations`.
+- Updated README feature/comparison/roadmap text to reflect seven built-in metrics and implemented ROUGE-L/citation baseline.
+- Full local gate passed before opening the offline metrics subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (170 tests, 372 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
