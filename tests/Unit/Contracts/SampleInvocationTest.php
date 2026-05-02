@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Contracts;
 
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -26,5 +27,16 @@ final class SampleInvocationTest extends TestCase
         $this->assertSame(['question' => 'What?'], $invocation->input);
         $this->assertFalse(property_exists($invocation, 'expectedOutput'));
         $this->assertFalse(property_exists($invocation, 'metadata'));
+    }
+
+    public function test_rejects_non_queue_serializable_input_values(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be queue-serializable');
+
+        new SampleInvocation(
+            id: 's1',
+            input: ['nested' => ['object' => new stdClass]],
+        );
     }
 }

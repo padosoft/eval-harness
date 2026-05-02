@@ -179,7 +179,7 @@
   - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `133 tests, 271 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `133 tests, 271 assertions` result.
 - Copilot reviewed PR #6 at head `8f45bb8` and generated no new comments.
 - Verified PR #6 CI green across PHP 8.3/8.4/8.5 and Laravel 12/13.
 - Resolved all 24 PR #6 review threads and merged the subtask into `task/core-eval-contracts` at merge commit `e1b5d1d`.
@@ -195,3 +195,15 @@
   - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened Macro Task 1 PR #8 from `task/core-eval-contracts` into `main` and requested Copilot through the GraphQL fallback.
+- PR #8 CI passed across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Copilot reviewed PR #8 at head `8e8d723` and generated two comments:
+  - invalid `eval-harness.sut` bindings needed command regression coverage,
+  - `SampleInvocation` needed to reject non-queue-serializable `input` values, not only omit `expectedOutput` and `metadata`.
+- Added invalid SUT binding coverage and recursive queue-safe input validation for `SampleInvocation`.
+- Full local gate passed after PR #8 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (135 tests, 275 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `135 tests, 275 assertions` result.

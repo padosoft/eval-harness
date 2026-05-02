@@ -53,3 +53,5 @@
 - Do not document class-string support on `EvalEngine::run()` unless the engine actually resolves class strings. Class strings are valid for `eval-harness.sut` container bindings, where Laravel resolves them before the engine runs.
 - When CLI messages show a container binding pattern, add command coverage for that exact documented path.
 - Non-runner array callables can also be typed as `SampleInvocation`; do not only test `[SampleRunner, 'run']` when validating array-callable reflection dispatch.
+- If a DTO is described as queue-safe, validate nested input values for queue-serializable primitives/arrays; removing obvious object fields is not enough when user-provided `input` remains `mixed`.
+- CLI error branches for invalid container bindings need command tests even if all valid binding forms are covered.

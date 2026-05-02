@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Contracts;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 /**
  * Input-only payload passed to runner-style SUT invocations.
@@ -24,13 +25,51 @@ final class SampleInvocation
     public function __construct(
         public readonly string $id,
         public readonly array $input,
-    ) {}
+    ) {
+        foreach ($input as $key => $value) {
+            if (! is_string($key)) {
+                throw new EvalRunException(
+                    sprintf("SampleInvocation input key for sample '%s' must be a string; got %s.", $id, get_debug_type($key)),
+                );
+            }
+
+            self::assertQueueSafeValue($value, sprintf('input.%s', $key), $id);
+        }
+    }
 
     public static function fromDatasetSample(DatasetSample $sample): self
     {
         return new self(
             id: $sample->id,
             input: $sample->input,
+        );
+    }
+
+    private static function assertQueueSafeValue(mixed $value, string $path, string $sampleId): void
+    {
+        if ($value === null || is_scalar($value)) {
+            return;
+        }
+
+        if (is_array($value)) {
+            foreach ($value as $key => $nestedValue) {
+                $nestedPath = is_string($key)
+                    ? sprintf('%s.%s', $path, $key)
+                    : sprintf('%s[%s]', $path, $key);
+
+                self::assertQueueSafeValue($nestedValue, $nestedPath, $sampleId);
+            }
+
+            return;
+        }
+
+        throw new EvalRunException(
+            sprintf(
+                "SampleInvocation value at '%s' for sample '%s' must be queue-serializable (scalar, null, or array); got %s.",
+                $path,
+                $sampleId,
+                get_debug_type($value),
+            ),
         );
     }
 }
