@@ -230,3 +230,89 @@
   - `vendor/bin/phpunit` => `OK (142 tests, 291 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Macro PR #8 merged into `main` at `493d261`.
+- Started Macro Task 2 on `task/metrics-reporting` and pushed the macro branch.
+- Started subtask branch `task/metrics-reporting-cohorts-histogram` from the macro branch.
+- Implemented the first reporting slice:
+  - `EvalReport` now exposes per-metric aggregate arrays, metric histograms, normalized sample tags, and cohort summaries grouped by `metadata.tags`,
+  - JSON reports now include `metric_distributions`, `cohorts`, and sample `tags` for the future separate UI package,
+  - Markdown reports now include a summary table, cohort table, and score histogram sections,
+  - README now documents the cohort/histogram report shape and adds competitor-informed planned items for standalone assertions plus dataset split/filter workflows.
+- Targeted report tests passed:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (22 tests, 76 assertions)`
+- Full local gate passed before opening the reporting subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (146 tests, 314 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened subtask PR #9 from `task/metrics-reporting-cohorts-histogram` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- PR #9 CI passed across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Copilot reviewed PR #9 at head `27c5997` and generated two comments:
+  - final histogram bucket max should be exactly `1.0` for bucket counts such as 3, 6, or 7,
+  - `meanScore()` should not pay for aggregate percentile/pass-rate work, and renderers should avoid repeated aggregate loops/sorts.
+- Codex also generated one actionable review comment:
+  - missing tags should not be represented as a fake `__untagged__` tag because a real sample can use that literal tag.
+- Addressed those comments by restoring mean-only `meanScore()`, using `metricAggregate()` once per Markdown metric row, forcing the final histogram bucket max to `1.0`, and separating missing-tag cohorts with `name: null` / `is_untagged: true` while leaving sample `tags` as real user tags only.
+- Targeted report tests and PHPStan passed after review fixes:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (24 tests, 85 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after PR #9 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (148 tests, 323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `6e5d525` and generated three comments:
+  - Markdown tables need escaping for user-controlled cohort labels and metric names,
+  - JSON sample rows should not emit the free-form metadata bag because it may contain secrets/provider payloads,
+  - `cohortSummaries()` should compute metric names once instead of scanning report data per cohort.
+- Addressed those comments by escaping Markdown table cells, removing full metadata from sample rows while keeping normalized `tags`, and reusing the metric-name list across cohort aggregation.
+- Full local gate passed after the second PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `0d0c4fb` and generated three comments:
+  - `MarkdownReportRenderer` docblock still claimed the H1 includes a timestamp,
+  - README report example needed the new `## Summary` section,
+  - `aggregateValues()` should sort once and reuse the sorted score list for p50/p95.
+- Addressed those comments by correcting the docblock, syncing the README example, and adding a sorted-percentile helper used by `aggregateValues()`.
+- Full local gate passed after the third PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `c3e4422` and generated one comment:
+  - histogram bucket boundaries should be rounded before they enter the JSON report contract.
+- Addressed the comment by rounding histogram min/max boundaries to fixed precision while keeping the final bucket max exactly `1.0`, with regression coverage for the `0.1 * 3` style artifact.
+- Full local gate passed after the fourth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 330 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `44846a4` and generated one comment:
+  - histogram bucket assignment should normalize boundary-like score floats before computing the bucket index.
+- Addressed the comment by applying the same rounded boundary precision to scores before bucket-index calculation and extending the boundary regression to assert `0.7 - 0.4` lands in the `0.3-0.4` bucket.
+- Full local gate passed after the fifth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 332 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `fa40fd2` and generated one comment:
+  - failure bullets should normalize and escape sample ids, metric names, and error text before rendering Markdown.
+- Addressed the comment by adding inline-code/text escaping helpers for failure bullets and regression coverage for backticks/newlines.
+- Full local gate passed after the sixth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (152 tests, 336 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `f3148f0` and generated four comments:
+  - histogram headings should escape Markdown-sensitive metric names,
+  - failure identifier rendering should not rely on backslash-escaped backticks inside code spans,
+  - histogram bucket assignment should compare against rounded bucket boundaries for repeating-decimal bucket widths,
+  - README roadmap should not still imply cohort metrics/histograms are purely planned.
+- Addressed those comments by reusing escaped Markdown text for headings, rendering failure identifiers through HTML `<code>` with escaping, assigning histogram buckets by boundary comparison, adding a repeating-decimal boundary test, and marking cohort/histogram reports as implemented in the README roadmap.
+- Full local gate passed after the seventh PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (153 tests, 339 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

@@ -106,6 +106,9 @@ surface small and the offline path fast.
 - **Stable JSON report shape** — every payload carries explicit
   `schema_version` and `dataset_schema_version` fields. Wire into
   your CI dashboard once, then evolve additively.
+- **Cohort-ready report data** — JSON and Markdown reports aggregate
+  scores by `metadata.tags`, expose an explicit untagged bucket, and
+  include per-metric score histograms for dashboards.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -248,6 +251,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 _Run completed in 2.41s over 30 samples (0 failures captured)._
 
+## Summary
+
+| total samples | total failures | duration seconds |
+| --- | --- | --- |
+| 30 | 0 | 2.41 |
+
 ## Per-metric aggregates
 
 | metric | mean | p50 | p95 | pass-rate (>= 0.5) |
@@ -256,6 +265,22 @@ _Run completed in 2.41s over 30 samples (0 failures captured)._
 | cosine-embedding | 0.9012 | 0.9421 | 0.9893 | 0.9667 |
 
 ## Macro-F1 (avg pass-rate across all metrics): 0.8500
+
+## Cohorts by metadata.tags
+
+| cohort | samples | metric | mean | p50 | p95 | pass-rate (>= 0.5) |
+| --- | --- | --- | --- | --- | --- | --- |
+| geography | 12 | exact-match | 0.9500 | 1.0000 | 1.0000 | 0.9500 |
+| refund-policy | 8 | exact-match | 0.6000 | 0.5000 | 1.0000 | 0.6000 |
+
+## Score histograms
+
+### exact-match
+
+| score range | count |
+| --- | --- |
+| 0.0-0.1 | 8 |
+| 0.9-1.0 inclusive | 22 |
 ```
 
 ---
@@ -495,14 +520,17 @@ accidentally and never burns API credits.
 
 ## Roadmap
 
-### v0.2 (planned)
+### v0.2 (in progress)
 
-- **Parallel batch evals** — run N samples in parallel via Laravel
-  queues (`SerialBatch`, `LazyParallelBatch`).
 - **Cohort metrics** — aggregate scores by `metadata.tags` so the
   report surfaces "geography questions are 95%, refund-policy
-  questions are 60%" instead of a single mean.
-- **Histogram view** in the markdown report.
+  questions are 60%" instead of a single mean. Implemented in
+  Markdown/JSON reports.
+- **Histogram view** in Markdown and JSON reports.
+- **Parallel batch evals** — run N samples in parallel via Laravel
+  queues (`SerialBatch`, `LazyParallelBatch`).
+- **Standalone output assertions** — score saved outputs without
+  invoking an agent, closing the Promptfoo-style CI workflow gap.
 - **More built-in metrics**: ROUGE-L, BERTScore (via embeddings),
   refusal-quality (LLM-as-judge specialised prompt), citation
   groundedness.
@@ -517,6 +545,8 @@ accidentally and never burns API credits.
   Laravel routes/resources for JSON reports, cohorts, histograms,
   and artifacts. No bundled UI in this package; deploy the UI behind
   your existing admin gate.
+- **Dataset splits/filtering and failure promotion** — keep parity
+  with LangSmith-style workflows while staying local-file-first.
 
 ### v1.0
 
