@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Reports;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
 use Padosoft\EvalHarness\Metrics\MetricScore;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
@@ -78,6 +79,36 @@ final class EvalReportTest extends TestCase
     {
         $report = $this->reportWithScores([0.1, 0.2, 0.3]);
         $this->assertSame(['exact-match'], $report->metricNames());
+    }
+
+    public function test_constructor_rejects_unsupported_report_schema_version(): void
+    {
+        $this->expectException(ReportSchemaException::class);
+        $this->expectExceptionMessage('unsupported schema version');
+
+        new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+            schemaVersion: 'eval-harness.report.v999',
+        );
+    }
+
+    public function test_constructor_rejects_unsupported_dataset_schema_version(): void
+    {
+        $this->expectException(ReportSchemaException::class);
+        $this->expectExceptionMessage('unsupported dataset schema version');
+
+        new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+            datasetSchemaVersion: 'eval-harness.dataset.v999',
+        );
     }
 
     public function test_unknown_metric_aggregates_to_zero(): void

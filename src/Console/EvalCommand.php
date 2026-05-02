@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use JsonException;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
@@ -22,9 +23,10 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
  *     datasets + the system-under-test, then executes the run.
  *   - Without `--registrar`: the command requires the named dataset
  *     to have been registered earlier (e.g. in a service provider's
- *     `boot()` method) AND a callable to be bound under the container
- *     key `eval-harness.sut`. If either is missing, the command
- *     errors out with a non-zero exit code.
+ *     `boot()` method) AND a system-under-test to be bound under the
+ *     container key `eval-harness.sut`. If either is missing, the
+ *     command errors out with a non-zero exit code. The bound value
+ *     may be either a callable or a SampleRunner implementation.
  *
  * Output:
  *   - Markdown report on stdout by default.
@@ -90,9 +92,9 @@ final class EvalCommand extends Command
             ? $engine->container()->make('eval-harness.sut')
             : null;
 
-        if (! is_callable($sut)) {
+        if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
             $this->error(
-                "No system-under-test bound under 'eval-harness.sut'. Bind a callable in your registrar with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...).",
+                "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
             );
 
             return self::FAILURE;

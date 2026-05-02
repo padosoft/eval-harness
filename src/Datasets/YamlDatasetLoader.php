@@ -14,6 +14,7 @@ use Symfony\Component\Yaml\Yaml;
  * Expected file shape:
  *
  * ```yaml
+ * schema_version: eval-harness.dataset.v1 # optional, defaults to v1
  * name: rag.factuality.fy2026
  * samples:
  *   - id: sample-1
@@ -27,6 +28,7 @@ use Symfony\Component\Yaml\Yaml;
  * ```
  *
  * Required keys: `name` (string), `samples` (non-empty list).
+ * Optional keys: `schema_version` (supported dataset contract ID).
  * Per-sample required keys: `id` (string, unique), `input` (assoc
  * array), `expected_output` (any). `metadata` is optional.
  *
@@ -68,6 +70,8 @@ final class YamlDatasetLoader
      */
     private function validate(array $decoded): ParsedDatasetDefinition
     {
+        $schemaVersion = $this->resolveSchemaVersion($decoded);
+
         if (! isset($decoded['name']) || ! is_string($decoded['name']) || $decoded['name'] === '') {
             throw new DatasetSchemaException(
                 "Dataset YAML missing required string field 'name'.",
@@ -103,7 +107,38 @@ final class YamlDatasetLoader
         return new ParsedDatasetDefinition(
             name: $decoded['name'],
             samples: $parsedSamples,
+            schemaVersion: $schemaVersion,
         );
+    }
+
+    /**
+     * @param  array<mixed>  $decoded
+     */
+    private function resolveSchemaVersion(array $decoded): string
+    {
+        if (! array_key_exists(DatasetSchema::FIELD, $decoded)) {
+            return DatasetSchema::VERSION;
+        }
+
+        $version = $decoded[DatasetSchema::FIELD];
+        if (! is_string($version) || $version === '') {
+            throw new DatasetSchemaException(
+                sprintf("Dataset YAML field '%s' must be a non-empty string.", DatasetSchema::FIELD),
+            );
+        }
+
+        if (! DatasetSchema::isSupported($version)) {
+            throw new DatasetSchemaException(
+                sprintf(
+                    "Dataset YAML field '%s' has unsupported value '%s'. Supported versions: %s.",
+                    DatasetSchema::FIELD,
+                    $version,
+                    implode(', ', DatasetSchema::SUPPORTED_VERSIONS),
+                ),
+            );
+        }
+
+        return $version;
     }
 
     /**

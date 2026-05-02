@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Reports;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Metrics\MetricScore;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\JsonReportRenderer;
+use Padosoft\EvalHarness\Reports\ReportSchema;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
 use PHPUnit\Framework\TestCase;
@@ -20,6 +22,8 @@ final class JsonReportRendererTest extends TestCase
         $json = (new JsonReportRenderer)->render($report);
 
         $expectedKeys = [
+            'schema_version',
+            'dataset_schema_version',
             'dataset',
             'started_at',
             'finished_at',
@@ -34,6 +38,9 @@ final class JsonReportRendererTest extends TestCase
         foreach ($expectedKeys as $key) {
             $this->assertArrayHasKey($key, $json, "Missing top-level key '$key'.");
         }
+
+        $this->assertSame(ReportSchema::VERSION, $json['schema_version']);
+        $this->assertSame(DatasetSchema::VERSION, $json['dataset_schema_version']);
     }
 
     public function test_metrics_aggregate_shape(): void

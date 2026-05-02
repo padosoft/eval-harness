@@ -98,13 +98,14 @@ surface small and the offline path fast.
 
 - **Three metrics out of the box** — `exact-match`, `cosine-embedding`,
   `llm-as-judge` — and a clean `Metric` interface for adding more.
-- **Strict-schema YAML loader** — 11 distinct validation failure
-  modes, each with an actionable error message.
+- **Strict-schema YAML loader** — versioned dataset contracts and
+  actionable validation errors for malformed samples.
 - **Deterministic LLM-as-judge** — temperature 0, seed 42,
   `response_format=json_object`. Strict-JSON parser rejects malformed
   responses instead of silently scoring 0.
-- **Stable JSON report shape** — additive-only contract per R27. Wire
-  into your CI dashboard once, never refactor.
+- **Stable JSON report shape** — every payload carries explicit
+  `schema_version` and `dataset_schema_version` fields. Wire into
+  your CI dashboard once, then evolve additively.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -171,6 +172,7 @@ override the embeddings + judge endpoints / models / API keys.
 `eval/golden/factuality.yml`:
 
 ```yaml
+schema_version: eval-harness.dataset.v1
 name: rag.factuality.fy2026
 samples:
   - id: capital-france
@@ -187,6 +189,9 @@ samples:
     metadata:
       tags: [policy, support]
 ```
+
+`schema_version` is optional for existing datasets. If omitted, the
+loader defaults to `eval-harness.dataset.v1`.
 
 ### 2. Wire up a registrar in your app
 
@@ -385,7 +390,7 @@ already implement that contract.
 ┌──────────────────────────────────────────────────────────────────┐
 │  EvalCommand (php artisan eval-harness:run)                      │
 │  └─► resolves Registrar (--registrar=FQCN)                       │
-│      └─► registrar binds dataset + 'eval-harness.sut' callable   │
+│      └─► registrar binds dataset + callable/SampleRunner SUT     │
 └──────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -394,7 +399,7 @@ already implement that contract.
 │  - dataset registry (in-memory, single source of truth)          │
 │  - run(dataset, sut)                                             │
 │      ├─► iterate samples                                         │
-│      ├─► invoke sut(sample.input)                                │
+│      ├─► invoke input callable or SampleInvocation callable/runner│
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
 │      │   - clean → MetricScore                                   │

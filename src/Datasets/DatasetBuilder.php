@@ -46,6 +46,7 @@ final class DatasetBuilder
 
     public function loadFromYaml(string $path): self
     {
+        $this->ensureCanLoadYaml('loadFromYaml()');
         $this->parsed = $this->yamlLoader->loadFile($path);
 
         return $this;
@@ -53,6 +54,7 @@ final class DatasetBuilder
 
     public function loadFromYamlString(string $yaml): self
     {
+        $this->ensureCanLoadYaml('loadFromYamlString()');
         $this->parsed = $this->yamlLoader->loadString($yaml);
 
         return $this;
@@ -66,6 +68,8 @@ final class DatasetBuilder
      */
     public function withSamples(array $samples): self
     {
+        $this->ensureCanUseProgrammaticSamples();
+
         if ($samples === []) {
             throw new DatasetSchemaException(
                 'withSamples() requires at least one DatasetSample.',
@@ -171,14 +175,49 @@ final class DatasetBuilder
             $this->metricSpecs,
         );
 
+        $schemaVersion = DatasetSchema::VERSION;
+        if ($this->parsed !== null) {
+            $schemaVersion = $this->parsed->schemaVersion;
+        }
+
         $dataset = new GoldenDataset(
             name: $name,
             samples: $samples,
             metrics: array_values($metrics),
+            schemaVersion: $schemaVersion,
         );
 
         $this->engine->registerDataset($dataset);
 
         return $dataset;
+    }
+
+    private function ensureCanLoadYaml(string $incomingMethod): void
+    {
+        if ($this->explicitSamples === null) {
+            return;
+        }
+
+        throw new DatasetSchemaException(
+            sprintf(
+                "Dataset '%s' already has programmatic samples. Do not combine withSamples() with loadFromYaml() or loadFromYamlString(); start a new builder before calling %s.",
+                $this->name,
+                $incomingMethod,
+            ),
+        );
+    }
+
+    private function ensureCanUseProgrammaticSamples(): void
+    {
+        if ($this->parsed === null) {
+            return;
+        }
+
+        throw new DatasetSchemaException(
+            sprintf(
+                "Dataset '%s' already has YAML samples. Do not combine loadFromYaml() or loadFromYamlString() with withSamples(); start a new builder before calling withSamples().",
+                $this->name,
+            ),
+        );
     }
 }

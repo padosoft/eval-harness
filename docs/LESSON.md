@@ -29,3 +29,27 @@
 - If a README image asset is `export-ignore`d, reference it with an absolute GitHub raw URL so it still renders on Packagist and other non-repo-relative surfaces.
 - PR template examples should be visibly replaceable. Use a placeholder plus a concrete example, not only a concrete value that can be copied into unrelated PRs.
 - XML comments should use complete sentences when documenting skipped suites or CI behavior; sentence fragments tend to trigger review churn.
+- Macro Task 0 merged to `main` at `fdc753c`; after that, move new work from `main` to `task/core-eval-contracts`.
+- Macro Task 1 audit found that the v0.1 core already had the engine/CLI/metrics/report baseline, but not explicit artifact schema versions or a queue-friendly SUT invocation contract.
+- Keep legacy `EvalEngine::run($dataset, callable $sut)` behavior: untyped/array-typed callables receive `sample.input`. New queue-oriented code should prefer `SampleRunner::run(SampleInvocation $sample)` because closures are not queue-serializable and runners should avoid full `DatasetSample` payloads.
+- Dataset YAML should accept missing `schema_version` for backward compatibility and default it to `eval-harness.dataset.v1`; unsupported explicit versions should fail at load time with a schema error.
+- JSON reports now need `schema_version` and `dataset_schema_version` top-level fields so the future separate UI package can reject unsupported artifacts deterministically.
+- PHPStan can infer `DatasetBuilder::$parsed` is non-null after the register guards; using `$this->parsed?->schemaVersion ?? ...` triggers `nullsafe.neverNull`. Prefer an explicit `$schemaVersion` variable guarded by `if ($this->parsed !== null)`.
+- Copilot PR #6 caught an ambiguous builder edge case: if YAML and `withSamples()` are both allowed, schema metadata can come from one source while samples come from another. Reject mixed sample sources at the builder boundary.
+- Public value objects that carry schema identifiers must validate them in their constructors. It is not enough for the YAML loader to validate versions, because consumers can directly instantiate `GoldenDataset` and `EvalReport`.
+- README examples that add optional compatibility fields must explicitly say the field is optional; otherwise existing users may think they need to rewrite legacy YAML.
+- When rejecting ambiguous builder flows, keep the guard as narrow as the bug. `loadFromYamlString()` may replace prior YAML before `register()`, and `withSamples()` may replace prior programmatic samples; only switching between YAML-backed and programmatic sample sources is invalid.
+- `ParsedDatasetDefinition` is public enough to need the same schema validation as `GoldenDataset` and `EvalReport`.
+- A queue-oriented runner should not receive full `DatasetSample` because `expectedOutput` and `metadata` can contain non-serializable values. Use an input-only DTO (`SampleInvocation`) for runner calls.
+- Treat `[SampleRunnerInstance, 'run']` as the runner contract path, not the legacy callable path, otherwise PHP method references receive `sample.input` and can fail with a `TypeError`.
+- CLI error messages for new extension points should show both supported binding patterns: closure callable and concrete class binding.
+- First-class callables (`$runner->run(...)`) and `Closure::fromCallable([$runner, 'run'])` hide the runner instance behind a `Closure`. Detect callables whose first parameter is `SampleInvocation` and pass the DTO instead of `sample.input`.
+- Compute SUT dispatch mode once before iterating samples. Reflection and DTO allocation in the hot eval loop are easy to introduce when supporting multiple callable shapes.
+- Public DTOs that define future queue payload shape need direct unit tests, not only indirect tests through `EvalEngine`.
+- Architecture docs must name `SampleInvocation` explicitly. Saying "SampleRunner sample" is ambiguous and can reintroduce the full-`DatasetSample` payload mistake.
+- When adding reflection branches for callable shapes, cover every branch: function string, static `Class::method` string, invokable object, array method reference, first-class callable, and `Closure::fromCallable()`.
+- If reflection dispatch handles union parameter types, include a regression test where `SampleInvocation` is one member of the union.
+- When a builder guard applies to both `loadFromYaml()` and `loadFromYamlString()`, test both file-backed and string-backed paths.
+- Do not document class-string support on `EvalEngine::run()` unless the engine actually resolves class strings. Class strings are valid for `eval-harness.sut` container bindings, where Laravel resolves them before the engine runs.
+- When CLI messages show a container binding pattern, add command coverage for that exact documented path.
+- Non-runner array callables can also be typed as `SampleInvocation`; do not only test `[SampleRunner, 'run']` when validating array-callable reflection dispatch.
