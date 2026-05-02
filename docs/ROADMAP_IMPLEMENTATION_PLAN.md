@@ -214,7 +214,7 @@ Tests:
 
 ## Competitor-Informed Additions
 
-The README does not currently name competitors, but the final README should compare against them. Roadmap additions from current competitor capabilities:
+The README already compares against OpenAI Evals, LangSmith, Ragas, Promptfoo, and DeepEval. Keep that comparison current as these roadmap additions close parity gaps:
 
 - Promptfoo: standalone output assertions, tag/facet reporting, broader red-team categories, declarative assertion ergonomics.
 - DeepEval: component/span-level evals and trace-aware reports in addition to black-box end-to-end evals.
