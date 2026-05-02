@@ -1,6 +1,6 @@
 # Project Rules
 
-## Source Of Truth
+## Source of Truth
 
 - Durable roadmap: `docs/ROADMAP_IMPLEMENTATION_PLAN.md`.
 - Agent handoff: `AGENTS.md`.

@@ -62,3 +62,7 @@
   - make the concrete PR template ID visibly replaceable
   - make the live-suite XML comment a complete sentence
 - Applied those review fixes. The banner-size thread was already addressed by adding `resources/` to `.gitattributes export-ignore`.
+- Copilot reviewed PR #5 at head `e7e59f8` and generated two additional comments:
+  - use an absolute GitHub raw URL for the README banner because `resources/` is export-ignored
+  - title-case `Source of Truth`
+- Applied those review fixes.

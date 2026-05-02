@@ -92,7 +92,7 @@ surface small and the offline path fast.
 
 ---
 
-![eval-harness report banner](resources/banner.png)
+![eval-harness report banner](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/banner.png)
 
 ## Features
 
