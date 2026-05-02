@@ -147,4 +147,14 @@
   - `vendor/bin/phpunit` => `OK (129 tests, 265 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `129 tests, 265 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `129 tests, 265 assertions` result.
+- Copilot reviewed PR #6 at head `10a5a4f` and generated two additional comments:
+  - callable union types including `SampleInvocation` needed regression coverage,
+  - file-backed `loadFromYaml()` needed direct coverage for the programmatic/YAML source-switch guard.
+- Added regression tests for `SampleInvocation|array` callables and `withSamples()->loadFromYaml($path)` source switching.
+- Full local gate passed after the seventh Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (131 tests, 269 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `131 tests, 269 assertions` result.

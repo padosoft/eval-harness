@@ -152,6 +152,30 @@ final class DatasetBuilderTest extends TestCase
             ->loadFromYamlString('name: mixed.source.reverse');
     }
 
+    public function test_cannot_mix_programmatic_and_file_yaml_sample_sources(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $tmp = tempnam(sys_get_temp_dir(), 'eval-yaml-');
+        $this->assertNotFalse($tmp);
+        file_put_contents(
+            $tmp,
+            "name: mixed.file.source\nsamples:\n  - id: s1\n    input: {q: 1}\n    expected_output: y\n",
+        );
+
+        try {
+            $this->expectException(DatasetSchemaException::class);
+            $this->expectExceptionMessage('Do not combine withSamples() with loadFromYaml() or loadFromYamlString()');
+
+            $engine->dataset('mixed.file.source')
+                ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'x')])
+                ->loadFromYaml($tmp);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
     public function test_yaml_sample_source_can_be_replaced_before_register(): void
     {
         /** @var EvalEngine $engine */

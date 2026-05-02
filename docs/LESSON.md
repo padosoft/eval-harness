@@ -48,3 +48,5 @@
 - Public DTOs that define future queue payload shape need direct unit tests, not only indirect tests through `EvalEngine`.
 - Architecture docs must name `SampleInvocation` explicitly. Saying "SampleRunner sample" is ambiguous and can reintroduce the full-`DatasetSample` payload mistake.
 - When adding reflection branches for callable shapes, cover every branch: function string, static `Class::method` string, invokable object, array method reference, first-class callable, and `Closure::fromCallable()`.
+- If reflection dispatch handles union parameter types, include a regression test where `SampleInvocation` is one member of the union.
+- When a builder guard applies to both `loadFromYaml()` and `loadFromYamlString()`, test both file-backed and string-backed paths.

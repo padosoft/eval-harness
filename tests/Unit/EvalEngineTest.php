@@ -188,6 +188,31 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
+    public function test_run_routes_union_typed_callable_when_sample_invocation_is_allowed(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.union-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '9+9'], expectedOutput: '18'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $callable = static function (SampleInvocation|array $sample): string {
+            if (! $sample instanceof SampleInvocation) {
+                return '';
+            }
+
+            return $sample->id === 's1' && $sample->input['q'] === '9+9' ? '18' : '';
+        };
+
+        $report = $engine->run('rag.runner.union-callable', $callable);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
     public function test_run_routes_invokable_object_typed_as_sample_invocation(): void
     {
         /** @var EvalEngine $engine */
