@@ -197,8 +197,8 @@ final class EvalReport
         $histogram = [];
         for ($index = 0; $index < $bucketCount; $index++) {
             $histogram[] = [
-                'min' => $index * $width,
-                'max' => $index === $bucketCount - 1 ? 1.0 : ($index + 1) * $width,
+                'min' => $this->scoreBoundary($index * $width),
+                'max' => $index === $bucketCount - 1 ? 1.0 : $this->scoreBoundary(($index + 1) * $width),
                 'count' => 0,
             ];
         }
@@ -209,6 +209,11 @@ final class EvalReport
         }
 
         return $histogram;
+    }
+
+    private function scoreBoundary(float $value): float
+    {
+        return (float) round($value, 10);
     }
 
     /**

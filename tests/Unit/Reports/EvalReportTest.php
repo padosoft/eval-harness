@@ -303,4 +303,12 @@ final class EvalReportTest extends TestCase
         $this->assertSame(1.0, $histogram[2]['max']);
         $this->assertSame(1, $histogram[2]['count']);
     }
+
+    public function test_histogram_boundaries_are_rounded_for_json_stability(): void
+    {
+        $histogram = $this->reportWithScores([0.3])->histogramForMetric('exact-match', 10);
+
+        $this->assertSame(0.3, $histogram[2]['max']);
+        $this->assertSame(0.3, $histogram[3]['min']);
+    }
 }

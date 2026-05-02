@@ -281,3 +281,11 @@
   - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `c3e4422` and generated one comment:
+  - histogram bucket boundaries should be rounded before they enter the JSON report contract.
+- Addressed the comment by rounding histogram min/max boundaries to fixed precision while keeping the final bucket max exactly `1.0`, with regression coverage for the `0.1 * 3` style artifact.
+- Full local gate passed after the fourth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 330 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
