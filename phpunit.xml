@@ -4,10 +4,35 @@
          bootstrap="vendor/autoload.php"
          colors="true"
          cacheDirectory=".phpunit.cache"
-         executionOrder="random">
+         defaultTestSuite="Unit">
     <testsuites>
+        <!-- Default suite: offline. Uses Http::fake() for any LLM /
+             external call. CI runs this suite. -->
         <testsuite name="Unit">
             <directory>tests/Unit</directory>
+        </testsuite>
+
+        <!-- Architecture suite: textual / file-system invariants
+             (standalone-agnostic, no AskMyDocs symbols). CI runs this
+             suite alongside Unit. -->
+        <testsuite name="Architecture">
+            <directory>tests/Architecture</directory>
+        </testsuite>
+
+        <!-- Opt-in live suite: hits a real LLM provider over raw HTTP
+             (Illuminate\Http\Client\Factory, configurable via the
+             EVAL_HARNESS_JUDGE_ENDPOINT / EVAL_HARNESS_JUDGE_MODEL
+             env vars) to validate end-to-end metric wire format and
+             provider compatibility. The metrics shipped today do NOT
+             route through the laravel/ai SDK — that's a downstream
+             integration concern; the live suite covers the harness
+             contract end-to-end against any OpenAI-compatible
+             endpoint. Requires EVAL_HARNESS_LIVE_API_KEY env var
+             (otherwise every test self-skips). NOT run in CI —
+             invoked explicitly. See README "Running the live test
+             suite". -->
+        <testsuite name="Live">
+            <directory>tests/Live</directory>
         </testsuite>
     </testsuites>
     <source>

@@ -1,9 +1,20 @@
 {
     "name": "padosoft/eval-harness",
-    "description": "Agentic eval framework for Laravel: golden datasets, LLM-as-judge, adversarial harness, regression detection",
+    "description": "Laravel evaluation framework for RAG / LLM applications: golden datasets, exact-match + cosine-embedding + LLM-as-judge metrics, JSON + Markdown reports, Artisan-driven CI gate.",
     "type": "library",
     "license": "Apache-2.0",
-    "keywords": ["laravel", "ai", "eval", "agentic", "regression", "golden-dataset", "adversarial"],
+    "keywords": [
+        "laravel",
+        "ai",
+        "eval",
+        "evaluation",
+        "rag",
+        "llm",
+        "regression",
+        "golden-dataset",
+        "llm-as-judge",
+        "ai-sdk"
+    ],
     "authors": [
         {
             "name": "Lorenzo Padovani",
@@ -12,14 +23,20 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/support": "^11.0|^12.0|^13.0",
-        "illuminate/console": "^11.0|^12.0|^13.0"
+        "illuminate/support": "^12.0|^13.0",
+        "illuminate/console": "^12.0|^13.0",
+        "illuminate/http": "^12.0|^13.0",
+        "symfony/yaml": "^7.0|^8.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.0",
-        "phpstan/phpstan": "^2.0",
         "laravel/pint": "^1.18",
-        "orchestra/testbench": "^9.0|^10.0|^11.0"
+        "orchestra/testbench": "^10.0|^11.0",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "suggest": {
+        "laravel/ai": "Use the laravel/ai SDK providers (OpenAI, OpenRouter, Regolo, etc.) to route metric LLM and embedding calls without managing HTTP credentials by hand.",
+        "padosoft/laravel-ai-regolo": "Drives every metric LLM call through Italian sovereign Regolo infrastructure (cost + GDPR). Any laravel/ai SDK provider works."
     },
     "autoload": {
         "psr-4": {
@@ -35,9 +52,15 @@
         "laravel": {
             "providers": [
                 "Padosoft\\EvalHarness\\EvalHarnessServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Eval": "Padosoft\\EvalHarness\\Facades\\EvalFacade"
+            }
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
 }

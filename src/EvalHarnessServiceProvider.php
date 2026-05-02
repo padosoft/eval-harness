@@ -4,25 +4,73 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness;
 
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Console\EvalCommand;
+use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
+use Padosoft\EvalHarness\Metrics\MetricResolver;
 
 /**
- * EvalHarnessServiceProvider — skeleton service provider for v0.0.1 scaffold.
+ * Package service provider.
  *
- * Implementation will follow during v4.0 development. For now this
- * is an empty no-op so Laravel package auto-discovery does not fail
- * with "Class not found" when a host application requires the package
- * via a path repository.
+ * Responsibilities:
+ *   - Merge the package config under `eval-harness.*`.
+ *   - Bind the {@see EvalEngine} as a singleton so dataset
+ *     registrations survive across the same request lifecycle.
+ *   - Register the `eval-harness:run` Artisan command in the
+ *     console kernel.
+ *   - Publish the config when the operator runs
+ *     `php artisan vendor:publish --tag=eval-harness-config`.
+ *
+ * The provider is intentionally NOT marked `final` so test
+ * doubles + downstream extensions can subclass when they need
+ * to swap a metric resolver or the YAML loader. The package
+ * itself never relies on subclassing.
  */
-final class EvalHarnessServiceProvider extends ServiceProvider
+class EvalHarnessServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Bindings will be added during v4.0 development.
+        $this->mergeConfigFrom(
+            __DIR__.'/../config/eval-harness.php',
+            'eval-harness',
+        );
+
+        $this->app->singleton(MetricResolver::class, static function (Container $app): MetricResolver {
+            return new MetricResolver($app);
+        });
+
+        $this->app->singleton(YamlDatasetLoader::class, static function (): YamlDatasetLoader {
+            return new YamlDatasetLoader;
+        });
+
+        $this->app->singleton(EvalEngine::class, static function (Container $app): EvalEngine {
+            return new EvalEngine(
+                container: $app,
+                metricResolver: $app->make(MetricResolver::class),
+                yamlLoader: $app->make(YamlDatasetLoader::class),
+            );
+        });
     }
 
     public function boot(): void
     {
-        // Bootstrapping will be added during v4.0 development.
+        if ($this->app->runningInConsole()) {
+            $this->commands([EvalCommand::class]);
+
+            $this->publishes([
+                __DIR__.'/../config/eval-harness.php' => $this->configPath('eval-harness.php'),
+            ], 'eval-harness-config');
+        }
+    }
+
+    private function configPath(string $file): string
+    {
+        // Mirrors Laravel's config_path() helper without depending on
+        // the global helper being bootstrapped (some Testbench setups
+        // run register() before the helper file is required).
+        $base = $this->app->basePath('config');
+
+        return $base.DIRECTORY_SEPARATOR.$file;
     }
 }
