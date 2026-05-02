@@ -35,3 +35,6 @@
 - Dataset YAML should accept missing `schema_version` for backward compatibility and default it to `eval-harness.dataset.v1`; unsupported explicit versions should fail at load time with a schema error.
 - JSON reports now need `schema_version` and `dataset_schema_version` top-level fields so the future separate UI package can reject unsupported artifacts deterministically.
 - PHPStan can infer `DatasetBuilder::$parsed` is non-null after the register guards; using `$this->parsed?->schemaVersion ?? ...` triggers `nullsafe.neverNull`. Prefer an explicit `$schemaVersion` variable guarded by `if ($this->parsed !== null)`.
+- Copilot PR #6 caught an ambiguous builder edge case: if YAML and `withSamples()` are both allowed, schema metadata can come from one source while samples come from another. Reject mixed sample sources at the builder boundary.
+- Public value objects that carry schema identifiers must validate them in their constructors. It is not enough for the YAML loader to validate versions, because consumers can directly instantiate `GoldenDataset` and `EvalReport`.
+- README examples that add optional compatibility fields must explicitly say the field is optional; otherwise existing users may think they need to rewrite legacy YAML.

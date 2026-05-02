@@ -118,6 +118,40 @@ final class DatasetBuilderTest extends TestCase
         $this->assertTrue($engine->hasDataset('yaml.builder'));
     }
 
+    public function test_cannot_mix_yaml_and_programmatic_sample_sources(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $yaml = <<<'YAML'
+        name: mixed.source
+        samples:
+          - id: s1
+            input: {q: hello}
+            expected_output: hi
+        YAML;
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('Do not combine loadFromYaml(), loadFromYamlString(), and withSamples()');
+
+        $engine->dataset('mixed.source')
+            ->loadFromYamlString($yaml)
+            ->withSamples([new DatasetSample(id: 's2', input: [], expectedOutput: 'x')]);
+    }
+
+    public function test_cannot_mix_programmatic_and_yaml_sample_sources(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('Do not combine loadFromYaml(), loadFromYamlString(), and withSamples()');
+
+        $engine->dataset('mixed.source.reverse')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'x')])
+            ->loadFromYamlString('name: mixed.source.reverse');
+    }
+
     /**
      * Regression: passing an array with non-DatasetSample entries to
      * withSamples() previously crashed with a generic Error on

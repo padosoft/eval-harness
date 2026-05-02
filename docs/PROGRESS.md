@@ -84,3 +84,15 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync check by searching README/docs for stale test/assertion counts. README has no count claim to update; historical `docs/PROGRESS.md` entries were left unchanged.
+- Copilot reviewed PR #6 at head `244a2d0` and generated four comments:
+  - mixed builders using both YAML and `withSamples()` could emit the wrong dataset schema version,
+  - public `EvalReport` construction accepted unsupported report schema strings,
+  - public `GoldenDataset` construction accepted unsupported dataset schema strings,
+  - README did not say `schema_version` is optional for legacy YAML.
+- Addressed those comments by rejecting mixed sample sources, validating public dataset/report schema metadata, adding `ReportSchemaException`, and documenting the optional YAML field.
+- Full local gate passed after Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (119 tests, 250 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `119 tests, 250 assertions` result.

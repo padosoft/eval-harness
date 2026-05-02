@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Reports;
 
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
+use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
 
 /**
  * Read-only outcome of an eval run.
@@ -38,7 +39,29 @@ final class EvalReport
         public readonly float $finishedAt,
         public readonly string $schemaVersion = ReportSchema::VERSION,
         public readonly string $datasetSchemaVersion = DatasetSchema::VERSION,
-    ) {}
+    ) {
+        if ($schemaVersion !== ReportSchema::VERSION) {
+            throw new ReportSchemaException(
+                sprintf(
+                    "Report for dataset '%s' uses unsupported schema version '%s'. Supported version: %s.",
+                    $datasetName,
+                    $schemaVersion,
+                    ReportSchema::VERSION,
+                ),
+            );
+        }
+
+        if (! DatasetSchema::isSupported($datasetSchemaVersion)) {
+            throw new ReportSchemaException(
+                sprintf(
+                    "Report for dataset '%s' references unsupported dataset schema version '%s'. Supported versions: %s.",
+                    $datasetName,
+                    $datasetSchemaVersion,
+                    implode(', ', DatasetSchema::SUPPORTED_VERSIONS),
+                ),
+            );
+        }
+    }
 
     public function durationSeconds(): float
     {

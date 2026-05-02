@@ -46,6 +46,7 @@ final class DatasetBuilder
 
     public function loadFromYaml(string $path): self
     {
+        $this->ensureNoSamplesLoaded('loadFromYaml()');
         $this->parsed = $this->yamlLoader->loadFile($path);
 
         return $this;
@@ -53,6 +54,7 @@ final class DatasetBuilder
 
     public function loadFromYamlString(string $yaml): self
     {
+        $this->ensureNoSamplesLoaded('loadFromYamlString()');
         $this->parsed = $this->yamlLoader->loadString($yaml);
 
         return $this;
@@ -66,6 +68,8 @@ final class DatasetBuilder
      */
     public function withSamples(array $samples): self
     {
+        $this->ensureNoSamplesLoaded('withSamples()');
+
         if ($samples === []) {
             throw new DatasetSchemaException(
                 'withSamples() requires at least one DatasetSample.',
@@ -186,5 +190,20 @@ final class DatasetBuilder
         $this->engine->registerDataset($dataset);
 
         return $dataset;
+    }
+
+    private function ensureNoSamplesLoaded(string $incomingMethod): void
+    {
+        if ($this->parsed === null && $this->explicitSamples === null) {
+            return;
+        }
+
+        throw new DatasetSchemaException(
+            sprintf(
+                "Dataset '%s' already has a sample source. Do not combine loadFromYaml(), loadFromYamlString(), and withSamples(); start a new builder before calling %s.",
+                $this->name,
+                $incomingMethod,
+            ),
+        );
     }
 }

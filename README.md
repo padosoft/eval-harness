@@ -190,6 +190,9 @@ samples:
       tags: [policy, support]
 ```
 
+`schema_version` is optional for existing datasets. If omitted, the
+loader defaults to `eval-harness.dataset.v1`.
+
 ### 2. Wire up a registrar in your app
 
 `app/Console/EvalRegistrar.php`:
