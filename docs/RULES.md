@@ -85,7 +85,7 @@ gh api graphql -f query="$query" -F pullRequestId='<PR_NODE_ID>' -F botLogins[]=
 Verify:
 
 ```text
-gh api repos/padosoft/eval-harness/pulls/<PR>/requested_reviewers
+gh api repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/pulls/<PR>/requested_reviewers
 ```
 
 - Do not treat `@codex review` or REST `reviewers[]=copilot` as equivalent to a visible Copilot Code Review request.

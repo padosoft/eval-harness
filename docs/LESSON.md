@@ -24,3 +24,5 @@
 - Copilot PR #5 flagged Windows-only backslash examples in `AGENTS.md`; use forward-slash Composer vendor binary paths in docs because they work cross-platform in Composer scripts and CI docs.
 - PR template placeholders wrapped in raw angle brackets can render as invalid HTML tags. Wrap placeholders in backticks or use parentheses.
 - Copilot PR #5 also flagged raw `<N>` placeholders in normal prose; use `Macro Task N` or wrap the full placeholder in backticks.
+- Copilot PR #5 flagged hard-coded repository names in GitHub API examples. Prefer `gh repo view --json nameWithOwner --jq .nameWithOwner` for reusable docs.
+- README-only assets such as `resources/banner.png` should be `export-ignore`d in `.gitattributes` so Packagist/git archive artifacts stay small.

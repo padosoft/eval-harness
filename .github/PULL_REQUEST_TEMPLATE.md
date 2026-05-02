@@ -1,5 +1,5 @@
 ## Sottotask
-ID: `v0.x|v1.0 macro.subtask`
+ID: `v0.2.0.1` (format: roadmap version, macro, subtask)
 Plan ref: `docs/ROADMAP_IMPLEMENTATION_PLAN.md` sezione `Macro Task N`
 
 ## Summary

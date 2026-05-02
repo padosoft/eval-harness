@@ -52,3 +52,9 @@
 - Applied those review fixes.
 - Copilot reviewed PR #5 at head `f2affe5` and generated one additional PR-template comment about raw `<N>` placeholder rendering.
 - Replaced that placeholder with `Macro Task N`.
+- Copilot reviewed PR #5 at head `7643973` and generated four additional comments:
+  - avoid hard-coded repo names in GitHub API examples
+  - export-ignore the README banner resources
+  - clarify the live-suite XML comment wording
+  - make the PR template ID example concrete
+- Applied those review fixes.
