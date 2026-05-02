@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit;
 
+use Illuminate\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Orchestra\Testbench\TestCase;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
@@ -12,7 +13,7 @@ use Padosoft\EvalHarness\EvalHarnessServiceProvider;
  * Smoke coverage for the v0.0.1 scaffold.
  *
  * The package currently ships an empty no-op `EvalHarnessServiceProvider`;
- * real bindings land during v4.0 development. This test pins the
+ * real bindings land during v0.2 development. This test pins the
  * scaffold's two non-negotiable contracts so a future regression in
  * the auto-discovery wiring fails CI immediately:
  *
@@ -23,7 +24,7 @@ use Padosoft\EvalHarness\EvalHarnessServiceProvider;
  *      v0.0.1, so the test simply exercises the code path and
  *      asserts that no exception escaped.
  *
- * When v4.0 brings real bindings, replace these assertions with
+ * When v0.2 brings real bindings, replace these assertions with
  * coverage of the actual public surface.
  */
 final class ServiceProviderTest extends TestCase
@@ -48,6 +49,14 @@ final class ServiceProviderTest extends TestCase
 
     public function test_register_and_boot_complete_without_throwing(): void
     {
+        $app = $this->app;
+
+        $this->assertInstanceOf(
+            Application::class,
+            $app,
+            'Testbench should provide a concrete Laravel application instance.',
+        );
+
         // Construct a fresh provider and invoke both methods directly
         // — Testbench's setUp() also calls them, but invoking
         // explicitly here means a future regression that throws from
@@ -55,13 +64,13 @@ final class ServiceProviderTest extends TestCase
         // instead of failing the whole TestCase setUp(). Both
         // methods are no-ops in the v0.0.1 scaffold, so reaching the
         // assertion is itself the green signal.
-        $provider = new EvalHarnessServiceProvider($this->app);
+        $provider = new EvalHarnessServiceProvider($app);
 
         $provider->register();
         $provider->boot();
 
         $this->assertTrue(
-            $this->app->providerIsLoaded(EvalHarnessServiceProvider::class),
+            $app->providerIsLoaded(EvalHarnessServiceProvider::class),
             'Testbench should have registered the provider during setUp().',
         );
     }
