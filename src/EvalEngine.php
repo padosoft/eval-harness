@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness;
 
+use Closure;
 use Illuminate\Contracts\Container\Container;
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
+use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
@@ -13,6 +17,11 @@ use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
+use ReflectionFunction;
+use ReflectionFunctionAbstract;
+use ReflectionMethod;
+use ReflectionNamedType;
+use ReflectionUnionType;
 use Throwable;
 
 /**
@@ -29,11 +38,10 @@ use Throwable;
  *   $report = $engine->run('rag.factuality.fy2026', fn (array $in) => MyApp::answer($in['question']));
  *
  * Concurrency: the engine is intentionally single-threaded. Parallel
- * execution can be layered later (worker pool / queue) without
- * touching this class — the `run()` contract is "drive the SUT
- * sequentially; capture every score". Sequential execution keeps
- * deterministic ordering across runs, which is essential for
- * reproducible CI.
+ * execution can be layered later (worker pool / queue) through the
+ * SampleRunner contract without changing the legacy callable API.
+ * Sequential execution keeps deterministic ordering across runs,
+ * which is essential for reproducible CI.
  */
 final class EvalEngine
 {
@@ -88,9 +96,9 @@ final class EvalEngine
     /**
      * Run an eval pass.
      *
-     * @param  callable(array<string, mixed>): string  $systemUnderTest
+     * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
      */
-    public function run(string $datasetName, callable $systemUnderTest): EvalReport
+    public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
         $dataset = $this->getDataset($datasetName);
 
@@ -99,18 +107,22 @@ final class EvalEngine
         $sampleResults = [];
         $failures = [];
 
-        foreach ($dataset->samples as $sample) {
-            $actualOutput = $systemUnderTest($sample->input);
+        $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
+        $callableExpectsSampleInvocation = $sampleRunner === null
+            && $this->callableExpectsSampleInvocation($systemUnderTest);
+        $sampleInvocations = $this->sampleInvocationsFor(
+            samples: $dataset->samples,
+            usesSampleInvocation: $sampleRunner instanceof SampleRunner || $callableExpectsSampleInvocation,
+        );
 
-            if (! is_string($actualOutput)) {
-                throw new EvalRunException(
-                    sprintf(
-                        "System-under-test for sample '%s' must return a string; got %s.",
-                        $sample->id,
-                        get_debug_type($actualOutput),
-                    ),
-                );
-            }
+        foreach ($dataset->samples as $index => $sample) {
+            $actualOutput = $this->runSample(
+                systemUnderTest: $systemUnderTest,
+                sample: $sample,
+                sampleInvocation: $sampleInvocations[$index] ?? null,
+                sampleRunner: $sampleRunner,
+                callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
+            );
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -138,7 +150,148 @@ final class EvalEngine
             failures: $failures,
             startedAt: $startedAt,
             finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
+     */
+    private function runSample(
+        callable|SampleRunner $systemUnderTest,
+        DatasetSample $sample,
+        ?SampleInvocation $sampleInvocation,
+        ?SampleRunner $sampleRunner,
+        bool $callableExpectsSampleInvocation,
+    ): string {
+        if ($sampleRunner instanceof SampleRunner) {
+            $actualOutput = $sampleRunner->run($this->requireSampleInvocation($sampleInvocation, $sample));
+        } elseif ($callableExpectsSampleInvocation) {
+            $actualOutput = $systemUnderTest($this->requireSampleInvocation($sampleInvocation, $sample));
+        } else {
+            $actualOutput = $systemUnderTest($sample->input);
+        }
+
+        if (! is_string($actualOutput)) {
+            throw new EvalRunException(
+                sprintf(
+                    "System-under-test for sample '%s' must return a string; got %s.",
+                    $sample->id,
+                    get_debug_type($actualOutput),
+                ),
+            );
+        }
+
+        return $actualOutput;
+    }
+
+    /**
+     * @param  list<DatasetSample>  $samples
+     * @return list<SampleInvocation>
+     */
+    private function sampleInvocationsFor(array $samples, bool $usesSampleInvocation): array
+    {
+        if (! $usesSampleInvocation) {
+            return [];
+        }
+
+        $sampleInvocations = [];
+        foreach ($samples as $sample) {
+            $sampleInvocations[] = SampleInvocation::fromDatasetSample($sample);
+        }
+
+        return $sampleInvocations;
+    }
+
+    private function requireSampleInvocation(?SampleInvocation $sampleInvocation, DatasetSample $sample): SampleInvocation
+    {
+        if ($sampleInvocation instanceof SampleInvocation) {
+            return $sampleInvocation;
+        }
+
+        throw new EvalRunException(
+            sprintf("SampleInvocation for sample '%s' was not prepared before runner dispatch.", $sample->id),
+        );
+    }
+
+    private function resolveSampleRunner(callable|SampleRunner $systemUnderTest): ?SampleRunner
+    {
+        if ($systemUnderTest instanceof SampleRunner) {
+            return $systemUnderTest;
+        }
+
+        if (! is_array($systemUnderTest)) {
+            return null;
+        }
+
+        $target = $systemUnderTest[0];
+        $method = $systemUnderTest[1];
+
+        if ($target instanceof SampleRunner && $method === 'run') {
+            return $target;
+        }
+
+        return null;
+    }
+
+    private function callableExpectsSampleInvocation(callable $systemUnderTest): bool
+    {
+        $reflection = $this->reflectionForCallable($systemUnderTest);
+        if (! $reflection instanceof ReflectionFunctionAbstract) {
+            return false;
+        }
+
+        $parameter = $reflection->getParameters()[0] ?? null;
+        if ($parameter === null) {
+            return false;
+        }
+
+        $type = $parameter->getType();
+        if ($type instanceof ReflectionNamedType) {
+            return $type->getName() === SampleInvocation::class;
+        }
+
+        if ($type instanceof ReflectionUnionType) {
+            foreach ($type->getTypes() as $unionType) {
+                if ($unionType instanceof ReflectionNamedType && $unionType->getName() === SampleInvocation::class) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function reflectionForCallable(callable $systemUnderTest): ?ReflectionFunctionAbstract
+    {
+        try {
+            if ($systemUnderTest instanceof Closure) {
+                return new ReflectionFunction($systemUnderTest);
+            }
+
+            if (is_array($systemUnderTest)) {
+                $target = $systemUnderTest[0];
+                $method = $systemUnderTest[1];
+
+                return new ReflectionMethod($target, $method);
+            }
+
+            if (is_string($systemUnderTest)) {
+                if (str_contains($systemUnderTest, '::')) {
+                    return new ReflectionMethod($systemUnderTest);
+                }
+
+                return new ReflectionFunction($systemUnderTest);
+            }
+
+            if (is_object($systemUnderTest) && method_exists($systemUnderTest, '__invoke')) {
+                return new ReflectionMethod($systemUnderTest, '__invoke');
+            }
+        } catch (\ReflectionException) {
+            return null;
+        }
+
+        return null;
     }
 
     /**

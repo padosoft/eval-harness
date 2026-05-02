@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
+use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalCommandTest extends TestCase
@@ -39,6 +42,72 @@ final class EvalCommandTest extends TestCase
 
         $this->artisan('eval-harness:run', ['dataset' => 'preregistered'])
             ->assertExitCode(0);
+    }
+
+    public function test_runs_with_pre_registered_dataset_and_bound_sample_runner(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('runner-preregistered')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->app->bind('eval-harness.sut', fn (): SampleRunner => new class implements SampleRunner
+        {
+            public function run(SampleInvocation $sample): string
+            {
+                return 'hi';
+            }
+        });
+
+        $this->artisan('eval-harness:run', ['dataset' => 'runner-preregistered'])
+            ->assertExitCode(0);
+    }
+
+    public function test_runs_with_pre_registered_dataset_and_bound_sample_runner_class(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('runner-class-preregistered')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', ['dataset' => 'runner-class-preregistered'])
+            ->assertExitCode(0);
+    }
+
+    public function test_bound_sut_must_be_callable_or_sample_runner(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-sut-binding')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->app->instance('eval-harness.sut', new \stdClass);
+
+        $this->artisan('eval-harness:run', ['dataset' => 'invalid-sut-binding'])
+            ->expectsOutputToContain("System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got stdClass.")
+            ->assertExitCode(1);
+    }
+
+    public function test_missing_bound_sut_uses_missing_binding_message(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('missing-sut-binding')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->artisan('eval-harness:run', ['dataset' => 'missing-sut-binding'])
+            ->expectsOutputToContain("No system-under-test bound under 'eval-harness.sut'.")
+            ->assertExitCode(1);
     }
 
     public function test_writes_to_out_path(): void
@@ -76,6 +145,8 @@ final class EvalCommandTest extends TestCase
             $contents = (string) file_get_contents($tmp);
             $this->assertJson($contents);
             $decoded = json_decode($contents, true);
+            $this->assertSame('eval-harness.report.v1', $decoded['schema_version']);
+            $this->assertSame('eval-harness.dataset.v1', $decoded['dataset_schema_version']);
             $this->assertSame('cli.smoke', $decoded['dataset']);
         } finally {
             @unlink($tmp);

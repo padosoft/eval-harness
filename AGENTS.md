@@ -73,4 +73,4 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 0 is active on `task/governance-agent-rules`: establish durable rules, lessons, progress tracking, the persistent implementation plan, and hard quality gates before runtime eval features begin.
+Macro Task 1 is closing through PR #8 on `task/core-eval-contracts`. After it merges to `main`, start Macro Task 2 on `task/metrics-reporting`: cohort aggregation by `metadata.tags`, histogram-ready report data, and JSON/API contracts needed by the separate Web UI package.

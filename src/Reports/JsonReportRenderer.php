@@ -9,6 +9,8 @@ namespace Padosoft\EvalHarness\Reports;
  *
  * Shape (stable contract — additive only per R27):
  * {
+ *   "schema_version": "eval-harness.report.v1",
+ *   "dataset_schema_version": "eval-harness.dataset.v1",
  *   "dataset": "rag.factuality.fy2026",
  *   "started_at": 1714600000.123,
  *   "finished_at": 1714600002.456,
@@ -73,6 +75,8 @@ final class JsonReportRenderer
         }
 
         return [
+            'schema_version' => $report->schemaVersion,
+            'dataset_schema_version' => $report->datasetSchemaVersion,
             'dataset' => $report->datasetName,
             'started_at' => $report->startedAt,
             'finished_at' => $report->finishedAt,

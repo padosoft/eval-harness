@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Datasets;
 
+use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
 use Padosoft\EvalHarness\Metrics\Metric;
 use Padosoft\EvalHarness\Reports\EvalReport;
 
@@ -28,7 +29,19 @@ final class GoldenDataset
         public readonly string $name,
         public readonly array $samples,
         public readonly array $metrics,
-    ) {}
+        public readonly string $schemaVersion = DatasetSchema::VERSION,
+    ) {
+        if (! DatasetSchema::isSupported($schemaVersion)) {
+            throw new DatasetSchemaException(
+                sprintf(
+                    "Dataset '%s' uses unsupported schema version '%s'. Supported versions: %s.",
+                    $name,
+                    $schemaVersion,
+                    implode(', ', DatasetSchema::SUPPORTED_VERSIONS),
+                ),
+            );
+        }
+    }
 
     public function sampleCount(): int
     {

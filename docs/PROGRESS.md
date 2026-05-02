@@ -66,3 +66,167 @@
   - use an absolute GitHub raw URL for the README banner because `resources/` is export-ignored
   - title-case `Source of Truth`
 - Applied those review fixes.
+- Copilot reviewed PR #5 at head `b8e5852` and generated no new comments.
+- Verified PR #5 CI green across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Verified all 20 PR #5 review threads resolved, then merged Macro Task 0 into `main` at `fdc753c`.
+- Started Macro Task 1 on `task/core-eval-contracts` and subtask branch `task/core-eval-contracts-contract-audit`.
+- Audited the v0.1 core and found the first contract gaps:
+  - dataset YAML/report JSON had no explicit schema version,
+  - SUT invocation was only a callable tied to `sample.input`,
+  - `AGENTS.md` still pointed at Macro Task 0 after merge.
+- Added `SampleRunner` as the queue-friendly SUT invocation contract while keeping callable compatibility.
+- Added version constants for dataset YAML and JSON reports, defaulted old unversioned YAML to `eval-harness.dataset.v1`, and surfaced report versions in JSON.
+- Targeted tests passed:
+  - `vendor/bin/phpunit tests/Unit/Datasets/YamlDatasetLoaderTest.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/Reports/JsonReportRendererTest.php`
+- Full local gate passed after fixing a PHPStan nullsafe warning:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (114 tests, 240 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync check by searching README/docs for stale test/assertion counts. README has no count claim to update; historical `docs/PROGRESS.md` entries were left unchanged.
+- Copilot reviewed PR #6 at head `244a2d0` and generated four comments:
+  - mixed builders using both YAML and `withSamples()` could emit the wrong dataset schema version,
+  - public `EvalReport` construction accepted unsupported report schema strings,
+  - public `GoldenDataset` construction accepted unsupported dataset schema strings,
+  - README did not say `schema_version` is optional for legacy YAML.
+- Addressed those comments by rejecting mixed sample sources, validating public dataset/report schema metadata, adding `ReportSchemaException`, and documenting the optional YAML field.
+- Full local gate passed after Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (119 tests, 250 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `119 tests, 250 assertions` result.
+- Copilot reviewed PR #6 at head `e03dcf5` and generated two additional comments:
+  - the mixed-source guard was too broad because it rejected same-source replacement before register,
+  - `ParsedDatasetDefinition` also needed constructor schema validation.
+- Narrowed the builder guard to reject only YAML/programmatic source switching, kept YAML->YAML and samples->samples replacement valid, and validated `ParsedDatasetDefinition` schema metadata.
+- Full local gate passed after the second Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (122 tests, 254 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `122 tests, 254 assertions` result.
+- Copilot reviewed PR #6 at head `c390ec6` and generated three additional comments:
+  - `SampleRunner` should receive an input-only DTO instead of the full `DatasetSample`,
+  - `[runner, 'run']` method references should route through the runner contract instead of the legacy callable input path,
+  - the CLI error message needed a concrete SampleRunner binding example.
+- Added `SampleInvocation`, updated `SampleRunner::run()` to accept that input-only payload, routed `[SampleRunner, 'run']` callable arrays through the runner path, and expanded the CLI error message.
+- Full local gate passed after the third Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (123 tests, 255 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `123 tests, 255 assertions` result.
+- Copilot reviewed PR #6 at head `3695c06` and generated two additional comments:
+  - first-class callables and `Closure::fromCallable()` for runner `run()` methods also need to receive `SampleInvocation`,
+  - `docs/LESSON.md` still mentioned the old `SampleRunner::run(DatasetSample $sample)` signature.
+- Added reflection-based detection for callables typed as `SampleInvocation`, added first-class/closure callable regression tests, and corrected the durable lesson.
+- Full local gate passed after the fourth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (125 tests, 258 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `125 tests, 258 assertions` result.
+- Copilot reviewed PR #6 at head `ecf8ac5` and generated three additional comments:
+  - dispatch mode should be computed once before the hot sample loop,
+  - `SampleInvocation` needed direct unit coverage for its input-only contract,
+  - string callables and invokable objects typed as `SampleInvocation` needed regression coverage.
+- Moved runner/callable dispatch detection out of the per-sample loop, added `SampleInvocationTest`, and covered string-callable plus invokable-object routing.
+- Full local gate passed after the fifth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (128 tests, 264 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `128 tests, 264 assertions` result.
+- Copilot reviewed PR #6 at head `1b65bb9` and generated two additional comments:
+  - README architecture wording still implied `SampleRunner` receives the full sample,
+  - static `Class::method` string callables needed direct regression coverage.
+- Updated the README architecture diagram to name `SampleInvocation` and added static-method string callable coverage.
+- Full local gate passed after the sixth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (129 tests, 265 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `129 tests, 265 assertions` result.
+- Copilot reviewed PR #6 at head `10a5a4f` and generated two additional comments:
+  - callable union types including `SampleInvocation` needed regression coverage,
+  - file-backed `loadFromYaml()` needed direct coverage for the programmatic/YAML source-switch guard.
+- Added regression tests for `SampleInvocation|array` callables and `withSamples()->loadFromYaml($path)` source switching.
+- Full local gate passed after the seventh Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (131 tests, 269 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `131 tests, 269 assertions` result.
+- Copilot reviewed PR #6 at head `ca12f25` and generated four additional comments:
+  - `SampleRunner` docblock should not imply `EvalEngine::run()` accepts class strings directly,
+  - README architecture wording should include SampleInvocation-typed callables, not only SampleRunner,
+  - the documented `eval-harness.sut` class-binding path needed a command test,
+  - `SampleInvocation` docblock should mention regular callables typed as `SampleInvocation`.
+- Updated the docblocks/README wording and added command coverage for binding `eval-harness.sut` directly to a `SampleRunner` class.
+- Full local gate passed after the eighth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (132 tests, 270 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `132 tests, 270 assertions` result.
+- Copilot reviewed PR #6 at head `fc6e2fa` and generated two additional comments:
+  - plain non-runner array callables typed as `SampleInvocation` needed regression coverage,
+  - README still needed to say SampleInvocation-typed callables, not only runners, can receive the DTO.
+- Added non-runner array callable coverage and clarified the README architecture diagram.
+- Full local gate passed after the ninth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `133 tests, 271 assertions` result.
+- Copilot reviewed PR #6 at head `8f45bb8` and generated no new comments.
+- Verified PR #6 CI green across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Resolved all 24 PR #6 review threads and merged the subtask into `task/core-eval-contracts` at merge commit `e1b5d1d`.
+- Macro Task 1 implementation scope is now ready for the macro PR to `main`: versioned dataset/report contracts, `SampleRunner`/`SampleInvocation` invocation contracts, compatibility tests, and README/lesson updates are all on the macro branch.
+- Macro branch local gate passed before opening the PR to `main`:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Before opening the Macro Task 1 PR, `origin/main` had advanced to `16f1e1e`; merged it into `task/core-eval-contracts` with no conflicts.
+- Macro branch local gate passed again after merging `origin/main`:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened Macro Task 1 PR #8 from `task/core-eval-contracts` into `main` and requested Copilot through the GraphQL fallback.
+- PR #8 CI passed across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Copilot reviewed PR #8 at head `8e8d723` and generated two comments:
+  - invalid `eval-harness.sut` bindings needed command regression coverage,
+  - `SampleInvocation` needed to reject non-queue-serializable `input` values, not only omit `expectedOutput` and `metadata`.
+- Added invalid SUT binding coverage and recursive queue-safe input validation for `SampleInvocation`.
+- Full local gate passed after PR #8 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (135 tests, 275 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `135 tests, 275 assertions` result.
+- Copilot reviewed PR #8 again at head `db8100b` and generated four additional comments:
+  - `SampleInvocation` validation needed to fail fast before any runner/DTO callable receives earlier valid samples,
+  - invalid `eval-harness.sut` bindings needed a different CLI message from missing bindings,
+  - recursive input arrays needed explicit protection before recursive validation,
+  - `AGENTS.md` current priority would be stale after the macro PR merged.
+- Addressed those comments with precomputed `SampleInvocation` payloads, a JSON recursion probe in the DTO validator, a distinct invalid-binding command message, regression tests, and a merge-safe next-priority note in `AGENTS.md`.
+- Full local gate passed after the second PR #8 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (137 tests, 279 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #8 again at head `6867774` and generated five additional comments:
+  - fail-fast validation also needed direct coverage for plain `SampleInvocation`-typed callables,
+  - the PR description validation counts needed to be synced after new tests,
+  - JSON encoding failures such as invalid UTF-8 needed DTO-level coverage,
+  - failed same-source YAML replacement should not leave an older parsed dataset armed,
+  - the missing `eval-harness.sut` branch needed its own command regression test.
+- Addressed those comments with callable fail-fast coverage, invalid UTF-8 DTO coverage, missing-binding command coverage, fail-closed YAML/programmatic replacement handling, and new builder regression tests.
+- Full local gate passed after the third PR #8 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (142 tests, 291 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Datasets;
 
+use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
 use PHPUnit\Framework\TestCase;
@@ -41,6 +42,57 @@ final class YamlDatasetLoaderTest extends TestCase
         $this->assertSame('Alice', $parsed->samples[0]->expectedOutput);
         $this->assertSame(['difficulty' => 'easy'], $parsed->samples[0]->metadata);
         $this->assertSame([], $parsed->samples[1]->metadata);
+        $this->assertSame(DatasetSchema::VERSION, $parsed->schemaVersion);
+    }
+
+    public function test_explicit_supported_schema_version_is_preserved(): void
+    {
+        $yaml = <<<'YAML'
+        schema_version: eval-harness.dataset.v1
+        name: rag.versioned
+        samples:
+          - id: s1
+            input: {question: "Who?"}
+            expected_output: "Alice"
+        YAML;
+
+        $parsed = $this->loader()->loadString($yaml);
+
+        $this->assertSame(DatasetSchema::VERSION, $parsed->schemaVersion);
+    }
+
+    public function test_schema_version_must_be_string(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage("field 'schema_version' must be a non-empty string");
+
+        $yaml = <<<'YAML'
+        schema_version: 1
+        name: x
+        samples:
+          - id: s1
+            input: {q: 1}
+            expected_output: y
+        YAML;
+
+        $this->loader()->loadString($yaml);
+    }
+
+    public function test_unsupported_schema_version_throws(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage("field 'schema_version' has unsupported value");
+
+        $yaml = <<<'YAML'
+        schema_version: eval-harness.dataset.v999
+        name: x
+        samples:
+          - id: s1
+            input: {q: 1}
+            expected_output: y
+        YAML;
+
+        $this->loader()->loadString($yaml);
     }
 
     public function test_missing_name_throws(): void
