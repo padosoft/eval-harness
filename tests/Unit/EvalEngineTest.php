@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Illuminate\Support\Facades\Http;
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
@@ -68,7 +69,7 @@ final class EvalEngineTest extends TestCase
 
         $runner = new class implements SampleRunner
         {
-            public function run(DatasetSample $sample): string
+            public function run(SampleInvocation $sample): string
             {
                 return $sample->input['q'] === '2+2' ? '4' : '';
             }
@@ -77,6 +78,31 @@ final class EvalEngineTest extends TestCase
         $report = $engine->run('rag.runner.contract', $runner);
 
         $this->assertSame(1, $report->totalSamples());
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
+    public function test_run_routes_sample_runner_method_reference_to_runner_contract(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.method-reference')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '3+3'], expectedOutput: '6'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $runner = new class implements SampleRunner
+        {
+            public function run(SampleInvocation $sample): string
+            {
+                return $sample->id === 's1' && $sample->input['q'] === '3+3' ? '6' : '';
+            }
+        };
+
+        $report = $engine->run('rag.runner.method-reference', [$runner, 'run']);
+
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 

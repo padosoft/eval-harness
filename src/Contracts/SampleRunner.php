@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Contracts;
 
-use Padosoft\EvalHarness\Datasets\DatasetSample;
-
 /**
  * Queue-friendly contract for invoking the system under test.
  *
@@ -16,5 +14,5 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  */
 interface SampleRunner
 {
-    public function run(DatasetSample $sample): string;
+    public function run(SampleInvocation $sample): string;
 }

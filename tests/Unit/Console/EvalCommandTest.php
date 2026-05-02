@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
@@ -53,7 +54,7 @@ final class EvalCommandTest extends TestCase
 
         $this->app->bind('eval-harness.sut', fn (): SampleRunner => new class implements SampleRunner
         {
-            public function run(DatasetSample $sample): string
+            public function run(SampleInvocation $sample): string
             {
                 return 'hi';
             }

@@ -94,7 +94,7 @@ final class EvalCommand extends Command
 
         if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
             $this->error(
-                "No system-under-test bound under 'eval-harness.sut'. Bind a callable or SampleRunner in your registrar with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...).",
+                "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
             );
 
             return self::FAILURE;

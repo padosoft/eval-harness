@@ -105,4 +105,15 @@
   - `vendor/bin/phpunit` => `OK (122 tests, 254 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `122 tests, 254 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `122 tests, 254 assertions` result.
+- Copilot reviewed PR #6 at head `c390ec6` and generated three additional comments:
+  - `SampleRunner` should receive an input-only DTO instead of the full `DatasetSample`,
+  - `[runner, 'run']` method references should route through the runner contract instead of the legacy callable input path,
+  - the CLI error message needed a concrete SampleRunner binding example.
+- Added `SampleInvocation`, updated `SampleRunner::run()` to accept that input-only payload, routed `[SampleRunner, 'run']` callable arrays through the runner path, and expanded the CLI error message.
+- Full local gate passed after the third Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (123 tests, 255 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `123 tests, 255 assertions` result.

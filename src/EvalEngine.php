@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness;
 
 use Illuminate\Contracts\Container\Container;
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -138,8 +139,9 @@ final class EvalEngine
      */
     private function runSample(callable|SampleRunner $systemUnderTest, DatasetSample $sample): string
     {
-        $actualOutput = $systemUnderTest instanceof SampleRunner
-            ? $systemUnderTest->run($sample)
+        $runner = $this->resolveSampleRunner($systemUnderTest);
+        $actualOutput = $runner instanceof SampleRunner
+            ? $runner->run(SampleInvocation::fromDatasetSample($sample))
             : $systemUnderTest($sample->input);
 
         if (! is_string($actualOutput)) {
@@ -153,6 +155,26 @@ final class EvalEngine
         }
 
         return $actualOutput;
+    }
+
+    private function resolveSampleRunner(callable|SampleRunner $systemUnderTest): ?SampleRunner
+    {
+        if ($systemUnderTest instanceof SampleRunner) {
+            return $systemUnderTest;
+        }
+
+        if (! is_array($systemUnderTest)) {
+            return null;
+        }
+
+        $target = $systemUnderTest[0];
+        $method = $systemUnderTest[1];
+
+        if ($target instanceof SampleRunner && $method === 'run') {
+            return $target;
+        }
+
+        return null;
     }
 
     /**

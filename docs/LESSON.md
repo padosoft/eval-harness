@@ -40,3 +40,6 @@
 - README examples that add optional compatibility fields must explicitly say the field is optional; otherwise existing users may think they need to rewrite legacy YAML.
 - When rejecting ambiguous builder flows, keep the guard as narrow as the bug. `loadFromYamlString()` may replace prior YAML before `register()`, and `withSamples()` may replace prior programmatic samples; only switching between YAML-backed and programmatic sample sources is invalid.
 - `ParsedDatasetDefinition` is public enough to need the same schema validation as `GoldenDataset` and `EvalReport`.
+- A queue-oriented runner should not receive full `DatasetSample` because `expectedOutput` and `metadata` can contain non-serializable values. Use an input-only DTO (`SampleInvocation`) for runner calls.
+- Treat `[SampleRunnerInstance, 'run']` as the runner contract path, not the legacy callable path, otherwise PHP method references receive `sample.input` and can fail with a `TypeError`.
+- CLI error messages for new extension points should show both supported binding patterns: closure callable and concrete class binding.
