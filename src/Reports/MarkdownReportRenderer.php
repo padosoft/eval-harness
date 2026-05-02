@@ -122,10 +122,10 @@ final class MarkdownReportRenderer
             $lines[] = '';
             foreach ($report->failures as $failure) {
                 $lines[] = sprintf(
-                    '- **sample `%s` / metric `%s`** — %s',
-                    $failure->sampleId,
-                    $failure->metricName,
-                    $failure->error,
+                    '- **sample %s / metric %s** - %s',
+                    $this->inlineCode($failure->sampleId),
+                    $this->inlineCode($failure->metricName),
+                    $this->markdownText($failure->error),
                 );
             }
             $lines[] = '';
@@ -148,6 +148,22 @@ final class MarkdownReportRenderer
     private function headingText(string $value): string
     {
         return $this->singleLine($value);
+    }
+
+    private function inlineCode(string $value): string
+    {
+        return '`'.str_replace('`', '\\`', $this->singleLine($value)).'`';
+    }
+
+    private function markdownText(string $value): string
+    {
+        $value = $this->singleLine($value);
+
+        return str_replace(
+            ['\\', '`'],
+            ['\\\\', '\\`'],
+            $value,
+        );
     }
 
     private function singleLine(string $value): string

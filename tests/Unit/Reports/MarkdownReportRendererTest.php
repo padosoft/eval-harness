@@ -66,6 +66,24 @@ final class MarkdownReportRendererTest extends TestCase
         $this->assertStringContainsString('timeout', $md);
     }
 
+    public function test_failures_section_escapes_markdown_sensitive_values(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [],
+            failures: [new SampleFailure("s`1\nnext", 'metric`name', "boom\n`code`")],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('sample `s\\`1 next`', $md);
+        $this->assertStringContainsString('metric `metric\\`name`', $md);
+        $this->assertStringContainsString('boom \\`code\\`', $md);
+        $this->assertStringNotContainsString("s`1\nnext", $md);
+    }
+
     public function test_table_cells_escape_user_controlled_labels(): void
     {
         $report = new EvalReport(

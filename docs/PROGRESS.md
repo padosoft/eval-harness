@@ -297,3 +297,11 @@
   - `vendor/bin/phpunit` => `OK (151 tests, 332 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `fa40fd2` and generated one comment:
+  - failure bullets should normalize and escape sample ids, metric names, and error text before rendering Markdown.
+- Addressed the comment by adding inline-code/text escaping helpers for failure bullets and regression coverage for backticks/newlines.
+- Full local gate passed after the sixth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (152 tests, 336 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
