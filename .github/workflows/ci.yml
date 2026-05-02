@@ -6,14 +6,28 @@ on:
   pull_request:
     branches: [main, 'task/**']
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    name: PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }}
 
     strategy:
       fail-fast: false
       matrix:
         php: ['8.3', '8.4', '8.5']
+        laravel: ['12.*', '13.*']
+        include:
+          - laravel: '12.*'
+            testbench: '^10.0'
+          - laravel: '13.*'
+            testbench: '^11.0'
 
     steps:
       - uses: actions/checkout@v4
@@ -22,27 +36,33 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          coverage: xdebug
+          extensions: mbstring, openssl, pdo, tokenizer, xml, ctype, json, intl
+          coverage: none
           tools: composer:v2
 
       - name: Validate composer.json
-        run: composer validate --strict
+        run: composer validate --strict --no-check-publish
 
-      - name: Cache Composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: vendor
-          key: composer-${{ matrix.php }}-${{ hashFiles('composer.json') }}
-          restore-keys: composer-${{ matrix.php }}-
+      - name: Pin Laravel matrix versions
+        run: |
+          composer require --no-update --no-interaction \
+            "illuminate/support:${{ matrix.laravel }}" \
+            "illuminate/console:${{ matrix.laravel }}" \
+            "illuminate/http:${{ matrix.laravel }}"
+          composer require --dev --no-update --no-interaction \
+            "orchestra/testbench:${{ matrix.testbench }}"
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer update --prefer-dist --no-interaction --no-progress
 
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse --memory-limit=512M
-
-      - name: Run Pint (code style check)
+      - name: Run Pint (style check)
         run: vendor/bin/pint --test
 
-      - name: Run PHPUnit
-        run: vendor/bin/phpunit --coverage-text
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+
+      - name: Run PHPUnit (Unit suite - offline)
+        run: vendor/bin/phpunit --testsuite Unit
+
+      - name: Run PHPUnit (Architecture suite)
+        run: vendor/bin/phpunit --testsuite Architecture

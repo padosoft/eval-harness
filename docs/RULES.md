@@ -34,7 +34,7 @@ Every completed backend/package slice should run:
 ```text
 composer validate --strict
 vendor/bin/phpunit
-vendor/bin/phpstan analyse
+vendor/bin/phpstan analyse --memory-limit=512M
 vendor/bin/pint --test
 ```
 

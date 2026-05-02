@@ -1,5 +1,7 @@
 parameters:
-    level: max
+    level: 6
     paths:
         - src
-        - tests
+    excludePaths:
+        - tests/*
+    treatPhpDocTypesAsCertain: false

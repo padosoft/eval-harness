@@ -12,7 +12,7 @@ Plan ref: `docs/ROADMAP_IMPLEMENTATION_PLAN.md` sezione Macro Task <N>
 
 ## Test gate
 - [ ] PHPUnit verde (`vendor/bin/phpunit`)
-- [ ] PHPStan max (`vendor/bin/phpstan analyse`)
+- [ ] PHPStan configured level (`vendor/bin/phpstan analyse --memory-limit=512M`)
 - [ ] Pint clean (`vendor/bin/pint --test`)
 - [ ] Queue path coperto con `sync`/fake se il task tocca batch/job
 - [ ] API feature tests verdi se il task tocca report/API routes

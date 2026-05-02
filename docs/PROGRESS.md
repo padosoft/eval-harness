@@ -17,14 +17,23 @@
   - `composer validate --strict` blocked because the local ignored `composer.lock` was stale after Composer constraint changes.
   - `vendor/bin/phpstan analyse` caught Testbench app nullability in `ServiceProviderTest`.
 - Fixed the Testbench app nullability issue and synchronized the local ignored Composer lock metadata.
-- Full local gate passed after fixes:
+- Full local gate passed after initial governance fixes before `origin/main` advanced:
   - `composer validate --strict`
   - `vendor/bin/phpstan analyse --memory-limit=512M`
   - `vendor/bin/pint --test`
-  - `vendor/bin/phpunit` => `OK (2 tests, 3 assertions)`
+  - `vendor/bin/phpunit`
 - Opened subtask PR #4 from `task/governance-agent-rules-bootstrap` into `task/governance-agent-rules`.
 - Requested Copilot Code Review through the GraphQL fallback because `gh pr edit 4 --add-reviewer '@copilot'` was blocked by the missing `read:project` scope.
 - CI passed on PR #4 for PHP 8.3, 8.4, and 8.5.
 - Copilot reviewed all changed files on PR #4 and generated no comments.
 - Merged PR #4 into `task/governance-agent-rules` at merge commit `a36379d`.
 - After PR #4, observed duplicate CI runs from enabling both `push` and `pull_request` on `task/**`; adjusted CI to keep `task/**` on `pull_request` only while `push` remains limited to `main`.
+- While macro PR #5 was open, `origin/main` advanced to `7012aa2` with the v0.1 eval engine core from PR #3.
+- Merged `origin/main` into `task/governance-agent-rules`, preserving the v0.1 runtime implementation and resolving governance conflicts in workflow, Composer, PHPStan, PHPUnit, service provider, and service provider tests.
+- Updated the roadmap to treat Macro Task 1 as an audit/fill-gaps task over the existing v0.1 core instead of a greenfield core build.
+- Integrated local gate passed after the `origin/main` merge:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpstan analyse --no-progress --memory-limit=512M`
+  - `vendor/bin/pint --test`
+  - `vendor/bin/phpunit --testsuite Unit` => `OK (109 tests, 223 assertions)`
+  - `vendor/bin/phpunit --testsuite Architecture` => `OK (3 tests, 347 assertions)`

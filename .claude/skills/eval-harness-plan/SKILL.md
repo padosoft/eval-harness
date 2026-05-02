@@ -33,7 +33,7 @@ Read these files before editing application code:
 ```text
 composer validate --strict
 vendor/bin/phpunit
-vendor/bin/phpstan analyse
+vendor/bin/phpstan analyse --memory-limit=512M
 vendor/bin/pint --test
 ```
 

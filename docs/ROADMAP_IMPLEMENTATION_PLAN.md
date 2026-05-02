@@ -2,15 +2,14 @@
 
 ## Summary
 
-Build `padosoft/eval-harness` from scaffold into a headless Laravel package for AI evals, regression gates, adversarial datasets, queue-backed batch execution, and read-only report APIs for a separate Web UI package.
+Build `padosoft/eval-harness` from its v0.1 core into a headless Laravel package for richer AI evals, regression gates, adversarial datasets, queue-backed batch execution, and read-only report APIs for a separate Web UI package.
 
 Current repo state:
 
-- No-op `EvalHarnessServiceProvider`.
-- Smoke PHPUnit coverage only.
-- README lists planned features that are not implemented yet.
-- CI exists but PHPStan/Pint must become hard gates.
-- No docs/progress/lessons/rules existed before Macro Task 0.
+- `origin/main` now contains the v0.1 eval engine core: YAML datasets, `eval-harness:run`, exact-match, cosine embedding, LLM-as-judge, JSON/Markdown reports, config publishing, facade alias, architecture tests, and live opt-in tests.
+- README already includes a comparison table covering OpenAI Evals, LangSmith, Ragas, Promptfoo, and DeepEval.
+- Macro Task 0 adds durable governance, progress/lesson tracking, UI/package constraints, and PR/Copilot loop rules on top of that core.
+- Remaining roadmap work should audit the v0.1 core first, then implement only the missing v0.2+ gaps.
 
 Non-negotiable constraints:
 
@@ -30,7 +29,7 @@ Implement:
 - Save this roadmap in `docs/ROADMAP_IMPLEMENTATION_PLAN.md`.
 - Normalize stale `v4.0` references to roadmap naming.
 - Update Composer constraints to Laravel `^12.0|^13.0`.
-- Add PHPStan config and make PHPStan/Pint blocking in CI.
+- Preserve the existing PHPStan config and make PHPStan/Pint blocking in CI.
 - Keep the existing test-count README sync skill active for PRs that change tests.
 
 Done when:
@@ -47,11 +46,10 @@ Branch: `task/core-eval-contracts`
 
 Implement:
 
-- Contracts for `Metric`, `EvalRunner`, `DatasetLoader`, `AgentInvoker`, and report serialization.
-- DTO/value objects for samples, expected answers, metadata/tags, metric scores, run results, and report summaries.
-- JSON dataset loader with schema version, validation errors, and offline fixtures.
-- `eval:run` Artisan command with fake-friendly agent and metric resolution.
-- Versioned JSON report writer and Markdown report writer shell.
+- Audit existing v0.1 contracts for `Metric`, dataset loading, engine execution, command behavior, and report serialization.
+- Fill missing interfaces for future runner/agent invocation abstractions without breaking existing YAML dataset and command behavior.
+- Add schema versioning where v0.1 report/dataset contracts are not explicit enough for v1.0 stability.
+- Preserve current `eval-harness:run` command behavior while adding compatibility tests for the future queue/API/report work.
 
 Guardrails:
 
@@ -61,9 +59,9 @@ Guardrails:
 
 Tests:
 
-- DTO/contract unit tests.
-- Dataset parser success/failure fixtures.
-- Artisan command feature tests with fake agent and fake metrics.
+- Existing v0.1 unit/architecture tests must remain green.
+- Add focused tests only for gaps found during the audit.
+- Add compatibility tests for any new version fields or interfaces.
 
 ## Macro Task 2 - Metrics, Cohorts, And Reports v0.2
 
@@ -181,7 +179,7 @@ Guardrails:
 
 - API is read-only.
 - No auth is bundled; document that host apps deploy routes behind their existing admin gate.
-- No Vite, Vitest, or Playwright in this package unless UI assets are intentionally added later.
+- No Vite, Vitest, or Playwright in this package unless UI assets are intentionally added later. The expected Web UI lives in a separate package.
 
 Tests:
 
