@@ -306,9 +306,11 @@ final class EvalReportTest extends TestCase
 
     public function test_histogram_boundaries_are_rounded_for_json_stability(): void
     {
-        $histogram = $this->reportWithScores([0.3])->histogramForMetric('exact-match', 10);
+        $histogram = $this->reportWithScores([0.7 - 0.4])->histogramForMetric('exact-match', 10);
 
         $this->assertSame(0.3, $histogram[2]['max']);
         $this->assertSame(0.3, $histogram[3]['min']);
+        $this->assertSame(0, $histogram[2]['count']);
+        $this->assertSame(1, $histogram[3]['count']);
     }
 }

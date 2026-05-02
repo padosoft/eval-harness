@@ -204,7 +204,8 @@ final class EvalReport
         }
 
         foreach ($this->scoresFor($metricName) as $score) {
-            $index = min($bucketCount - 1, max(0, (int) floor($score * $bucketCount)));
+            $normalizedScore = $this->scoreBoundary($score);
+            $index = min($bucketCount - 1, max(0, (int) floor($normalizedScore * $bucketCount)));
             $histogram[$index]['count']++;
         }
 

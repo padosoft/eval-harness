@@ -289,3 +289,11 @@
   - `vendor/bin/phpunit` => `OK (151 tests, 330 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `44846a4` and generated one comment:
+  - histogram bucket assignment should normalize boundary-like score floats before computing the bucket index.
+- Addressed the comment by applying the same rounded boundary precision to scores before bucket-index calculation and extending the boundary regression to assert `0.7 - 0.4` lands in the `0.3-0.4` bucket.
+- Full local gate passed after the fifth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 332 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
