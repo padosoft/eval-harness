@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit;
 
+use Closure;
 use Illuminate\Support\Facades\Http;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
@@ -102,6 +103,53 @@ final class EvalEngineTest extends TestCase
         };
 
         $report = $engine->run('rag.runner.method-reference', [$runner, 'run']);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
+    public function test_run_routes_first_class_runner_callable_to_runner_contract(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.first-class-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '4+4'], expectedOutput: '8'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $runner = new class implements SampleRunner
+        {
+            public function run(SampleInvocation $sample): string
+            {
+                return $sample->id === 's1' && $sample->input['q'] === '4+4' ? '8' : '';
+            }
+        };
+
+        $firstClassCallable = $runner->run(...);
+        $fromCallable = Closure::fromCallable([$runner, 'run']);
+
+        $this->assertSame(1.0, $engine->run('rag.runner.first-class-callable', $firstClassCallable)->meanScore('exact-match'));
+        $this->assertSame(1.0, $engine->run('rag.runner.first-class-callable', $fromCallable)->meanScore('exact-match'));
+    }
+
+    public function test_legacy_callable_still_receives_input_array(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.legacy-callable')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '5+5'], expectedOutput: '10'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->run(
+            'rag.runner.legacy-callable',
+            static fn (array $input): string => $input['q'] === '5+5' ? '10' : '',
+        );
 
         $this->assertSame(1.0, $report->meanScore('exact-match'));
     }

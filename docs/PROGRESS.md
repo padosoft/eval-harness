@@ -116,4 +116,14 @@
   - `vendor/bin/phpunit` => `OK (123 tests, 255 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `123 tests, 255 assertions` result.
+- Ran test-count README sync search again. README still has no test-count claim; this progress file recorded the then-current `123 tests, 255 assertions` result.
+- Copilot reviewed PR #6 at head `3695c06` and generated two additional comments:
+  - first-class callables and `Closure::fromCallable()` for runner `run()` methods also need to receive `SampleInvocation`,
+  - `docs/LESSON.md` still mentioned the old `SampleRunner::run(DatasetSample $sample)` signature.
+- Added reflection-based detection for callables typed as `SampleInvocation`, added first-class/closure callable regression tests, and corrected the durable lesson.
+- Full local gate passed after the fourth Copilot fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (125 tests, 258 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran test-count README sync search again. README still has no test-count claim; this progress file now records the latest `125 tests, 258 assertions` result.

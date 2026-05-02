@@ -31,7 +31,7 @@
 - XML comments should use complete sentences when documenting skipped suites or CI behavior; sentence fragments tend to trigger review churn.
 - Macro Task 0 merged to `main` at `fdc753c`; after that, move new work from `main` to `task/core-eval-contracts`.
 - Macro Task 1 audit found that the v0.1 core already had the engine/CLI/metrics/report baseline, but not explicit artifact schema versions or a queue-friendly SUT invocation contract.
-- Keep legacy `EvalEngine::run($dataset, callable $sut)` behavior: callables receive `sample.input`. New queue-oriented code should prefer `SampleRunner::run(DatasetSample $sample)` because closures are not queue-serializable.
+- Keep legacy `EvalEngine::run($dataset, callable $sut)` behavior: untyped/array-typed callables receive `sample.input`. New queue-oriented code should prefer `SampleRunner::run(SampleInvocation $sample)` because closures are not queue-serializable and runners should avoid full `DatasetSample` payloads.
 - Dataset YAML should accept missing `schema_version` for backward compatibility and default it to `eval-harness.dataset.v1`; unsupported explicit versions should fail at load time with a schema error.
 - JSON reports now need `schema_version` and `dataset_schema_version` top-level fields so the future separate UI package can reject unsupported artifacts deterministically.
 - PHPStan can infer `DatasetBuilder::$parsed` is non-null after the register guards; using `$this->parsed?->schemaVersion ?? ...` triggers `nullsafe.neverNull`. Prefer an explicit `$schemaVersion` variable guarded by `if ($this->parsed !== null)`.
@@ -43,3 +43,4 @@
 - A queue-oriented runner should not receive full `DatasetSample` because `expectedOutput` and `metadata` can contain non-serializable values. Use an input-only DTO (`SampleInvocation`) for runner calls.
 - Treat `[SampleRunnerInstance, 'run']` as the runner contract path, not the legacy callable path, otherwise PHP method references receive `sample.input` and can fail with a `TypeError`.
 - CLI error messages for new extension points should show both supported binding patterns: closure callable and concrete class binding.
+- First-class callables (`$runner->run(...)`) and `Closure::fromCallable([$runner, 'run'])` hide the runner instance behind a `Closure`. Detect callables whose first parameter is `SampleInvocation` and pass the DTO instead of `sample.input`.
