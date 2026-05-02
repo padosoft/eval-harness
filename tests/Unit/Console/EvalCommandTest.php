@@ -96,6 +96,20 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_missing_bound_sut_uses_missing_binding_message(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('missing-sut-binding')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->artisan('eval-harness:run', ['dataset' => 'missing-sut-binding'])
+            ->expectsOutputToContain("No system-under-test bound under 'eval-harness.sut'.")
+            ->assertExitCode(1);
+    }
+
     public function test_writes_to_out_path(): void
     {
         $tmp = tempnam(sys_get_temp_dir(), 'eval-out-');

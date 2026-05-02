@@ -220,6 +220,58 @@ final class DatasetBuilderTest extends TestCase
         $this->assertSame('new', $dataset->samples[0]->id);
     }
 
+    public function test_failed_yaml_replacement_does_not_register_previous_yaml(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $firstYaml = <<<'YAML'
+        name: replace.yaml.fail
+        samples:
+          - id: old
+            input: {q: old}
+            expected_output: old
+        YAML;
+
+        $builder = $engine->dataset('replace.yaml.fail')
+            ->loadFromYamlString($firstYaml)
+            ->withMetrics(['exact-match']);
+
+        try {
+            $builder->loadFromYamlString('name: replace.yaml.fail');
+            $this->fail('Expected invalid YAML replacement to throw.');
+        } catch (DatasetSchemaException $e) {
+            $this->assertStringContainsString("missing required list field 'samples'", $e->getMessage());
+        }
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('no samples');
+
+        $builder->register();
+    }
+
+    public function test_failed_programmatic_replacement_does_not_register_previous_samples(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $builder = $engine->dataset('replace.samples.fail')
+            ->withSamples([new DatasetSample(id: 'old', input: [], expectedOutput: 'old')])
+            ->withMetrics(['exact-match']);
+
+        try {
+            $builder->withSamples([]);
+            $this->fail('Expected invalid programmatic replacement to throw.');
+        } catch (DatasetSchemaException $e) {
+            $this->assertStringContainsString('at least one DatasetSample', $e->getMessage());
+        }
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('no samples');
+
+        $builder->register();
+    }
+
     /**
      * Regression: passing an array with non-DatasetSample entries to
      * withSamples() previously crashed with a generic Error on

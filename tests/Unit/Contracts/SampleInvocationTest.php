@@ -53,4 +53,15 @@ final class SampleInvocationTest extends TestCase
             input: ['recursive' => $recursive],
         );
     }
+
+    public function test_rejects_json_encoding_failures_for_queue_payloads(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be JSON-serializable for queue payloads');
+
+        new SampleInvocation(
+            id: 's1',
+            input: ['invalid_utf8' => "\xB1\x31"],
+        );
+    }
 }

@@ -47,6 +47,7 @@ final class DatasetBuilder
     public function loadFromYaml(string $path): self
     {
         $this->ensureCanLoadYaml('loadFromYaml()');
+        $this->parsed = null;
         $this->parsed = $this->yamlLoader->loadFile($path);
 
         return $this;
@@ -55,6 +56,7 @@ final class DatasetBuilder
     public function loadFromYamlString(string $yaml): self
     {
         $this->ensureCanLoadYaml('loadFromYamlString()');
+        $this->parsed = null;
         $this->parsed = $this->yamlLoader->loadString($yaml);
 
         return $this;
@@ -69,6 +71,7 @@ final class DatasetBuilder
     public function withSamples(array $samples): self
     {
         $this->ensureCanUseProgrammaticSamples();
+        $this->explicitSamples = null;
 
         if ($samples === []) {
             throw new DatasetSchemaException(

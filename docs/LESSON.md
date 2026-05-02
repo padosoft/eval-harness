@@ -59,3 +59,6 @@
 - Queue-safe recursive validators need an explicit recursion guard. A JSON-encoding probe catches cyclic arrays before the PHP recursive type walk can exhaust stack or memory.
 - CLI diagnostics should distinguish a missing `eval-harness.sut` binding from an existing binding that resolves to the wrong type; those are different operator actions.
 - Macro PRs that change `AGENTS.md` should leave `Current Priority` valid after merge, not only while the feature branch is active.
+- Fail-fast runner/DTO tests must cover both concrete `SampleRunner` instances and plain callables typed as `SampleInvocation`; they exercise different dispatch branches.
+- Same-source replacement APIs should fail closed. If a YAML or programmatic replacement attempt throws, clear the old pending source so a caught exception cannot accidentally register stale samples.
+- When adding wrapper branches for queue JSON encoding errors, test a non-recursive JSON failure such as invalid UTF-8 in addition to recursion.

@@ -218,3 +218,15 @@
   - `vendor/bin/phpunit` => `OK (137 tests, 279 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #8 again at head `6867774` and generated five additional comments:
+  - fail-fast validation also needed direct coverage for plain `SampleInvocation`-typed callables,
+  - the PR description validation counts needed to be synced after new tests,
+  - JSON encoding failures such as invalid UTF-8 needed DTO-level coverage,
+  - failed same-source YAML replacement should not leave an older parsed dataset armed,
+  - the missing `eval-harness.sut` branch needed its own command regression test.
+- Addressed those comments with callable fail-fast coverage, invalid UTF-8 DTO coverage, missing-binding command coverage, fail-closed YAML/programmatic replacement handling, and new builder regression tests.
+- Full local gate passed after the third PR #8 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (142 tests, 291 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
