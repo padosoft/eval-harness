@@ -171,10 +171,16 @@ final class DatasetBuilder
             $this->metricSpecs,
         );
 
+        $schemaVersion = DatasetSchema::VERSION;
+        if ($this->parsed !== null) {
+            $schemaVersion = $this->parsed->schemaVersion;
+        }
+
         $dataset = new GoldenDataset(
             name: $name,
             samples: $samples,
             metrics: array_values($metrics),
+            schemaVersion: $schemaVersion,
         );
 
         $this->engine->registerDataset($dataset);

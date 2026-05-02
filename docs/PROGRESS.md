@@ -66,3 +66,21 @@
   - use an absolute GitHub raw URL for the README banner because `resources/` is export-ignored
   - title-case `Source of Truth`
 - Applied those review fixes.
+- Copilot reviewed PR #5 at head `b8e5852` and generated no new comments.
+- Verified PR #5 CI green across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Verified all 20 PR #5 review threads resolved, then merged Macro Task 0 into `main` at `fdc753c`.
+- Started Macro Task 1 on `task/core-eval-contracts` and subtask branch `task/core-eval-contracts-contract-audit`.
+- Audited the v0.1 core and found the first contract gaps:
+  - dataset YAML/report JSON had no explicit schema version,
+  - SUT invocation was only a callable tied to `sample.input`,
+  - `AGENTS.md` still pointed at Macro Task 0 after merge.
+- Added `SampleRunner` as the queue-friendly SUT invocation contract while keeping callable compatibility.
+- Added version constants for dataset YAML and JSON reports, defaulted old unversioned YAML to `eval-harness.dataset.v1`, and surfaced report versions in JSON.
+- Targeted tests passed:
+  - `vendor/bin/phpunit tests/Unit/Datasets/YamlDatasetLoaderTest.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/Reports/JsonReportRendererTest.php`
+- Full local gate passed after fixing a PHPStan nullsafe warning:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (114 tests, 240 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync check by searching README/docs for stale test/assertion counts. README has no count claim to update; historical `docs/PROGRESS.md` entries were left unchanged.

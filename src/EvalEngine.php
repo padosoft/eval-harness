@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness;
 
 use Illuminate\Contracts\Container\Container;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
+use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
@@ -29,11 +31,10 @@ use Throwable;
  *   $report = $engine->run('rag.factuality.fy2026', fn (array $in) => MyApp::answer($in['question']));
  *
  * Concurrency: the engine is intentionally single-threaded. Parallel
- * execution can be layered later (worker pool / queue) without
- * touching this class — the `run()` contract is "drive the SUT
- * sequentially; capture every score". Sequential execution keeps
- * deterministic ordering across runs, which is essential for
- * reproducible CI.
+ * execution can be layered later (worker pool / queue) through the
+ * SampleRunner contract without changing the legacy callable API.
+ * Sequential execution keeps deterministic ordering across runs,
+ * which is essential for reproducible CI.
  */
 final class EvalEngine
 {
@@ -88,9 +89,9 @@ final class EvalEngine
     /**
      * Run an eval pass.
      *
-     * @param  callable(array<string, mixed>): string  $systemUnderTest
+     * @param  SampleRunner|callable  $systemUnderTest  Callables receive the sample input array and must return a string.
      */
-    public function run(string $datasetName, callable $systemUnderTest): EvalReport
+    public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
         $dataset = $this->getDataset($datasetName);
 
@@ -100,17 +101,7 @@ final class EvalEngine
         $failures = [];
 
         foreach ($dataset->samples as $sample) {
-            $actualOutput = $systemUnderTest($sample->input);
-
-            if (! is_string($actualOutput)) {
-                throw new EvalRunException(
-                    sprintf(
-                        "System-under-test for sample '%s' must return a string; got %s.",
-                        $sample->id,
-                        get_debug_type($actualOutput),
-                    ),
-                );
-            }
+            $actualOutput = $this->runSample($systemUnderTest, $sample);
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -138,7 +129,30 @@ final class EvalEngine
             failures: $failures,
             startedAt: $startedAt,
             finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  SampleRunner|callable  $systemUnderTest  Callables receive the sample input array and must return a string.
+     */
+    private function runSample(callable|SampleRunner $systemUnderTest, DatasetSample $sample): string
+    {
+        $actualOutput = $systemUnderTest instanceof SampleRunner
+            ? $systemUnderTest->run($sample)
+            : $systemUnderTest($sample->input);
+
+        if (! is_string($actualOutput)) {
+            throw new EvalRunException(
+                sprintf(
+                    "System-under-test for sample '%s' must return a string; got %s.",
+                    $sample->id,
+                    get_debug_type($actualOutput),
+                ),
+            );
+        }
+
+        return $actualOutput;
     }
 
     /**

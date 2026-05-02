@@ -29,3 +29,9 @@
 - If a README image asset is `export-ignore`d, reference it with an absolute GitHub raw URL so it still renders on Packagist and other non-repo-relative surfaces.
 - PR template examples should be visibly replaceable. Use a placeholder plus a concrete example, not only a concrete value that can be copied into unrelated PRs.
 - XML comments should use complete sentences when documenting skipped suites or CI behavior; sentence fragments tend to trigger review churn.
+- Macro Task 0 merged to `main` at `fdc753c`; after that, move new work from `main` to `task/core-eval-contracts`.
+- Macro Task 1 audit found that the v0.1 core already had the engine/CLI/metrics/report baseline, but not explicit artifact schema versions or a queue-friendly SUT invocation contract.
+- Keep legacy `EvalEngine::run($dataset, callable $sut)` behavior: callables receive `sample.input`. New queue-oriented code should prefer `SampleRunner::run(DatasetSample $sample)` because closures are not queue-serializable.
+- Dataset YAML should accept missing `schema_version` for backward compatibility and default it to `eval-harness.dataset.v1`; unsupported explicit versions should fail at load time with a schema error.
+- JSON reports now need `schema_version` and `dataset_schema_version` top-level fields so the future separate UI package can reject unsupported artifacts deterministically.
+- PHPStan can infer `DatasetBuilder::$parsed` is non-null after the register guards; using `$this->parsed?->schemaVersion ?? ...` triggers `nullsafe.neverNull`. Prefer an explicit `$schemaVersion` variable guarded by `if ($this->parsed !== null)`.

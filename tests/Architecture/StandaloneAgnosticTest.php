@@ -94,6 +94,7 @@ final class StandaloneAgnosticTest extends TestCase
         // exclude one and hide a leak.
         $directories = [
             'src/Datasets' => 'W6.A',
+            'src/Contracts' => 'v0.2',
             'src/Metrics' => 'W6.A',
             'src/Reports' => 'W6.A',
             'src/Console' => 'W6.A',

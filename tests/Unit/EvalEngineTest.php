@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Illuminate\Support\Facades\Http;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
@@ -51,6 +52,32 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(0, $report->totalFailures());
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->meanScore('exact-match'), 1e-9);
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->macroF1('exact-match'), 1e-9);
+    }
+
+    public function test_run_accepts_sample_runner_contract(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.runner.contract')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '2+2'], expectedOutput: '4'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $runner = new class implements SampleRunner
+        {
+            public function run(DatasetSample $sample): string
+            {
+                return $sample->input['q'] === '2+2' ? '4' : '';
+            }
+        };
+
+        $report = $engine->run('rag.runner.contract', $runner);
+
+        $this->assertSame(1, $report->totalSamples());
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
     public function test_metric_failure_is_captured_not_thrown(): void

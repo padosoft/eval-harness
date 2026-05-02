@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
@@ -38,6 +39,27 @@ final class EvalCommandTest extends TestCase
         $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
 
         $this->artisan('eval-harness:run', ['dataset' => 'preregistered'])
+            ->assertExitCode(0);
+    }
+
+    public function test_runs_with_pre_registered_dataset_and_bound_sample_runner(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('runner-preregistered')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->app->bind('eval-harness.sut', fn (): SampleRunner => new class implements SampleRunner
+        {
+            public function run(DatasetSample $sample): string
+            {
+                return 'hi';
+            }
+        });
+
+        $this->artisan('eval-harness:run', ['dataset' => 'runner-preregistered'])
             ->assertExitCode(0);
     }
 
@@ -76,6 +98,8 @@ final class EvalCommandTest extends TestCase
             $contents = (string) file_get_contents($tmp);
             $this->assertJson($contents);
             $decoded = json_decode($contents, true);
+            $this->assertSame('eval-harness.report.v1', $decoded['schema_version']);
+            $this->assertSame('eval-harness.dataset.v1', $decoded['dataset_schema_version']);
             $this->assertSame('cli.smoke', $decoded['dataset']);
         } finally {
             @unlink($tmp);

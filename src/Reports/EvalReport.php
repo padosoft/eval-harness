@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Reports;
 
+use Padosoft\EvalHarness\Datasets\DatasetSchema;
+
 /**
  * Read-only outcome of an eval run.
  *
@@ -34,6 +36,8 @@ final class EvalReport
         public readonly array $failures,
         public readonly float $startedAt,
         public readonly float $finishedAt,
+        public readonly string $schemaVersion = ReportSchema::VERSION,
+        public readonly string $datasetSchemaVersion = DatasetSchema::VERSION,
     ) {}
 
     public function durationSeconds(): float

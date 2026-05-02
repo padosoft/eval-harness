@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Datasets;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -28,6 +29,7 @@ final class DatasetBuilderTest extends TestCase
         $this->assertSame('rag.builder.test', $dataset->name);
         $this->assertSame(2, $dataset->sampleCount());
         $this->assertSame(['exact-match'], $dataset->metricNames());
+        $this->assertSame(DatasetSchema::VERSION, $dataset->schemaVersion);
     }
 
     public function test_register_without_samples_throws(): void
@@ -112,6 +114,7 @@ final class DatasetBuilderTest extends TestCase
 
         $this->assertSame('yaml.builder', $dataset->name);
         $this->assertSame(1, $dataset->sampleCount());
+        $this->assertSame(DatasetSchema::VERSION, $dataset->schemaVersion);
         $this->assertTrue($engine->hasDataset('yaml.builder'));
     }
 

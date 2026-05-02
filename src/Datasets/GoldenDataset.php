@@ -28,6 +28,7 @@ final class GoldenDataset
         public readonly string $name,
         public readonly array $samples,
         public readonly array $metrics,
+        public readonly string $schemaVersion = DatasetSchema::VERSION,
     ) {}
 
     public function sampleCount(): int
