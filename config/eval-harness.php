@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Default provider transport
+    |--------------------------------------------------------------------------
+    |
+    | The eval-harness ships LLM-as-judge and cosine-embedding metrics that
+    | call out to an external provider via raw `Http::`. The defaults below
+    | match OpenAI's wire format; OpenRouter / Regolo / any OpenAI-compatible
+    | endpoint works with only an env-var change.
+    |
+    */
+
+    'metrics' => [
+
+        'cosine_embedding' => [
+            'endpoint' => env(
+                'EVAL_HARNESS_EMBEDDINGS_ENDPOINT',
+                'https://api.openai.com/v1/embeddings',
+            ),
+            'api_key' => env('EVAL_HARNESS_EMBEDDINGS_API_KEY', env('OPENAI_API_KEY', '')),
+            'model' => env('EVAL_HARNESS_EMBEDDINGS_MODEL', 'text-embedding-3-small'),
+            'timeout_seconds' => (int) env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT', 30),
+        ],
+
+        'llm_as_judge' => [
+            'endpoint' => env(
+                'EVAL_HARNESS_JUDGE_ENDPOINT',
+                'https://api.openai.com/v1/chat/completions',
+            ),
+            'api_key' => env('EVAL_HARNESS_JUDGE_API_KEY', env('OPENAI_API_KEY', '')),
+            'model' => env('EVAL_HARNESS_JUDGE_MODEL', 'gpt-4o-mini'),
+            'timeout_seconds' => (int) env('EVAL_HARNESS_JUDGE_TIMEOUT', 60),
+
+            // Override to inject a custom prompt template. Placeholders
+            // {expected} {actual} {question} are interpolated from the
+            // sample. Leave null to use the package default.
+            'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reports storage
+    |--------------------------------------------------------------------------
+    |
+    | When the `eval-harness:run` Artisan command writes a report to disk,
+    | this disk + path prefix are used. The disk must exist in
+    | `config/filesystems.php` of the host application; the package does
+    | NOT create it — that's a host concern.
+    |
+    */
+
+    'reports' => [
+        'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
+        'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
+    ],
+];

@@ -1,0 +1,117 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\EvalHarness\Tests\Unit\Datasets;
+
+use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\EvalEngine;
+use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
+use Padosoft\EvalHarness\Tests\TestCase;
+
+final class DatasetBuilderTest extends TestCase
+{
+    public function test_register_persists_dataset_on_engine(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $dataset = $engine->dataset('rag.builder.test')
+            ->withSamples([
+                new DatasetSample(id: 'a', input: ['question' => 'hi'], expectedOutput: 'hello'),
+                new DatasetSample(id: 'b', input: ['question' => 'bye'], expectedOutput: 'goodbye'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->assertTrue($engine->hasDataset('rag.builder.test'));
+        $this->assertSame('rag.builder.test', $dataset->name);
+        $this->assertSame(2, $dataset->sampleCount());
+        $this->assertSame(['exact-match'], $dataset->metricNames());
+    }
+
+    public function test_register_without_samples_throws(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('no samples');
+
+        $engine->dataset('no-samples')
+            ->withMetrics(['exact-match'])
+            ->register();
+    }
+
+    public function test_register_without_metrics_throws(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('no metrics');
+
+        $engine->dataset('no-metrics')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'x')])
+            ->register();
+    }
+
+    public function test_with_samples_rejects_empty(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('at least one DatasetSample');
+
+        $engine->dataset('empty')->withSamples([]);
+    }
+
+    public function test_with_samples_rejects_duplicate_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage("Duplicate sample id 'dup'");
+
+        $engine->dataset('dup')->withSamples([
+            new DatasetSample(id: 'dup', input: [], expectedOutput: 'a'),
+            new DatasetSample(id: 'dup', input: [], expectedOutput: 'b'),
+        ]);
+    }
+
+    public function test_with_metrics_rejects_empty(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('at least one metric');
+
+        $engine->dataset('empty-metrics')->withMetrics([]);
+    }
+
+    public function test_load_from_yaml_string_path(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $yaml = <<<'YAML'
+        name: yaml.builder
+        samples:
+          - id: s1
+            input: {q: hello}
+            expected_output: hi
+        YAML;
+
+        $dataset = $engine->dataset('yaml.builder')
+            ->loadFromYamlString($yaml)
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->assertSame('yaml.builder', $dataset->name);
+        $this->assertSame(1, $dataset->sampleCount());
+        $this->assertTrue($engine->hasDataset('yaml.builder'));
+    }
+}
