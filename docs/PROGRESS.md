@@ -189,3 +189,9 @@
   - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Before opening the Macro Task 1 PR, `origin/main` had advanced to `16f1e1e`; merged it into `task/core-eval-contracts` with no conflicts.
+- Macro branch local gate passed again after merging `origin/main`:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (133 tests, 271 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
