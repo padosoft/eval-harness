@@ -9,7 +9,7 @@ use Illuminate\Support\ServiceProvider;
 /**
  * EvalHarnessServiceProvider — skeleton service provider for v0.0.1 scaffold.
  *
- * Implementation will follow during v4.0 development. For now this
+ * Implementation will follow during v0.2 development. For now this
  * is an empty no-op so Laravel package auto-discovery does not fail
  * with "Class not found" when a host application requires the package
  * via a path repository.
@@ -18,11 +18,11 @@ final class EvalHarnessServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        // Bindings will be added during v4.0 development.
+        // Bindings will be added during v0.2 development.
     }
 
     public function boot(): void
     {
-        // Bootstrapping will be added during v4.0 development.
+        // Bootstrapping will be added during v0.2 development.
     }
 }

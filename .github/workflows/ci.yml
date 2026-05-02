@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'task/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'task/**']
 
 jobs:
   test:
@@ -40,11 +40,9 @@ jobs:
 
       - name: Run PHPStan
         run: vendor/bin/phpstan analyse --memory-limit=512M
-        continue-on-error: true
 
       - name: Run Pint (code style check)
         run: vendor/bin/pint --test
-        continue-on-error: true
 
       - name: Run PHPUnit
         run: vendor/bin/phpunit --coverage-text
