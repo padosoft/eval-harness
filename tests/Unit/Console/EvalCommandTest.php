@@ -80,4 +80,14 @@ final class EvalCommandTest extends TestCase
             @unlink($tmp);
         }
     }
+
+    public function test_nonexistent_registrar_class_returns_failure_with_error(): void
+    {
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'any.dataset',
+            '--registrar' => 'App\\NonExistent\\Registrar',
+        ])
+            ->expectsOutputToContain("does not exist")
+            ->assertExitCode(1);
+    }
 }

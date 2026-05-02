@@ -103,6 +103,11 @@ final class EvalReport
      * Mean of binarised (>= 0.5 → 1, else 0) scores over the metric.
      * For exact-match this IS the pass rate; for cosine / judge it's
      * a coarse proxy.
+     *
+     * Note: despite the name this is a macro-averaged pass rate, not a
+     * true F1 (which would require separate precision and recall terms).
+     * It is labelled "macroF1" for historical reasons and because
+     * for binary metrics (exact-match) pass rate == F1 when threshold=0.5.
      */
     public function macroF1(string $metricName = ''): float
     {

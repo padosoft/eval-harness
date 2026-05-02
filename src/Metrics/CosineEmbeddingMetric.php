@@ -15,9 +15,10 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  * [0, 1].
  *
  * Transport: raw `Http::` against the configured provider (defaults
- * to OpenAI's embeddings endpoint for parity with laravel/ai SDK
- * provider conventions). Tests substitute via `Http::fake()` for
- * deterministic offline runs — see
+ * to OpenAI's embeddings endpoint; OpenRouter / Regolo / any
+ * OpenAI-compatible embeddings endpoint works with only an env-var
+ * change). Tests substitute via `Http::fake()` for deterministic
+ * offline runs — see
  * tests/Unit/Metrics/CosineEmbeddingMetricTest.php for canned
  * vectors.
  *

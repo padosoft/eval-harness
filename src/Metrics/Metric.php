@@ -12,7 +12,8 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  * Implementations:
  *   - {@see ExactMatchMetric} — case-sensitive string equality.
  *   - {@see CosineEmbeddingMetric} — semantic similarity via
- *     embeddings (transport: laravel/ai SDK + Http::).
+ *     embeddings (transport: raw Http:: against any OpenAI-compatible
+ *     embeddings endpoint).
  *   - {@see LlmAsJudgeMetric} — strict-JSON LLM grading.
  *
  * Adding a new metric: implement this interface, register the

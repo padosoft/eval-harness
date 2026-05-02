@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
 use Padosoft\EvalHarness\EvalEngine;
+use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 /**
@@ -49,7 +50,13 @@ final class EvalCommand extends Command
         $registrar = $this->option('registrar');
 
         if (is_string($registrar) && $registrar !== '') {
-            $this->dispatchRegistrar($engine, $registrar);
+            try {
+                $this->dispatchRegistrar($engine, $registrar);
+            } catch (EvalHarnessException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
         }
 
         if (! $engine->hasDataset($datasetName)) {

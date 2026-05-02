@@ -26,7 +26,6 @@
         "illuminate/support": "^12.0|^13.0",
         "illuminate/console": "^12.0|^13.0",
         "illuminate/http": "^12.0|^13.0",
-        "laravel/ai": "^0.6",
         "symfony/yaml": "^7.0|^8.0"
     },
     "require-dev": {
@@ -36,6 +35,7 @@
         "phpunit/phpunit": "^11.0|^12.0"
     },
     "suggest": {
+        "laravel/ai": "Use the laravel/ai SDK providers (OpenAI, OpenRouter, Regolo, etc.) to route metric LLM and embedding calls without managing HTTP credentials by hand.",
         "padosoft/laravel-ai-regolo": "Drives every metric LLM call through Italian sovereign Regolo infrastructure (cost + GDPR). Any laravel/ai SDK provider works."
     },
     "autoload": {
