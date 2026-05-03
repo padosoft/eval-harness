@@ -238,6 +238,17 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_collect_outputs_rechecks_completion_after_missing_output_scan(): void
+    {
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new CompleteAfterMissingOutputReadStore,
+        );
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $this->assertSame(['first output'], $batch->collectOutputs('completing-batch', $samples));
+    }
+
     public function test_run_honors_concurrency_windows_before_dispatching_more_jobs(): void
     {
         $samples = [
@@ -354,6 +365,23 @@ final class LazyParallelBatchTest extends TestCase
             runner: new LazyParallelAnswerRunner,
             options: BatchOptions::lazyParallel(),
         );
+    }
+
+    public function test_timeout_path_rechecks_completed_outputs_before_throwing(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new CompleteAfterTimeoutMissingOutputReadStore,
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $this->assertSame(['first output'], $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(),
+        ));
     }
 
     public function test_rejects_anonymous_runners_because_workers_cannot_autoload_them(): void
@@ -1145,6 +1173,124 @@ final class LateFailureAfterMissingOutputReadStore implements BatchResultStore
         return [
             0 => ['sample_id' => 's1', 'error' => 'worker failed after missing scan'],
         ];
+    }
+}
+
+final class CompleteAfterMissingOutputReadStore implements BatchResultStore
+{
+    private int $successfulReadCount = 0;
+
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return 1;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return 60;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        $this->successfulReadCount++;
+
+        if ($this->successfulReadCount === 1) {
+            return [];
+        }
+
+        return [
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+}
+
+final class CompleteAfterTimeoutMissingOutputReadStore implements BatchResultStore
+{
+    private int $successfulReadCount = 0;
+
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return 1;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return 60;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        $this->successfulReadCount++;
+
+        if ($this->successfulReadCount === 1) {
+            usleep(1_100_000);
+
+            return [];
+        }
+
+        return [
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }
 

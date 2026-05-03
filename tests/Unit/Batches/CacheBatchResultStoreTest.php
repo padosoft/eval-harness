@@ -150,7 +150,7 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->failures('aborted-batch', 1));
     }
 
-    public function test_closing_batch_after_result_add_removes_racing_job_write(): void
+    public function test_finishing_batch_after_result_add_keeps_racing_success_readable(): void
     {
         $store = null;
         $cache = new ClosingAfterAddCacheRepository(
@@ -168,7 +168,30 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->start('racing-batch', 1, 60);
         $store->recordSuccess('racing-batch', 0, 's1', 'late output', 60);
 
-        $this->assertSame([], $store->successfulResults('racing-batch', 1));
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'late output'],
+        ], $store->successfulResults('racing-batch', 1));
+    }
+
+    public function test_aborting_batch_after_result_add_removes_racing_job_write(): void
+    {
+        $store = null;
+        $cache = new ClosingAfterAddCacheRepository(
+            store: $this->cache->getStore(),
+            onAdd: static function () use (&$store): void {
+                if (! $store instanceof CacheBatchResultStore) {
+                    self::fail('Expected result store to be initialized before cache add.');
+                }
+
+                $store->abort('aborting-batch', 1, 60);
+            },
+        );
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('aborting-batch', 1, 60);
+        $store->recordSuccess('aborting-batch', 0, 's1', 'late output', 60);
+
+        $this->assertSame([], $store->successfulResults('aborting-batch', 1));
     }
 
     private function store(): CacheBatchResultStore

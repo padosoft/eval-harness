@@ -936,4 +936,20 @@
   - `vendor/bin/phpunit` => `OK (302 tests, 644 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding one failed-hook regression. README has no test-count claim; update the PR body validation line to `302 tests, 644 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding one failed-hook regression. README has no test-count claim; PR #14 body was updated to `302 tests, 644 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `deaea8e` and generated four comments:
+  - external `collectOutputs()` should re-check completion after the missing-output scan,
+  - a result write racing with `finish()` should not delete an already persisted success needed for idempotent collect retries,
+  - `dispatch()` should validate indexes before writing metadata,
+  - the timeout branch should re-check completion before throwing.
+- Addressed the latest PR #14 Copilot round by validating dispatch indexes before `startResults()`, re-checking completed outputs before external collect and timeout errors, and keeping racing successes readable when a normal `finish()` marker appears after `add()`.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (37 tests, 66 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Batches/CacheBatchResultStore.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (305 tests, 647 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch/cache race tests. README has no test-count claim; update the PR body validation line to `305 tests, 647 assertions` before requesting the next Copilot review.

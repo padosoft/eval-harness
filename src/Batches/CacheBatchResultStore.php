@@ -216,14 +216,14 @@ final class CacheBatchResultStore implements BatchResultStore
         $this->assertNonNegativeIndex($index);
         $this->assertPositiveTtl($ttlSeconds);
 
-        if (! $this->isActive($batchId)) {
+        if ($this->status($batchId) !== self::STATUS_ACTIVE) {
             return;
         }
 
         $resultKey = $this->resultKey($batchId, $index);
         $added = $this->cache->add($resultKey, $payload, $ttlSeconds);
 
-        if ($added && ! $this->isActive($batchId)) {
+        if ($added && ! in_array($this->status($batchId), [self::STATUS_ACTIVE, self::STATUS_FINISHED], true)) {
             $this->cache->forget($resultKey);
         }
     }
@@ -235,9 +235,14 @@ final class CacheBatchResultStore implements BatchResultStore
      */
     private function isActive(string $batchId): bool
     {
+        return $this->status($batchId) === self::STATUS_ACTIVE;
+    }
+
+    private function status(string $batchId): ?string
+    {
         $payload = $this->metaPayload($batchId);
 
-        return $payload !== null && ($payload['status'] ?? null) === self::STATUS_ACTIVE;
+        return $payload['status'] ?? null;
     }
 
     private function isReadable(string $batchId): bool

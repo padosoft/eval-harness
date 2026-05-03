@@ -172,3 +172,5 @@
 - Worker-side container guards need direct coverage. Even if constructor validation accepts only `SampleRunner` class strings, a host app can misbind that class to a non-runner at runtime.
 - Object-valued runner dependencies are not automatically queue-safe. If an initialized dependency object carries scalar/array/null configuration, treat it as caller-specific state and keep it serial-only.
 - Queue job `failed()` hooks should wrap result-store resolution/write failures with the original queue failure message. Otherwise a cache outage while recording the failure degrades into a later generic missing-output timeout.
+- Missing-output diagnostics should re-check completion before throwing. Both external `collectOutputs()` and timeout paths can observe the final success between the first read and the missing-id scan.
+- A success written just before a finished marker should remain readable for idempotent collection retries. The post-write race cleanup should remove writes after abort/expiry, not successes that raced with a normal `finish()`.

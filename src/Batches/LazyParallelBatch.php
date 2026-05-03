@@ -139,12 +139,13 @@ final class LazyParallelBatch
         $this->assertInvocationList($samples, $sampleInvocations);
 
         $runnerClass = $this->runnerClassFor($runner);
+        $sampleIndexes = $this->sampleIndexes($samples);
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
-        $currentIndexes = $this->sampleIndexes($samples);
+        $currentIndexes = $sampleIndexes;
 
         try {
             foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
@@ -213,6 +214,13 @@ final class LazyParallelBatch
         }
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
+        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
+        if ($outputsByIndex !== null) {
+            ksort($outputsByIndex);
+            $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
+
+            return array_values($outputsByIndex);
+        }
 
         throw new EvalRunException(sprintf(
             "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
@@ -259,6 +267,10 @@ final class LazyParallelBatch
         }
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
+        $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
+        if ($outputs !== null) {
+            return $outputs;
+        }
 
         $failure = $this->firstFailure($batchId, $sampleCount, $this->sampleIndexes($samples));
         if ($failure !== null) {
