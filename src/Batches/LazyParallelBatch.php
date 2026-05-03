@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Batches;
 
 use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Container\Container;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -31,6 +32,7 @@ final class LazyParallelBatch
     public function __construct(
         private readonly Dispatcher $dispatcher,
         private readonly BatchResultStore $resultStore,
+        private readonly ?Container $container = null,
         private readonly int $resultTtlSeconds = self::DEFAULT_RESULT_TTL_SECONDS,
         private readonly int $defaultWaitTimeoutSeconds = self::DEFAULT_WAIT_TIMEOUT_SECONDS,
     ) {
@@ -140,7 +142,7 @@ final class LazyParallelBatch
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
-        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds);
+        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
         $currentIndexes = $this->sampleIndexes($samples);
 
@@ -257,6 +259,15 @@ final class LazyParallelBatch
         }
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
+
+        $failure = $this->firstFailure($batchId, $sampleCount, $this->sampleIndexes($samples));
+        if ($failure !== null) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch job for sample '%s' failed: %s.",
+                $failure['sample_id'],
+                $failure['error'],
+            ));
+        }
 
         throw new EvalRunException(sprintf(
             "Lazy parallel batch '%s' did not produce outputs within %s for sample ids: %s. Increase the batch wait timeout, confirm queue workers are running, and confirm the batch result cache is shared with workers.",
@@ -434,6 +445,7 @@ final class LazyParallelBatch
     private function runnerClassFor(SampleRunner $runner): string
     {
         $runnerClass = $runner::class;
+        $runnerReflection = new ReflectionClass($runnerClass);
 
         if (str_contains($runnerClass, "\0") || str_contains($runnerClass, '@anonymous')) {
             throw new EvalRunException(
@@ -441,7 +453,13 @@ final class LazyParallelBatch
             );
         }
 
-        $constructor = (new ReflectionClass($runnerClass))->getConstructor();
+        if (! $runnerReflection->isInstantiable()) {
+            throw new EvalRunException(
+                'Lazy parallel batch mode requires a concrete, instantiable SampleRunner class so queue workers can resolve it.',
+            );
+        }
+
+        $constructor = $runnerReflection->getConstructor();
         if ($constructor !== null) {
             foreach ($constructor->getParameters() as $parameter) {
                 $type = $parameter->getType();
@@ -454,7 +472,8 @@ final class LazyParallelBatch
             }
         }
 
-        foreach ((new ReflectionClass($runnerClass))->getProperties() as $property) {
+        $initializedProperties = [];
+        foreach ($runnerReflection->getProperties() as $property) {
             if ($property->isStatic() || ! $property->isInitialized($runner)) {
                 continue;
             }
@@ -466,9 +485,69 @@ final class LazyParallelBatch
                     'Lazy parallel batch mode requires a container-resolvable SampleRunner class; preconfigured runner instance state remains serial-only because queued workers resolve a fresh runner by class name.',
                 );
             }
+
+            $initializedProperties[] = $property;
+        }
+
+        if ($initializedProperties === []) {
+            return $runnerClass;
+        }
+
+        if ($this->container === null) {
+            throw new EvalRunException(
+                'Lazy parallel batch mode requires a container-resolvable SampleRunner class; initialized runner object state can only be accepted when it matches a fresh container-resolved runner.',
+            );
+        }
+
+        try {
+            $resolvedRunner = $this->container->make($runnerClass);
+        } catch (Throwable $e) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch mode could not resolve SampleRunner '%s' from the container: %s.",
+                $runnerClass,
+                $e->getMessage() !== '' ? $e->getMessage() : $e::class,
+            ), previous: $e);
+        }
+
+        if (! $resolvedRunner instanceof SampleRunner) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch mode requires SampleRunner '%s' to resolve to %s; got %s.",
+                $runnerClass,
+                SampleRunner::class,
+                get_debug_type($resolvedRunner),
+            ));
+        }
+
+        foreach ($initializedProperties as $property) {
+            if (! $property->isInitialized($resolvedRunner)) {
+                throw new EvalRunException(
+                    'Lazy parallel batch mode requires initialized runner object state to match a fresh container-resolved runner because queued workers resolve by class name.',
+                );
+            }
+
+            $runnerValue = $property->getValue($runner);
+            $resolvedValue = $property->getValue($resolvedRunner);
+            if (
+                ! is_object($runnerValue)
+                || ! is_object($resolvedValue)
+                || ! $this->runnerObjectStateMatches($runnerValue, $resolvedValue)
+            ) {
+                throw new EvalRunException(
+                    'Lazy parallel batch mode requires initialized runner object state to match a fresh container-resolved runner because queued workers resolve by class name.',
+                );
+            }
         }
 
         return $runnerClass;
+    }
+
+    private function runnerObjectStateMatches(object $runnerValue, object $resolvedValue): bool
+    {
+        if ($runnerValue::class !== $resolvedValue::class) {
+            return false;
+        }
+
+        return $runnerValue == $resolvedValue;
     }
 
     /**
@@ -541,6 +620,7 @@ final class LazyParallelBatch
             $waitTimeoutSeconds,
             $windowWaitSeconds,
             $options->timeoutSeconds ?? 0,
+            $options->resultTtlSeconds ?? 0,
         );
     }
 

@@ -889,3 +889,20 @@
   - the documented GraphQL fallback requested `copilot-pull-request-reviewer[bot]`, but Copilot posted `Copilot encountered an error and was unable to review this pull request. You can try again by re-requesting a review.` at `2026-05-03T17:10:37Z` on commit `68b4a30`,
   - subsequent GraphQL re-request and REST remove/re-add attempts did not produce a valid official Copilot review on `68b4a30`.
 - Do not merge PR #14 until a fresh official Copilot review succeeds on the latest head and any actionable comments are resolved. Next remote step: re-request Copilot from the GitHub UI or retry the GraphQL fallback after the Copilot reviewer service recovers.
+- Copilot recovered and reviewed PR #14 at head `1c38041`, generating five actionable comments:
+  - initialized object-valued runner properties could still hide caller-specific configuration that queued workers would lose,
+  - external `dispatch()` batches needed an explicit or derived TTL path for delayed collection,
+  - `CacheBatchResultStore::finish()` reread and rewrote every success key, creating an O(n) cache spike,
+  - the timeout branch needed to re-check stored failures after computing missing sample ids,
+  - the per-sample timeout validation still used ambiguous "Batch timeout" wording.
+- Addressed the latest PR #14 Copilot round by comparing initialized runner object state against a fresh container-resolved runner, adding `BatchOptions::lazyParallel(resultTtlSeconds: ...)` and deriving dispatch TTL from queue-drain windows, making cache-backed `finish()` metadata-only, re-checking failures after missing-output scans, and renaming the per-sample timeout validation to "Queued sample timeout".
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (45 tests, 91 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php src/Batches/LazyParallelBatch.php src/Batches/CacheBatchResultStore.php src/EvalHarnessServiceProvider.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (298 tests, 636 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding six batch/cache tests. README has no test-count claim; update the PR body validation line to `298 tests, 636 assertions` before requesting the next Copilot review.

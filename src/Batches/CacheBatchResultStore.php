@@ -201,28 +201,11 @@ final class CacheBatchResultStore implements BatchResultStore
         $this->assertNonNegativeSampleCount($sampleCount);
         $this->assertPositiveTtl($ttlSeconds);
 
-        $successPayloads = $status === self::STATUS_FINISHED
-            ? $this->successfulResults($batchId, $sampleCount)
-            : [];
-
         $this->cache->put(
             $this->metaKey($batchId),
             ['sample_count' => $sampleCount, 'status' => $status, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
-
-        // Finished successes stay readable for idempotent collect retries; other sample keys expire naturally.
-        foreach ($successPayloads as $index => $payload) {
-            $this->cache->put(
-                $this->resultKey($batchId, $index),
-                [
-                    'status' => 'success',
-                    'sample_id' => $payload['sample_id'],
-                    'actual_output' => $payload['actual_output'],
-                ],
-                $ttlSeconds,
-            );
-        }
     }
 
     /**

@@ -115,6 +115,25 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->failures('closed-batch', 1));
     }
 
+    public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
+    {
+        $cache = new GetRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('finish-without-scan', 2, 60);
+        $store->recordSuccess('finish-without-scan', 0, 's1', 'first output', 60);
+        $store->recordSuccess('finish-without-scan', 1, 's2', 'second output', 60);
+
+        $cache->getKeys = [];
+        $store->finish('finish-without-scan', 2, 60);
+
+        $this->assertSame([], $cache->getKeys);
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+            1 => ['sample_id' => 's2', 'actual_output' => 'second output'],
+        ], $store->successfulResults('finish-without-scan', 2));
+    }
+
     public function test_finished_or_aborted_batches_ignore_late_job_writes(): void
     {
         $store = $this->store();
@@ -181,5 +200,18 @@ final class ClosingAfterAddCacheRepository extends IlluminateCacheRepository
         ($this->onAdd)();
 
         return $added;
+    }
+}
+
+final class GetRecordingCacheRepository extends IlluminateCacheRepository
+{
+    /** @var list<mixed> */
+    public array $getKeys = [];
+
+    public function get($key, $default = null): mixed
+    {
+        $this->getKeys[] = $key;
+
+        return parent::get($key, $default);
     }
 }

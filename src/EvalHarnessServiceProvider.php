@@ -81,6 +81,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new LazyParallelBatch(
                 dispatcher: $app->make(Dispatcher::class),
                 resultStore: $app->make(BatchResultStore::class),
+                container: $app,
                 resultTtlSeconds: TimeoutNormalizer::normalize(
                     $config->get('eval-harness.batches.lazy_parallel.result_ttl_seconds'),
                     3600,

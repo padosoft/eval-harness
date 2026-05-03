@@ -405,11 +405,11 @@ store. It requires the SUT to be a container-resolvable concrete
 `SampleRunner` class that queue workers can resolve through the
 Laravel container.
 Constructor-injected object dependencies are supported when the worker
-container can resolve them. Arbitrary callables, closures, anonymous
-runners, optional/defaulted constructor state, and scalar/array/null
-runner properties remain serial-only. Object-valued runner properties
-are accepted as container-resolved dependencies; caller-specific object
-configuration is not serialized to workers.
+container can resolve an equivalent fresh runner. Arbitrary callables,
+closures, anonymous runners, optional/defaulted constructor state,
+scalar/array/null runner properties, and caller-specific object
+configuration remain serial-only because queued jobs carry only the
+runner class name.
 
 ```php
 use App\Eval\MyRagRunner;
@@ -436,6 +436,9 @@ command dispatches before waiting for the current window; Horizon
 worker counts are configured in Horizon. `--timeout` is the per-sample
 job timeout; `--batch-timeout` is the maximum wait for each dispatch
 window to finish before the command reports missing queued outputs.
+Programmatic external `dispatch()` / `collectOutputs()` flows can set
+`BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
+metadata and sample outputs alive long enough for delayed collection.
 
 ---
 

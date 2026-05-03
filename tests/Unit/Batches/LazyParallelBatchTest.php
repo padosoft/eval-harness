@@ -67,7 +67,7 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
-    public function test_dispatch_ttl_does_not_multiply_by_concurrency_windows(): void
+    public function test_dispatch_ttl_covers_expected_external_queue_drain(): void
     {
         Queue::fake();
 
@@ -88,7 +88,32 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 60;
+            return $job->resultTtlSeconds === 120;
+        });
+    }
+
+    public function test_dispatch_ttl_accepts_explicit_batch_option_floor(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+        $samples = $this->samples();
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 1, waitTimeoutSeconds: 60, resultTtlSeconds: 300),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->resultTtlSeconds === 300;
         });
     }
 
@@ -311,6 +336,26 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_timeout_path_rechecks_failure_after_missing_output_scan(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new LateFailureAfterMissingOutputReadStore,
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Lazy parallel batch job for sample 's1' failed: worker failed after missing scan");
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
     public function test_rejects_anonymous_runners_because_workers_cannot_autoload_them(): void
     {
         /** @var LazyParallelBatch $batch */
@@ -381,6 +426,7 @@ final class LazyParallelBatchTest extends TestCase
         $batch = new LazyParallelBatch(
             dispatcher: $dispatcher,
             resultStore: new RecordingBatchResultStore,
+            container: $this->app,
         );
         $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
@@ -405,6 +451,7 @@ final class LazyParallelBatchTest extends TestCase
         $batch = new LazyParallelBatch(
             dispatcher: $dispatcher,
             resultStore: new RecordingBatchResultStore,
+            container: $this->app,
         );
         $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
@@ -433,6 +480,23 @@ final class LazyParallelBatchTest extends TestCase
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: new PreconfiguredLazyParallelRunner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_rejects_caller_specific_object_runner_state(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('initialized runner object state to match a fresh container-resolved runner');
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig('custom output')),
             options: BatchOptions::lazyParallel(),
         );
     }
@@ -538,6 +602,13 @@ final class LazyParallelRunnerDependency
     //
 }
 
+final class LazyParallelRunnerConfig
+{
+    public function __construct(
+        public readonly string $answer = 'default output',
+    ) {}
+}
+
 final class DependencyInjectedLazyParallelRunner implements SampleRunner
 {
     public function __construct(
@@ -562,6 +633,18 @@ final class RenamedDependencyLazyParallelRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         return get_debug_type($this->service);
+    }
+}
+
+final class ObjectConfiguredLazyParallelRunner implements SampleRunner
+{
+    public function __construct(
+        private readonly LazyParallelRunnerConfig $config,
+    ) {}
+
+    public function run(SampleInvocation $sample): string
+    {
+        return $this->config->answer;
     }
 }
 
@@ -932,6 +1015,74 @@ final class LateFailureAfterSlowOutputReadStore implements BatchResultStore
 
         return [
             0 => ['sample_id' => 's1', 'error' => 'worker failed late'],
+        ];
+    }
+}
+
+final class LateFailureAfterMissingOutputReadStore implements BatchResultStore
+{
+    private bool $failureAvailable = false;
+
+    private int $successfulReadCount = 0;
+
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return 1;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return 60;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        $this->successfulReadCount++;
+
+        if ($this->successfulReadCount === 1) {
+            usleep(1_100_000);
+        }
+
+        if ($this->successfulReadCount > 1) {
+            $this->failureAvailable = true;
+        }
+
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        if (! $this->failureAvailable) {
+            return [];
+        }
+
+        return [
+            0 => ['sample_id' => 's1', 'error' => 'worker failed after missing scan'],
         ];
     }
 }

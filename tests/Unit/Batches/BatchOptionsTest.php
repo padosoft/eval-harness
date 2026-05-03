@@ -28,6 +28,7 @@ final class BatchOptionsTest extends TestCase
             queue: 'evals',
             timeoutSeconds: 30,
             waitTimeoutSeconds: 300,
+            resultTtlSeconds: 900,
         );
 
         $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $options->mode);
@@ -35,6 +36,7 @@ final class BatchOptionsTest extends TestCase
         $this->assertSame('evals', $options->queue);
         $this->assertSame(30, $options->timeoutSeconds);
         $this->assertSame(300, $options->waitTimeoutSeconds);
+        $this->assertSame(900, $options->resultTtlSeconds);
     }
 
     public function test_queue_name_is_trimmed(): void
@@ -79,7 +81,7 @@ final class BatchOptionsTest extends TestCase
     public function test_rejects_invalid_timeout(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('Batch timeout');
+        $this->expectExceptionMessage('Queued sample timeout');
 
         new BatchOptions(timeoutSeconds: 0);
     }
@@ -106,5 +108,21 @@ final class BatchOptionsTest extends TestCase
         $this->expectExceptionMessage('Batch wait timeout');
 
         BatchOptions::lazyParallel(waitTimeoutSeconds: 0);
+    }
+
+    public function test_rejects_invalid_result_ttl(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch result TTL');
+
+        BatchOptions::lazyParallel(resultTtlSeconds: 0);
+    }
+
+    public function test_serial_mode_rejects_result_ttl(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('does not use a result TTL');
+
+        new BatchOptions(resultTtlSeconds: 60);
     }
 }

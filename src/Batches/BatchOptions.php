@@ -29,6 +29,7 @@ final class BatchOptions
         ?string $queue = null,
         public readonly ?int $timeoutSeconds = null,
         public readonly ?int $waitTimeoutSeconds = null,
+        public readonly ?int $resultTtlSeconds = null,
     ) {
         if (! in_array($mode, self::SUPPORTED_MODES, true)) {
             throw new EvalRunException(sprintf(
@@ -50,11 +51,15 @@ final class BatchOptions
         $this->queue = $normalizedQueue;
 
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
-            throw new EvalRunException('Batch timeout must be null or greater than or equal to 1 second.');
+            throw new EvalRunException('Queued sample timeout must be null or greater than or equal to 1 second.');
         }
 
         if ($waitTimeoutSeconds !== null && $waitTimeoutSeconds < 1) {
             throw new EvalRunException('Batch wait timeout must be null or greater than or equal to 1 second.');
+        }
+
+        if ($resultTtlSeconds !== null && $resultTtlSeconds < 1) {
+            throw new EvalRunException('Batch result TTL must be null or greater than or equal to 1 second.');
         }
 
         if ($mode === self::MODE_SERIAL) {
@@ -73,6 +78,10 @@ final class BatchOptions
             if ($waitTimeoutSeconds !== null) {
                 throw new EvalRunException('Serial batch mode does not use a wait timeout.');
             }
+
+            if ($resultTtlSeconds !== null) {
+                throw new EvalRunException('Serial batch mode does not use a result TTL.');
+            }
         }
     }
 
@@ -86,6 +95,7 @@ final class BatchOptions
         ?string $queue = null,
         ?int $timeoutSeconds = null,
         ?int $waitTimeoutSeconds = null,
+        ?int $resultTtlSeconds = null,
     ): self {
         return new self(
             mode: self::MODE_LAZY_PARALLEL,
@@ -93,6 +103,7 @@ final class BatchOptions
             queue: $queue,
             timeoutSeconds: $timeoutSeconds,
             waitTimeoutSeconds: $waitTimeoutSeconds,
+            resultTtlSeconds: $resultTtlSeconds,
         );
     }
 }
