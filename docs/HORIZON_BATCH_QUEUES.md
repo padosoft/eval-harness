@@ -108,10 +108,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 ## Operational Checks
 
-- Verify the SUT binding resolves to a concrete `SampleRunner` class in the
-  worker container. Lazy parallel mode rejects closures, anonymous runners, and
-  caller-specific instance state because workers resolve the runner by class
-  name.
+- Verify the SUT binding resolves to a fresh concrete `SampleRunner` class in
+  the worker container. Prefer class bindings or factories that return a new
+  container-resolved runner. Lazy parallel mode rejects closures, anonymous
+  runners, `instance()` / singleton bindings that return the same initialized
+  runner object, and caller-specific instance state because workers resolve the
+  runner by class name.
 - Verify the queue name passed with `--queue` matches the Horizon supervisor
   queue.
 - Verify the configured batch cache store is reachable from CLI and worker

@@ -1053,3 +1053,11 @@
   - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened PR #16 (`task/parallel-batch-queues-horizon-guidance` -> `task/parallel-batch-queues`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 16 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
+- Copilot reviewed PR #16 at head `ca91bd8` and generated two actionable docs comments: the Horizon guide needed to call out singleton/instance runner bindings that fail fresh-runner validation, and `AGENTS.md` still named an in-flight branch that would become stale on merge.
+- Addressed the PR #16 Copilot comments by documenting fresh `SampleRunner` class/factory bindings for lazy-parallel workers and changing `AGENTS.md` to point future agents at `docs/PROGRESS.md` plus `git status` instead of naming the current subtask branch.
+- Full local gate passed after the PR #16 Copilot docs fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
