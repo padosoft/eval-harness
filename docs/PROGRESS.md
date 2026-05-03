@@ -883,3 +883,9 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding one dispatch TTL regression. README has no test-count claim; PR #14 body was updated from `291 tests, 623 assertions` to `292 tests, 624 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Remote blocker on PR #14 after pushing head `68b4a30`:
+  - CI is green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix and the PR is `CLEAN`,
+  - `gh pr edit 14 --add-reviewer copilot` is still blocked by missing `read:project`,
+  - the documented GraphQL fallback requested `copilot-pull-request-reviewer[bot]`, but Copilot posted `Copilot encountered an error and was unable to review this pull request. You can try again by re-requesting a review.` at `2026-05-03T17:10:37Z` on commit `68b4a30`,
+  - subsequent GraphQL re-request and REST remove/re-add attempts did not produce a valid official Copilot review on `68b4a30`.
+- Do not merge PR #14 until a fresh official Copilot review succeeds on the latest head and any actionable comments are resolved. Next remote step: re-request Copilot from the GitHub UI or retry the GraphQL fallback after the Copilot reviewer service recovers.
