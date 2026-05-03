@@ -698,7 +698,7 @@ final class LazyParallelBatch
         $windowWaitSeconds = 0;
         if ($sampleCount !== null) {
             $windowCount = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
-            $windowWaitSeconds = $waitTimeoutSeconds * $windowCount;
+            $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
         }
 
         return max(

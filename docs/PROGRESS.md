@@ -975,3 +975,15 @@
   - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #14 again at head `189d3e6` and generated one comment: queue-drain TTL needed to multiply each producer window by the larger of per-job timeout and batch wait timeout, not only batch wait timeout.
+- Addressed the latest PR #14 Copilot round by deriving window TTL from `max(timeoutSeconds, waitTimeoutSeconds) * windowCount` and adding dispatch TTL coverage where per-job timeout dominates.
+- Targeted validation passed after the latest official Copilot fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (31 tests, 56 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the latest official Copilot fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (309 tests, 654 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one TTL regression. README has no test-count claim; update the PR body validation line to `309 tests, 654 assertions` before requesting the next Copilot review.

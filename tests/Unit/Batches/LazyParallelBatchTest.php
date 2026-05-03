@@ -92,6 +92,35 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
+    public function test_dispatch_ttl_uses_per_job_timeout_for_queue_drain_windows(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'first output'], expectedOutput: 'first output'),
+            new DatasetSample(id: 's2', input: ['answer' => 'second output'], expectedOutput: 'second output'),
+            new DatasetSample(id: 's3', input: ['answer' => 'third output'], expectedOutput: 'third output'),
+        ];
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 1, timeoutSeconds: 300, waitTimeoutSeconds: 60),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->resultTtlSeconds === 900;
+        });
+    }
+
     public function test_dispatch_ttl_accepts_explicit_batch_option_floor(): void
     {
         Queue::fake();
