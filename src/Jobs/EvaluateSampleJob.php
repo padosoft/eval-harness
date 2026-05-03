@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Jobs;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Container\Container as LaravelContainer;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -21,6 +22,8 @@ final class EvaluateSampleJob implements ShouldQueue
 {
     use InteractsWithQueue;
     use Queueable;
+
+    public bool $failOnTimeout = true;
 
     public ?int $timeout = null;
 
@@ -59,29 +62,17 @@ final class EvaluateSampleJob implements ShouldQueue
 
     public function handle(Container $container, BatchResultStore $resultStore): void
     {
-        try {
-            $runner = $container->make($this->runnerClass);
-            if (! $runner instanceof SampleRunner) {
-                throw new EvalRunException(sprintf(
-                    "Queued sample runner '%s' must resolve to %s; got %s.",
-                    $this->runnerClass,
-                    SampleRunner::class,
-                    get_debug_type($runner),
-                ));
-            }
-
-            $actualOutput = $runner->run($this->sample);
-        } catch (Throwable $e) {
-            $resultStore->recordFailure(
-                batchId: $this->batchId,
-                index: $this->index,
-                sampleId: $this->sampleId,
-                error: $e->getMessage() !== '' ? $e->getMessage() : $e::class,
-                ttlSeconds: $this->resultTtlSeconds,
-            );
-
-            return;
+        $runner = $container->make($this->runnerClass);
+        if (! $runner instanceof SampleRunner) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must resolve to %s; got %s.",
+                $this->runnerClass,
+                SampleRunner::class,
+                get_debug_type($runner),
+            ));
         }
+
+        $actualOutput = $runner->run($this->sample);
 
         $resultStore->recordSuccess(
             batchId: $this->batchId,
@@ -90,5 +81,28 @@ final class EvaluateSampleJob implements ShouldQueue
             actualOutput: $actualOutput,
             ttlSeconds: $this->resultTtlSeconds,
         );
+    }
+
+    public function failed(?Throwable $e): void
+    {
+        /** @var BatchResultStore $resultStore */
+        $resultStore = LaravelContainer::getInstance()->make(BatchResultStore::class);
+
+        $resultStore->recordFailure(
+            batchId: $this->batchId,
+            index: $this->index,
+            sampleId: $this->sampleId,
+            error: $this->failureMessage($e),
+            ttlSeconds: $this->resultTtlSeconds,
+        );
+    }
+
+    private function failureMessage(?Throwable $e): string
+    {
+        if ($e === null) {
+            return 'Queue job failed without an exception.';
+        }
+
+        return $e->getMessage() !== '' ? $e->getMessage() : $e::class;
     }
 }

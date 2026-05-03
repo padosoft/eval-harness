@@ -124,3 +124,7 @@
 - When package code starts importing queue/cache/bus contracts directly, add explicit `illuminate/bus`, `illuminate/cache`, and `illuminate/queue` Composer requirements instead of relying on transitive Testbench or `laravel/framework` replacements.
 - Do not reuse a per-sample queue job timeout as the whole lazy-batch collection deadline. Keep job timeout (`--timeout`) separate from queue result wait timeout (`--batch-timeout`) so healthy large batches do not fail early.
 - If a batch option exposes concurrency, the producer path must use it. `LazyParallelBatch::run()` should dispatch and collect in bounded windows so `--concurrency=N` limits in-flight queued samples instead of becoming a no-op.
+- Queue jobs should not catch every runner exception and return successfully. Let `handle()` failures propagate so Laravel retries/backoff/failed-job reporting still apply, and record final batch failures from the job's `failed()` hook.
+- If a queued eval job must surface worker timeouts as batch failures, set `failOnTimeout` and keep enough scalar job payload data to write a deterministic failure entry from `failed()`.
+- Dispatch-only batch APIs that write shared result metadata need cleanup around queue transport errors; otherwise a partial dispatch can leave stale cache keys even though no collector will read them.
+- Result polling against a shared cache should back off instead of using a fixed tight interval, because each poll may scan the whole batch state and become a Redis/Horizon bottleneck on large evals.

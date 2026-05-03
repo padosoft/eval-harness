@@ -11,6 +11,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Jobs\EvaluateSampleJob;
 use Random\RandomException;
+use Throwable;
 
 /**
  * Queue-backed sample batch runner with deterministic output assembly.
@@ -21,7 +22,9 @@ final class LazyParallelBatch
 
     private const DEFAULT_WAIT_TIMEOUT_SECONDS = 60;
 
-    private const POLL_INTERVAL_MICROSECONDS = 50_000;
+    private const INITIAL_POLL_INTERVAL_MICROSECONDS = 50_000;
+
+    private const MAX_POLL_INTERVAL_MICROSECONDS = 1_000_000;
 
     public function __construct(
         private readonly Dispatcher $dispatcher,
@@ -60,13 +63,21 @@ final class LazyParallelBatch
 
         try {
             foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
-                $this->dispatchSampleJobs(
-                    batchId: $batchId,
-                    samples: $sampleWindow,
-                    sampleInvocations: $sampleInvocations,
-                    runnerClass: $runnerClass,
-                    options: $options,
-                );
+                try {
+                    $this->dispatchSampleJobs(
+                        batchId: $batchId,
+                        samples: $sampleWindow,
+                        sampleInvocations: $sampleInvocations,
+                        runnerClass: $runnerClass,
+                        options: $options,
+                    );
+                } catch (Throwable $e) {
+                    $this->throwStoredFailureOrDispatchException(
+                        batchId: $batchId,
+                        sampleCount: $sampleCount,
+                        previous: $e,
+                    );
+                }
 
                 $outputsByIndex += $this->waitForIndexedOutputs(
                     batchId: $batchId,
@@ -116,14 +127,26 @@ final class LazyParallelBatch
         $batchId = $this->newBatchId();
         $this->resultStore->start($batchId, count($samples), $this->resultTtlSeconds);
 
-        foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
-            $this->dispatchSampleJobs(
-                batchId: $batchId,
-                samples: $sampleWindow,
-                sampleInvocations: $sampleInvocations,
-                runnerClass: $runnerClass,
-                options: $options,
-            );
+        try {
+            foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+                $this->dispatchSampleJobs(
+                    batchId: $batchId,
+                    samples: $sampleWindow,
+                    sampleInvocations: $sampleInvocations,
+                    runnerClass: $runnerClass,
+                    options: $options,
+                );
+            }
+        } catch (Throwable $e) {
+            try {
+                $this->throwStoredFailureOrDispatchException(
+                    batchId: $batchId,
+                    sampleCount: count($samples),
+                    previous: $e,
+                );
+            } finally {
+                $this->resultStore->forget($batchId, count($samples));
+            }
         }
 
         return $batchId;
@@ -158,6 +181,7 @@ final class LazyParallelBatch
     private function waitForIndexedOutputs(string $batchId, array $samples, int $sampleCount, int $timeoutSeconds): array
     {
         $deadline = microtime(true) + $timeoutSeconds;
+        $pollIntervalMicroseconds = self::INITIAL_POLL_INTERVAL_MICROSECONDS;
 
         do {
             $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
@@ -169,7 +193,13 @@ final class LazyParallelBatch
                 break;
             }
 
-            usleep(self::POLL_INTERVAL_MICROSECONDS);
+            $remainingMicroseconds = max(1, (int) (($deadline - microtime(true)) * 1_000_000));
+            usleep(min($pollIntervalMicroseconds, $remainingMicroseconds));
+
+            $pollIntervalMicroseconds = min(
+                self::MAX_POLL_INTERVAL_MICROSECONDS,
+                $pollIntervalMicroseconds * 2,
+            );
         } while (true);
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
@@ -179,6 +209,37 @@ final class LazyParallelBatch
             $batchId,
             implode(', ', $missingSampleIds),
         ));
+    }
+
+    private function throwStoredFailureOrDispatchException(string $batchId, int $sampleCount, Throwable $previous): never
+    {
+        $failure = $this->firstFailure($batchId, $sampleCount);
+        if ($failure !== null) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch job for sample '%s' failed: %s.",
+                $failure['sample_id'],
+                $failure['error'],
+            ), previous: $previous);
+        }
+
+        throw new EvalRunException(sprintf(
+            "Failed to dispatch lazy parallel batch '%s': %s.",
+            $batchId,
+            $previous->getMessage() !== '' ? $previous->getMessage() : $previous::class,
+        ), previous: $previous);
+    }
+
+    /**
+     * @return array{sample_id: string, error: string}|null
+     */
+    private function firstFailure(string $batchId, int $sampleCount): ?array
+    {
+        $failures = $this->resultStore->failures($batchId, $sampleCount);
+        if ($failures === []) {
+            return null;
+        }
+
+        return $failures[array_key_first($failures)];
     }
 
     /**

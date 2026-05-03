@@ -683,3 +683,23 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search again. README still has no test-count claim; this progress file records the current `259 tests, 560 assertions` result.
+- Copilot SWE agent pushed cleanup commit `bf7744f` to PR #14, removing a dead `LazyParallelBatch::indexedSamples()` helper. Pulled it locally with fast-forward and re-ran local validation on that head:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (259 tests, 560 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- The official `copilot-pull-request-reviewer` then reviewed PR #14 at head `bf7744f` and generated six comments. Two were stale duplicates of the already-fixed timeout/concurrency issues; four were actionable:
+  - queue-level failures such as worker timeouts/max-attempts should record a batch result failure,
+  - catching every runner exception in `EvaluateSampleJob::handle()` bypassed Laravel retry/backoff and failed-job reporting,
+  - `LazyParallelBatch::dispatch()` needed cleanup when queue dispatch fails after result metadata is written,
+  - fixed 50 ms result polling can over-read the shared cache on large Horizon-backed runs.
+- Addressed the actionable PR #14 Copilot comments by moving queued failure recording to `EvaluateSampleJob::failed()`, enabling `failOnTimeout`, letting `handle()` exceptions propagate through Laravel queue retry/failure semantics, translating sync-queue job failures back into sample-id batch errors, cleaning result state when dispatch fails, and changing result polling to exponential backoff capped at 1 second.
+- Targeted validation passed after the official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (9 tests, 17 assertions)`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (262 tests, 567 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding job/batch tests. README has no test-count claim; this progress file records the current `262 tests, 567 assertions` result.
