@@ -57,7 +57,7 @@ final class EvalSetManifestTest extends TestCase
         $manifest->assertMatches(new EvalSetDefinition('nightly', ['rag.second', 'rag.first']));
     }
 
-    public function test_manifest_rejects_duplicate_entries_without_numeric_key_coercion(): void
+    public function test_manifest_preserves_numeric_like_dataset_names_without_key_coercion(): void
     {
         $manifest = new EvalSetManifest(
             evalSetName: 'nightly',
@@ -119,6 +119,15 @@ final class EvalSetManifestTest extends TestCase
         $this->expectExceptionMessage('terminal status');
 
         $entry->running(3.0);
+    }
+
+    public function test_manifest_resets_started_at_when_resuming_running_entry(): void
+    {
+        $entry = EvalSetManifestEntry::pending('rag.first')
+            ->running(1.0)
+            ->running(5.0);
+
+        $this->assertSame(5.0, $entry->startedAt);
     }
 
     public function test_manifest_rejects_padded_dataset_names_instead_of_trimming(): void

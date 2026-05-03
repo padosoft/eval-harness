@@ -183,3 +183,4 @@
 - README resume examples must show JSON rehydration into DTOs such as `EvalSetManifest::fromJson()`, not only the write path, otherwise callers will pass decoded arrays to typed APIs.
 - Public PHPDoc should describe the accepted caller contract, not only the broad shape accepted for defensive runtime validation. For eval-set APIs, document `list<string>` dataset names and `list<EvalReport>` reports, while runtime constructors can still reject malformed arrays with package exceptions.
 - Manifest lookup helpers used inside orchestration loops should keep an internal exact-name index; repeated linear scans across eval-set entries become visible on large multi-dataset runs.
+- Resuming a manifest entry left in `running` state should reset `started_at` when the dataset is re-run. Otherwise completed duration includes downtime from the interrupted attempt.

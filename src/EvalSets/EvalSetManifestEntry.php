@@ -70,7 +70,7 @@ final class EvalSetManifestEntry
         return new self(
             datasetName: $this->datasetName,
             status: self::STATUS_RUNNING,
-            startedAt: $this->startedAt ?? $now,
+            startedAt: $now,
         );
     }
 

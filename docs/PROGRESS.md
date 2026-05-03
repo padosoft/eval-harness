@@ -1030,3 +1030,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two manifest lookup/list-validation assertions. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `327 tests, 714 assertions` before requesting the next Copilot review.
+- Copilot reviewed PR #15 again at head `761cbb9` and generated two actionable comments:
+  - a manifest test name claimed duplicate rejection while it asserted numeric-like names remain distinct,
+  - resuming a `running` manifest entry preserved the old `started_at`, inflating duration with downtime.
+- Addressed the third PR #15 Copilot round by renaming the numeric-like manifest lookup test and making `EvalSetManifestEntry::running()` reset `startedAt` to the new attempt timestamp, with regression coverage.
+- Targeted validation passed after the third PR #15 Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/EvalSets` => `OK (19 tests, 61 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/EvalSets/EvalSetManifestEntry.php tests/Unit/EvalSets/EvalSetManifestTest.php`
+- Full local gate passed after the third PR #15 Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding one running-resume regression. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `328 tests, 715 assertions` before requesting the next Copilot review.
