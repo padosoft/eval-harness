@@ -4,24 +4,18 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Metrics;
 
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Http\Client\Factory as HttpFactory;
+use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
-use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * Semantic-similarity metric: embed expected + actual via an
  * embeddings provider, return `1 - cosine_distance` clamped to
  * [0, 1].
  *
- * Transport: raw `Http::` against the configured provider (defaults
- * to OpenAI's embeddings endpoint; OpenRouter / Regolo / any
- * OpenAI-compatible embeddings endpoint works with only an env-var
- * change). Tests substitute via `Http::fake()` for deterministic
- * offline runs — see
- * tests/Unit/Metrics/CosineEmbeddingMetricTest.php for canned
- * vectors.
+ * Transport is delegated to {@see EmbeddingClient}. The package binds
+ * an OpenAI-compatible HTTP client by default, while tests and host
+ * apps can bind deterministic fakes or Laravel AI-backed clients.
  *
  * Config keys (all under `eval-harness.metrics.cosine_embedding.*`):
  *   - endpoint: full URL of the embeddings POST endpoint.
@@ -32,8 +26,7 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 final class CosineEmbeddingMetric implements Metric
 {
     public function __construct(
-        private readonly HttpFactory $http,
-        private readonly ConfigRepository $config,
+        private readonly EmbeddingClient $embeddings,
     ) {}
 
     public function name(): string
@@ -53,8 +46,14 @@ final class CosineEmbeddingMetric implements Metric
             );
         }
 
-        $expectedVec = $this->embed($sample->expectedOutput);
-        $actualVec = $this->embed($actualOutput);
+        $vectors = $this->embeddings->embedMany([$sample->expectedOutput, $actualOutput]);
+        if (count($vectors) !== 2) {
+            throw new MetricException(
+                sprintf('Cosine embedding client returned %d vector(s); expected 2.', count($vectors)),
+            );
+        }
+
+        [$expectedVec, $actualVec] = $vectors;
 
         $similarity = $this->cosineSimilarity($expectedVec, $actualVec);
         // Clamp into [0, 1] — float math can produce 1.0000000000002.
@@ -69,78 +68,6 @@ final class CosineEmbeddingMetric implements Metric
                 'clamped_score' => $clamped,
             ],
         );
-    }
-
-    /**
-     * @return list<float>
-     */
-    private function embed(string $text): array
-    {
-        $endpoint = (string) $this->config->get(
-            'eval-harness.metrics.cosine_embedding.endpoint',
-            'https://api.openai.com/v1/embeddings',
-        );
-        $apiKey = (string) $this->config->get(
-            'eval-harness.metrics.cosine_embedding.api_key',
-            '',
-        );
-        $model = (string) $this->config->get(
-            'eval-harness.metrics.cosine_embedding.model',
-            'text-embedding-3-small',
-        );
-        // Defensive: any non-positive / non-numeric env value collapses
-        // a naive (int) cast to 0, which Http::timeout(0) interprets
-        // as "no timeout" — a misconfigured
-        // EVAL_HARNESS_EMBEDDINGS_TIMEOUT would then hang forever
-        // instead of falling back to the documented default.
-        // TimeoutNormalizer enforces a positive int with the default
-        // fallback.
-        $timeout = TimeoutNormalizer::normalize(
-            $this->config->get('eval-harness.metrics.cosine_embedding.timeout_seconds'),
-            30,
-        );
-
-        $request = $this->http->timeout($timeout);
-        if ($apiKey !== '') {
-            $request = $request->withToken($apiKey);
-        }
-
-        $response = $request->post($endpoint, [
-            'model' => $model,
-            'input' => $text,
-        ]);
-
-        if ($response->failed()) {
-            throw new MetricException(
-                sprintf(
-                    'Embeddings request failed: HTTP %d (%s).',
-                    $response->status(),
-                    substr((string) $response->body(), 0, 200),
-                ),
-            );
-        }
-
-        /** @var array<mixed> $body */
-        $body = (array) $response->json();
-        $vector = $body['data'][0]['embedding'] ?? null;
-
-        if (! is_array($vector) || $vector === []) {
-            throw new MetricException(
-                'Embeddings response is missing data[0].embedding or it is not a non-empty array.',
-            );
-        }
-
-        $normalised = [];
-        foreach ($vector as $i => $component) {
-            if (! is_numeric($component)) {
-                throw new MetricException(
-                    sprintf('Embedding vector contains non-numeric component at index %d.', $i),
-                );
-            }
-            $normalised[] = (float) $component;
-        }
-
-        return $normalised;
     }
 
     /**

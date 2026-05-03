@@ -96,9 +96,9 @@ surface small and the offline path fast.
 
 ## Features
 
-- **Seven metrics out of the box** — `exact-match`, `contains`,
+- **Eight metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
-  `cosine-embedding`, `llm-as-judge` — and a clean `Metric`
+  `cosine-embedding`, `bertscore-like`, `llm-as-judge` — and a clean `Metric`
   interface for adding more.
 - **Strict-schema YAML loader** — versioned dataset contracts and
   actionable validation errors for malformed samples.
@@ -138,7 +138,8 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
 | Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
 | Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
-| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/judge** |
+| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/BERTScore-like/judge** |
+| Embedding semantic overlap | ⚠️ PARTIAL - custom embedding eval code | ⚠️ PARTIAL - SDK evaluator path | ✅ YES - RAG embedding metrics | ⚠️ PARTIAL - provider-backed similarity assertions | ✅ YES - semantic metrics | **✅ YES - cosine-embedding + bertscore-like via fakeable EmbeddingClient** |
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge** |
 | Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
@@ -547,9 +548,11 @@ EVAL_HARNESS_JUDGE_API_KEY=rgl-your-key
 EVAL_HARNESS_JUDGE_MODEL=mistral-large
 ```
 
-The cosine-embedding metric only works against an embeddings endpoint
-returning the OpenAI shape (`data[0].embedding`), but most providers
-already implement that contract.
+The embedding-backed metrics (`cosine-embedding`, `bertscore-like`)
+use the same OpenAI-compatible embeddings endpoint (`data[].embedding`).
+Most providers already implement that contract. Host apps can also bind
+`Padosoft\EvalHarness\Contracts\EmbeddingClient` to route embeddings
+through Laravel AI or deterministic fakes.
 
 ---
 
@@ -581,8 +584,9 @@ already implement that contract.
 │  Metrics                   │       │  Reports                   │
 │  - ExactMatchMetric        │       │  - EvalReport              │
 │  - CosineEmbeddingMetric   │       │  - MarkdownRenderer        │
-│  - LlmAsJudgeMetric        │       │  - JsonRenderer            │
-│  (Http::-backed)           │       │  - macroF1, p50, p95, mean │
+│  - BertScoreLikeMetric     │       │  - JsonRenderer            │
+│  - LlmAsJudgeMetric        │       │  - cohorts + histograms    │
+│  - EmbeddingClient-backed  │       │  - macroF1, p50, p95, mean │
 └────────────────────────────┘       └────────────────────────────┘
 ```
 
@@ -591,7 +595,9 @@ already implement that contract.
 `MetricResolver` accepts:
 1. A `Metric` instance (full control).
 2. An FQCN string (resolved through the container).
-3. A built-in alias: `exact-match`, `cosine-embedding`, `llm-as-judge`.
+3. A built-in alias: `exact-match`, `contains`, `regex`, `rouge-l`,
+   `citation-groundedness`, `cosine-embedding`, `bertscore-like`,
+   `llm-as-judge`.
 
 Every resolved class is asserted to implement `Metric` so a typo'd
 FQCN fails with a clear error instead of producing a runtime
@@ -680,9 +686,9 @@ accidentally and never burns API credits.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   without invoking an agent, closing the Promptfoo-style CI workflow
   gap. Implemented through `Eval::scoreOutputs()` and `--outputs`.
-- **More built-in metrics**: ROUGE-L and citation-groundedness
-  baseline are implemented; BERTScore (via embeddings) and
-  refusal-quality (LLM-as-judge specialised prompt) remain planned.
+- **More built-in metrics**: ROUGE-L, citation-groundedness baseline,
+  and a fakeable embedding-backed BERTScore-like metric are implemented;
+  refusal-quality (LLM-as-judge specialised prompt) remains planned.
 - **Usage summaries** — token, cost, and latency fields when metric
   providers expose usage.
 

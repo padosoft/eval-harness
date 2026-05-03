@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Metrics;
 
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Metrics\BertScoreLikeMetric;
 use Padosoft\EvalHarness\Metrics\CitationGroundednessMetric;
 use Padosoft\EvalHarness\Metrics\ContainsMetric;
 use Padosoft\EvalHarness\Metrics\CosineEmbeddingMetric;
@@ -66,6 +67,13 @@ final class MetricResolverTest extends TestCase
         $this->assertInstanceOf(LlmAsJudgeMetric::class, $resolver->resolve('llm-as-judge'));
     }
 
+    public function test_alias_resolves_bertscore_like(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(BertScoreLikeMetric::class, $resolver->resolve('bertscore-like'));
+    }
+
     public function test_metric_instance_is_passed_through(): void
     {
         /** @var MetricResolver $resolver */
@@ -116,6 +124,7 @@ final class MetricResolverTest extends TestCase
         $this->assertArrayHasKey('rouge-l', $aliases);
         $this->assertArrayHasKey('citation-groundedness', $aliases);
         $this->assertArrayHasKey('cosine-embedding', $aliases);
+        $this->assertArrayHasKey('bertscore-like', $aliases);
         $this->assertArrayHasKey('llm-as-judge', $aliases);
     }
 

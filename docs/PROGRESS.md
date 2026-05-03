@@ -1195,3 +1195,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two dispatch/infrastructure tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `354 tests, 770 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot work started for PR #17 at head `32b7637`; no new official Copilot review or comments were published after the request, and no recent top-level/inline comments were present. CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, merge state was `CLEAN`, and PR #17 merged into `main` at `3f73af8`.
+- Started Macro Task 4 from updated `main` on `task/advanced-metrics`, pushed the macro branch, and created subtask branch `task/advanced-metrics-embedding-bertscore`.
+- Implemented the first Macro Task 4 slice: a fakeable `EmbeddingClient` contract, default `OpenAiCompatibleEmbeddingClient`, `CosineEmbeddingMetric` refactor through the contract, and new `bertscore-like` metric alias with token-level embedding precision/recall/F1.
+- Updated README's comparison matrix per user request by keeping explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell and adding an embedding semantic-overlap row for the new fakeable metric support.
+- Targeted validation passed for the embedding/BERTScore-like slice:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php tests/Unit/Metrics/MetricResolverTest.php tests/Unit/ServiceProviderTest.php` => `OK (51 tests, 87 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the embedding/BERTScore-like slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (371 tests, 803 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding embedding metric tests. README has no numeric PHPUnit test-count claim to update.

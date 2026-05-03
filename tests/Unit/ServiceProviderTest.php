@@ -9,6 +9,7 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
+use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
@@ -36,6 +37,11 @@ final class ServiceProviderTest extends TestCase
     public function test_metric_resolver_is_bound(): void
     {
         $this->assertInstanceOf(MetricResolver::class, $this->app->make(MetricResolver::class));
+    }
+
+    public function test_embedding_client_is_bound(): void
+    {
+        $this->assertInstanceOf(EmbeddingClient::class, $this->app->make(EmbeddingClient::class));
     }
 
     public function test_yaml_loader_is_bound(): void
