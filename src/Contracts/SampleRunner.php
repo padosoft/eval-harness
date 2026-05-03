@@ -10,8 +10,9 @@ namespace Padosoft\EvalHarness\Contracts;
  * The legacy `EvalEngine::run($dataset, callable $sut)` API stays
  * supported, but queue jobs cannot safely serialize arbitrary closures.
  * Host applications that plan to use parallel batches should pass a
- * SampleRunner instance or bind `eval-harness.sut` to a concrete
- * SampleRunner class so the container resolves it before execution.
+ * container-resolvable SampleRunner instance or bind `eval-harness.sut`
+ * to a concrete SampleRunner class so queue workers can resolve it
+ * before execution.
  */
 interface SampleRunner
 {

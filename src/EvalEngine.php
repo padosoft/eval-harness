@@ -6,12 +6,19 @@ namespace Padosoft\EvalHarness;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
+use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
+use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+use Padosoft\EvalHarness\EvalSets\EvalSetRunner;
+use Padosoft\EvalHarness\EvalSets\EvalSetRunResult;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
@@ -38,22 +45,29 @@ use Throwable;
  *
  *   $report = $engine->run('rag.factuality.fy2026', fn (array $in) => MyApp::answer($in['question']));
  *
- * Concurrency: the engine is intentionally single-threaded. Parallel
- * execution can be layered later (worker pool / queue) through the
- * SampleRunner contract without changing the legacy callable API.
- * Sequential execution keeps deterministic ordering across runs,
- * which is essential for reproducible CI.
+ * Batch execution: serial mode is deterministic and in-process.
+ * Lazy parallel mode dispatches queue-safe SampleRunner jobs while
+ * preserving the same positional output ordering for report scoring.
  */
 final class EvalEngine
 {
     /** @var array<string, GoldenDataset> */
     private array $datasets = [];
 
+    private readonly SerialBatch $serialBatch;
+
+    private readonly ?LazyParallelBatch $lazyParallelBatch;
+
     public function __construct(
         private readonly Container $container,
         private readonly MetricResolver $metricResolver,
         private readonly YamlDatasetLoader $yamlLoader,
-    ) {}
+        ?SerialBatch $serialBatch = null,
+        ?LazyParallelBatch $lazyParallelBatch = null,
+    ) {
+        $this->serialBatch = $serialBatch ?? new SerialBatch;
+        $this->lazyParallelBatch = $lazyParallelBatch;
+    }
 
     public function dataset(string $name): DatasetBuilder
     {
@@ -63,6 +77,14 @@ final class EvalEngine
             yamlLoader: $this->yamlLoader,
             name: $name,
         );
+    }
+
+    /**
+     * @param  list<string>  $datasetNames
+     */
+    public function evalSet(string $name, array $datasetNames): EvalSetDefinition
+    {
+        return new EvalSetDefinition($name, $datasetNames);
     }
 
     public function registerDataset(GoldenDataset $dataset): void
@@ -101,10 +123,46 @@ final class EvalEngine
      */
     public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
+        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial());
+    }
+
+    /**
+     * Run an eval pass through an explicit batch strategy.
+     *
+     * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
+     */
+    public function runBatch(string $datasetName, callable|SampleRunner $systemUnderTest, ?BatchOptions $batchOptions = null): EvalReport
+    {
         $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
+        $batchOptions ??= BatchOptions::serial();
 
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
+        if ($batchOptions->mode === BatchOptions::MODE_LAZY_PARALLEL) {
+            if (! $sampleRunner instanceof SampleRunner) {
+                throw new EvalRunException(
+                    'Lazy parallel batch mode requires a SampleRunner system-under-test; arbitrary callables and closures are not queue-serializable.',
+                );
+            }
+
+            $sampleInvocations = $this->sampleInvocationsFor(
+                samples: $dataset->samples,
+                usesSampleInvocation: true,
+            );
+
+            return $this->scoreDatasetOutputs(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: $startedAt,
+                actualOutputs: $this->lazyParallelBatch()->run(
+                    samples: $dataset->samples,
+                    sampleInvocations: $sampleInvocations,
+                    runner: $sampleRunner,
+                    options: $batchOptions,
+                ),
+            );
+        }
+
         $callableExpectsSampleInvocation = $sampleRunner === null
             && $this->callableExpectsSampleInvocation($systemUnderTest);
         $sampleInvocations = $this->sampleInvocationsFor(
@@ -123,6 +181,24 @@ final class EvalEngine
                 sampleRunner: $sampleRunner,
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
             ),
+            batchOptions: $batchOptions,
+        );
+    }
+
+    /**
+     * Run a named group of registered datasets and return a resumable manifest.
+     */
+    public function runEvalSet(
+        EvalSetDefinition $evalSet,
+        callable|SampleRunner $systemUnderTest,
+        ?BatchOptions $batchOptions = null,
+        ?EvalSetManifest $manifest = null,
+    ): EvalSetRunResult {
+        return (new EvalSetRunner($this))->run(
+            definition: $evalSet,
+            systemUnderTest: $systemUnderTest,
+            batchOptions: $batchOptions,
+            manifest: $manifest,
         );
     }
 
@@ -148,39 +224,78 @@ final class EvalEngine
     /**
      * @param  callable(DatasetSample, int): string  $actualOutputForSample
      */
-    private function scoreDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
+    private function scoreDataset(
+        string $datasetName,
+        GoldenDataset $dataset,
+        float $startedAt,
+        callable $actualOutputForSample,
+        ?BatchOptions $batchOptions = null,
+    ): EvalReport {
+        $batchOptions ??= BatchOptions::serial();
+
+        if ($batchOptions->mode === BatchOptions::MODE_SERIAL) {
+            return $this->scoreSerialDataset(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: $startedAt,
+                actualOutputForSample: $actualOutputForSample,
+            );
+        }
+
+        return $this->scoreDatasetOutputs(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            startedAt: $startedAt,
+            actualOutputs: $this->sampleOutputsForBatch($dataset, $actualOutputForSample, $batchOptions),
+        );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     */
+    private function scoreSerialDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
+    {
+        $sampleResults = [];
+        $failures = [];
+
+        $this->serialBatch->runEach(
+            samples: $dataset->samples,
+            actualOutputForSample: $actualOutputForSample,
+            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, &$sampleResults, &$failures): void {
+                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
+            },
+        );
+
+        return new EvalReport(
+            datasetName: $datasetName,
+            sampleResults: $sampleResults,
+            failures: $failures,
+            startedAt: $startedAt,
+            finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
+        );
+    }
+
+    /**
+     * @param  list<string>  $actualOutputs
+     */
+    private function scoreDatasetOutputs(string $datasetName, GoldenDataset $dataset, float $startedAt, array $actualOutputs): EvalReport
     {
         $sampleResults = [];
         $failures = [];
 
         foreach ($dataset->samples as $index => $sample) {
-            $actualOutput = $actualOutputForSample($sample, $index);
-            if (! is_string($actualOutput)) {
+            if (! array_key_exists($index, $actualOutputs)) {
                 throw new EvalRunException(sprintf(
-                    "Actual output for sample '%s' must be a string; got %s.",
+                    "Batch output for sample '%s' at index %d is missing.",
                     $sample->id,
-                    get_debug_type($actualOutput),
+                    $index,
                 ));
             }
 
-            $metricScores = [];
-            foreach ($dataset->metrics as $metric) {
-                try {
-                    $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
-                } catch (Throwable $e) {
-                    $failures[] = new SampleFailure(
-                        sampleId: $sample->id,
-                        metricName: $metric->name(),
-                        error: $e->getMessage(),
-                    );
-                }
-            }
+            $actualOutput = $actualOutputs[$index];
 
-            $sampleResults[] = new SampleResult(
-                sample: $sample,
-                actualOutput: $actualOutput,
-                metricScores: $metricScores,
-            );
+            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
         }
 
         return new EvalReport(
@@ -191,6 +306,77 @@ final class EvalEngine
             finishedAt: microtime(true),
             datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  list<SampleFailure>  $failures
+     */
+    private function scoreSampleResult(GoldenDataset $dataset, DatasetSample $sample, string $actualOutput, array &$failures): SampleResult
+    {
+        $metricScores = [];
+        foreach ($dataset->metrics as $metric) {
+            try {
+                $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
+            } catch (Throwable $e) {
+                $failures[] = new SampleFailure(
+                    sampleId: $sample->id,
+                    metricName: $metric->name(),
+                    error: $e->getMessage(),
+                );
+            }
+        }
+
+        return new SampleResult(
+            sample: $sample,
+            actualOutput: $actualOutput,
+            metricScores: $metricScores,
+        );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     * @return list<string>
+     */
+    private function sampleOutputsForBatch(GoldenDataset $dataset, callable $actualOutputForSample, BatchOptions $batchOptions): array
+    {
+        if ($batchOptions->mode === BatchOptions::MODE_SERIAL) {
+            return $this->serialBatch->run($dataset->samples, $actualOutputForSample);
+        }
+
+        throw new EvalRunException(sprintf(
+            "Unsupported batch mode '%s'.",
+            $batchOptions->mode,
+        ));
+    }
+
+    private function lazyParallelBatch(): LazyParallelBatch
+    {
+        if ($this->lazyParallelBatch instanceof LazyParallelBatch) {
+            return $this->lazyParallelBatch;
+        }
+
+        try {
+            $batch = $this->container->make(LazyParallelBatch::class);
+        } catch (Throwable $e) {
+            throw new EvalRunException(
+                sprintf(
+                    'Failed to resolve lazy parallel batch services: %s. Ensure the package service provider is registered and queue services are available.',
+                    $e->getMessage() !== '' ? $e->getMessage() : $e::class,
+                ),
+                previous: $e,
+            );
+        }
+
+        if (! $batch instanceof LazyParallelBatch) {
+            throw new EvalRunException(sprintf(
+                'Container binding for %s must resolve to %s; got %s.',
+                LazyParallelBatch::class,
+                LazyParallelBatch::class,
+                get_debug_type($batch),
+            ));
+        }
+
+        return $batch;
     }
 
     /**

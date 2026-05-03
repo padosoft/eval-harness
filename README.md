@@ -114,6 +114,9 @@ surface small and the offline path fast.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
+- **Batch execution modes** — SUT runs flow through deterministic
+  `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
+  `--batch=lazy-parallel` for Laravel queue/Horizon workers.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -128,18 +131,26 @@ surface small and the offline path fast.
 
 ## Comparison with alternatives
 
+Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means supported with limits or outside the Laravel-native path, and `❌ NO` means not a primary fit.
+
 | Concern | OpenAI Evals | LangSmith | Ragas | Promptfoo | DeepEval | **eval-harness** |
 | --- | --- | --- | --- | --- | --- | --- |
-| Language | Python | Python / TS | Python | TS / YAML | Python | **PHP / Laravel** |
-| Runs in your Laravel app | No | No | No | No | No | **Yes** |
-| Storage | OpenAI cloud | LangSmith cloud | Local | Local | Local | **Local YAML + JSON** |
-| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **7 + interface** |
-| LLM-as-judge | Yes | Yes | Yes | Yes | Yes | **Yes (deterministic)** |
-| Provider | OpenAI-only | Multi | Multi | Multi | Multi | **Any OpenAI-compatible** |
-| CI integration | Manual | API hook | Manual | CLI gate | CLI gate | **Artisan + CI matrix** |
-| Vendor lock-in | High | High | Low | Low | Low | **None** |
-| Cost to evaluate 200 samples | Cloud bill | Cloud bill | Free | Free | Free | **Free (offline tests via Http::fake)** |
-| Auditable in PR diff | Cloud-only | Cloud-only | Yes | Yes | Yes | **Yes (YAML + report)** |
+| Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
+| Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
+| Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
+| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/judge** |
+| Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
+| LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge** |
+| Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
+| CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
+| Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
+| Eval sets / multi-dataset runs | ✅ YES - `oaievalset` | ✅ YES - dataset experiments | ⚠️ PARTIAL - run multiple datasets in code | ✅ YES - suites/configs | ✅ YES - metric collections/test suites | **✅ YES - EvalSetDefinition + resumable manifests** |
+| Resume interrupted multi-dataset progress | ❌ NO - no mid-eval resume | ⚠️ PARTIAL - platform run history | ⚠️ PARTIAL - custom code | ⚠️ PARTIAL - rerun/filter workflows | ⚠️ PARTIAL - platform/regression workflows | **✅ YES - explicit per-dataset resume manifest** |
+| Cohorts / tags / facets | ⚠️ PARTIAL - custom eval/reporting | ✅ YES - dataset filtering/metadata | ⚠️ PARTIAL - custom analysis | ✅ YES - metadata/config-driven views | ⚠️ PARTIAL - test metadata | **✅ YES - tag cohorts in JSON/Markdown** |
+| Saved-output assertions | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - compare uploaded runs | ⚠️ PARTIAL - build dataset/results manually | ✅ YES - assertion-first workflow | ✅ YES - test-case assertions | **✅ YES - `--outputs` and `Eval::scoreOutputs()`** |
+| Auditable in PR diff | ⚠️ PARTIAL - local YAML/code possible | ❌ NO - cloud-first | ✅ YES - code/data files | ✅ YES - YAML config | ✅ YES - Python test files | **✅ YES - YAML datasets + stable JSON/Markdown artifacts** |
+| Vendor lock-in | ⚠️ PARTIAL - OpenAI-oriented defaults | ❌ NO - LangSmith workspace | ✅ YES - OSS library | ✅ YES - OSS CLI | ⚠️ PARTIAL - OSS plus Confident AI option | **✅ YES - headless, local-first, provider-agnostic** |
+| Cost to evaluate 200 offline samples | ⚠️ PARTIAL - depends on model calls | ❌ NO - cloud/API usage | ⚠️ PARTIAL - free only for non-LLM metrics | ⚠️ PARTIAL - free only for local assertions | ⚠️ PARTIAL - free only for local/non-LLM metrics | **✅ YES - free for offline metrics and faked providers** |
 
 The Python-stack tools are excellent if your stack is Python. If your
 RAG pipeline lives in a Laravel monolith, `eval-harness` is the
@@ -394,6 +405,90 @@ Eval::dataset('rag.recall')
     path: eval-report.json
 ```
 
+### Queue-backed batch execution
+
+`--batch=lazy-parallel` dispatches one queue job per sample and then
+assembles outputs in dataset order through the shared batch result
+store. It requires the SUT to be a container-resolvable concrete
+`SampleRunner` class that queue workers can resolve through the
+Laravel container.
+Constructor-injected object dependencies are supported when the worker
+container can resolve an equivalent fresh runner. Arbitrary callables,
+closures, anonymous runners, optional/defaulted constructor state,
+scalar/array/null runner properties, and caller-specific object
+configuration remain serial-only because queued jobs carry only the
+runner class name.
+
+```php
+use App\Eval\MyRagRunner;
+
+$this->app->bind('eval-harness.sut', MyRagRunner::class);
+```
+
+```bash
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --registrar="App\\Console\\EvalQueueRegistrar" \
+  --batch=lazy-parallel \
+  --concurrency=4 \
+  --queue=evals \
+  --timeout=60 \
+  --batch-timeout=300
+```
+
+Use Laravel's `sync` queue driver for unit tests. In production, run
+Horizon workers on the chosen queue and set
+`EVAL_HARNESS_BATCH_CACHE_STORE` to a cache backend shared by the
+command process and workers so queued sample outputs can be collected
+for report assembly. `--concurrency` caps how many sample jobs this
+command dispatches before waiting for the current window; Horizon
+worker counts are configured in Horizon. `--timeout` is the per-sample
+job timeout; `--batch-timeout` is the maximum wait for each dispatch
+window to finish before the command reports missing queued outputs.
+Programmatic external `dispatch()` / `collectOutputs()` flows can set
+`BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
+metadata and sample outputs alive long enough for delayed collection.
+See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
+Horizon supervisor, cache-store, and timeout sizing guidance.
+
+### Eval sets and resume manifests
+
+Group registered datasets into an eval set when one CI or release gate
+needs to run several datasets in order. The returned manifest is stable
+JSON and can be stored by the host app between attempts; completed
+datasets are skipped when the manifest is passed back in.
+
+```php
+use Eval;
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+
+$manifestPath = storage_path('eval/release.rag.manifest.json');
+$previousManifest = null;
+if (is_file($manifestPath)) {
+    $manifestPayload = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+    $previousManifest = is_array($manifestPayload)
+        ? EvalSetManifest::fromJson($manifestPayload)
+        : null;
+}
+
+$evalSet = Eval::evalSet('release.rag', [
+    'rag.factuality.fy2026',
+    'rag.refusals.fy2026',
+]);
+
+$result = Eval::runEvalSet(
+    $evalSet,
+    app(App\Eval\MyRagRunner::class),
+    BatchOptions::serial(),
+    $previousManifest ?? null,
+);
+
+file_put_contents(
+    $manifestPath,
+    json_encode($result->manifest->toJson(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+);
+```
+
 ---
 
 ## Configuration
@@ -401,6 +496,8 @@ Eval::dataset('rag.recall')
 `config/eval-harness.php` (after `vendor:publish`):
 
 ```php
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+
 return [
     'metrics' => [
 
@@ -408,14 +505,14 @@ return [
             'endpoint' => env('EVAL_HARNESS_EMBEDDINGS_ENDPOINT', 'https://api.openai.com/v1/embeddings'),
             'api_key'  => env('EVAL_HARNESS_EMBEDDINGS_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_EMBEDDINGS_MODEL', 'text-embedding-3-small'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT', 30),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT'), 30),
         ],
 
         'llm_as_judge' => [
             'endpoint' => env('EVAL_HARNESS_JUDGE_ENDPOINT', 'https://api.openai.com/v1/chat/completions'),
             'api_key'  => env('EVAL_HARNESS_JUDGE_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_JUDGE_MODEL', 'gpt-4o-mini'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_JUDGE_TIMEOUT', 60),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_JUDGE_TIMEOUT'), 60),
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
@@ -424,6 +521,14 @@ return [
     'reports' => [
         'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
         'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
+    ],
+
+    'batches' => [
+        'lazy_parallel' => [
+            'cache_store' => env('EVAL_HARNESS_BATCH_CACHE_STORE'),
+            'result_ttl_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_RESULT_TTL'), 3600),
+            'wait_timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT'), 60),
+        ],
     ],
 ];
 ```
@@ -461,9 +566,10 @@ already implement that contract.
 ┌──────────────────────────────────────────────────────────────────┐
 │  EvalEngine                                                      │
 │  - dataset registry (in-memory, single source of truth)          │
-│  - run(dataset, sut)                                             │
-│      ├─► iterate samples                                         │
+│  - run(dataset, sut) / runBatch(dataset, sut, BatchOptions)      │
+│      ├─► dispatch samples through SerialBatch or LazyParallelBatch│
 │      ├─► invoke input callable or SampleInvocation callable/runner│
+│      ├─► lazy-parallel jobs write outputs to BatchResultStore     │
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
 │      │   - clean → MetricScore                                   │
@@ -566,8 +672,9 @@ accidentally and never burns API credits.
   questions are 60%" instead of a single mean. Implemented in
   Markdown/JSON reports.
 - **Histogram view** in Markdown and JSON reports.
-- **Parallel batch evals** — run N samples in parallel via Laravel
-  queues (`SerialBatch`, `LazyParallelBatch`).
+- **Parallel batch evals** — `SerialBatch`, `LazyParallelBatch`,
+  `--batch=serial`, and `--batch=lazy-parallel` are implemented for
+  deterministic serial runs and queue-backed sample fan-out.
 - **Eval sets with resumable progress** — run named groups of
   datasets and resume interrupted multi-dataset runs.
 - **Standalone output assertions** — score saved JSON/YAML outputs

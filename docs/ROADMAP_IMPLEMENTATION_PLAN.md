@@ -94,12 +94,12 @@ Branch: `task/parallel-batch-queues`
 
 Implement:
 
-- `SerialBatch` and `LazyParallelBatch`.
-- Laravel queue jobs for sample evaluation and report assembly.
-- CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`.
-- Eval-set runner for executing named groups of datasets, inspired by OpenAI Evals `oaievalset`, with resumable progress manifests for interrupted multi-dataset runs.
-- Horizon deployment guidance without requiring Horizon in package tests.
-- Stable ordering even when queued samples finish out of order.
+- `SerialBatch` and `LazyParallelBatch`. Implemented: deterministic `SerialBatch` execution, queue-backed `LazyParallelBatch` sample fan-out, and headless eval-set/resume manifest contracts.
+- Laravel queue sample evaluation and report assembly. Implemented through `EvaluateSampleJob`, `CacheBatchResultStore`, and deterministic `EvalEngine::runBatch()` assembly.
+- CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`, `--batch-timeout=...`.
+- Eval-set runner for executing named groups of datasets, inspired by OpenAI Evals `oaievalset`, with resumable progress manifests for interrupted multi-dataset runs. Implemented programmatically through `EvalEngine::runEvalSet()`; future slices can add CLI/persistence ergonomics if needed.
+- Horizon deployment guidance without requiring Horizon in package tests. Implemented in `docs/HORIZON_BATCH_QUEUES.md`.
+- Stable ordering even when queued samples finish out of order. Implemented with positional sample indexes and out-of-order collection coverage.
 
 Guardrails:
 
@@ -109,11 +109,11 @@ Guardrails:
 
 Tests:
 
-- Batch scheduler tests.
-- Queue fake feature tests.
-- Out-of-order completion assembly tests.
-- Failure isolation tests.
-- Interrupted eval-set resume tests.
+- Batch scheduler tests. Implemented.
+- Queue fake feature tests. Implemented.
+- Out-of-order completion assembly tests. Implemented.
+- Failure isolation tests. Implemented.
+- Interrupted eval-set resume tests. Implemented.
 
 ## Macro Task 4 - Advanced Metrics v0.2/v0.3
 

@@ -74,4 +74,30 @@ return [
         'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
         'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue-backed batches
+    |--------------------------------------------------------------------------
+    |
+    | Lazy parallel batches write sample results to cache so the command process
+    | and queue workers can rendezvous without a database table. Horizon
+    | deployments should point `cache_store` at a shared store such as Redis or
+    | database. Leave null to use the host application's default cache store.
+    |
+    */
+
+    'batches' => [
+        'lazy_parallel' => [
+            'cache_store' => env('EVAL_HARNESS_BATCH_CACHE_STORE'),
+            'result_ttl_seconds' => TimeoutNormalizer::normalize(
+                env('EVAL_HARNESS_BATCH_RESULT_TTL'),
+                3600,
+            ),
+            'wait_timeout_seconds' => TimeoutNormalizer::normalize(
+                env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT'),
+                60,
+            ),
+        ],
+    ],
 ];

@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use JsonException;
+use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
@@ -31,6 +32,10 @@ use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
  *   - With `--outputs=<path>`: the command scores precomputed
  *     sample outputs from a JSON/YAML file and does not require a
  *     system-under-test binding.
+ *   - With `--batch=serial|lazy-parallel`: the command routes SUT
+ *     invocation through the batch execution contract. Lazy parallel
+ *     requires a SampleRunner binding because queue jobs cannot
+ *     serialize arbitrary callables.
  *
  * Output:
  *   - Markdown report on stdout by default.
@@ -58,6 +63,11 @@ final class EvalCommand extends Command
         {dataset : Dataset name (e.g. rag.factuality.fy2026)}
         {--registrar= : FQCN of an invokable class that registers the dataset + drives the SUT}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
+        {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
+        {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
+        {--queue= : Queue name for queue-backed batch modes}
+        {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
+        {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
@@ -132,7 +142,13 @@ final class EvalCommand extends Command
                 return self::FAILURE;
             }
 
-            $report = $engine->run($datasetName, $sut);
+            try {
+                $report = $engine->runBatch($datasetName, $sut, $this->batchOptions());
+            } catch (EvalHarnessException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
         }
 
         if ($this->option('json')) {
@@ -233,6 +249,49 @@ final class EvalCommand extends Command
         }
 
         return (bool) preg_match('#^[A-Za-z]:[\\\\/]#', $path);
+    }
+
+    private function batchOptions(): BatchOptions
+    {
+        $batch = $this->option('batch');
+        $mode = is_string($batch) && $batch !== '' ? $batch : BatchOptions::MODE_SERIAL;
+        $queue = $this->option('queue');
+
+        return new BatchOptions(
+            mode: $mode,
+            concurrency: $this->positiveIntegerOption('concurrency', 1),
+            queue: is_string($queue) && $queue !== '' ? $queue : null,
+            timeoutSeconds: $this->nullablePositiveIntegerOption('timeout'),
+            waitTimeoutSeconds: $this->nullablePositiveIntegerOption('batch-timeout'),
+        );
+    }
+
+    private function positiveIntegerOption(string $name, int $default): int
+    {
+        $value = $this->option($name);
+        if ($value === null || $value === '') {
+            return $default;
+        }
+
+        if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
+            throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
+        }
+
+        return (int) $value;
+    }
+
+    private function nullablePositiveIntegerOption(string $name): ?int
+    {
+        $value = $this->option($name);
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
+            throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
+        }
+
+        return (int) $value;
     }
 
     private function dispatchRegistrar(EvalEngine $engine, string $registrarClass): void
