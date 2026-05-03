@@ -568,23 +568,28 @@ accidentally and never burns API credits.
 - **Histogram view** in Markdown and JSON reports.
 - **Parallel batch evals** — run N samples in parallel via Laravel
   queues (`SerialBatch`, `LazyParallelBatch`).
+- **Eval sets with resumable progress** — run named groups of
+  datasets and resume interrupted multi-dataset runs.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   without invoking an agent, closing the Promptfoo-style CI workflow
   gap. Implemented through `Eval::scoreOutputs()` and `--outputs`.
 - **More built-in metrics**: ROUGE-L and citation-groundedness
   baseline are implemented; BERTScore (via embeddings) and
   refusal-quality (LLM-as-judge specialised prompt) remain planned.
+- **Usage summaries** — token, cost, and latency fields when metric
+  providers expose usage.
 
 ### v0.3 (planned)
 
 - **Adversarial harness** — prompt injection / jailbreak / tool-abuse
-  test datasets bundled (opt-in).
+  test datasets bundled (opt-in), including multi-input targets and
+  compliance/framework mapping for security reports.
 - **Regression detection** — store the last N runs in a JSON
   manifest and fail the gate when macro-F1 drops more than X%.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
-  and artifacts. No bundled UI in this package; deploy the UI behind
-  your existing admin gate.
+  CSV export, and artifacts. No bundled UI in this package; deploy
+  the UI behind your existing admin gate.
 - **Dataset splits/filtering and failure promotion** — keep parity
   with LangSmith-style workflows while staying local-file-first.
 

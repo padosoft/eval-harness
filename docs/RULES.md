@@ -94,9 +94,10 @@ gh api repos/$(gh repo view --json nameWithOwner --jq .nameWithOwner)/pulls/<PR>
 
 Use competitor research to shape the roadmap, not to copy APIs blindly. Track parity and useful differentiators against:
 
-- Promptfoo: declarative assertions, tags, standalone output assertions, red-team breadth.
+- Promptfoo: declarative assertions, tags, standalone output assertions, red-team breadth, multi-input red teaming, compliance mapping, continuous monitoring.
 - DeepEval: test cases, datasets, metrics, traces, end-to-end and component-level evals.
-- Ragas: metric runtime settings, LLM/embedding abstraction, token/cost parsing, exception isolation.
-- LangSmith: dataset versioning, filtering/splits, export formats, trace-to-dataset workflows.
+- Ragas: metric runtime settings, LLM/embedding abstraction, token/cost parsing, cost summaries, exception isolation.
+- LangSmith: dataset versioning, filtering/splits, export formats, experiment cost/token/latency summaries, trace-to-dataset workflows.
+- OpenAI Evals: eval registries, eval sets, completion/runner protocols, resumable progress for multi-eval runs.
 
 Preferred differentiator: Laravel-native evals with Artisan, queues, Horizon-ready batch execution, JSON/API contracts for a separate UI package, and CI-friendly regression gates.

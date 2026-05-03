@@ -97,6 +97,7 @@ Implement:
 - `SerialBatch` and `LazyParallelBatch`.
 - Laravel queue jobs for sample evaluation and report assembly.
 - CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`.
+- Eval-set runner for executing named groups of datasets, inspired by OpenAI Evals `oaievalset`, with resumable progress manifests for interrupted multi-dataset runs.
 - Horizon deployment guidance without requiring Horizon in package tests.
 - Stable ordering even when queued samples finish out of order.
 
@@ -112,6 +113,7 @@ Tests:
 - Queue fake feature tests.
 - Out-of-order completion assembly tests.
 - Failure isolation tests.
+- Interrupted eval-set resume tests.
 
 ## Macro Task 4 - Advanced Metrics v0.2/v0.3
 
@@ -123,6 +125,7 @@ Implement:
 - LLM-as-judge refusal-quality metric with strict response schema.
 - Advanced citation groundedness using evidence spans and quote matching.
 - Token/cost parser hook inspired by Ragas.
+- Cost, token, and latency summary fields in JSON/Markdown reports for metric providers that expose usage.
 - Runtime config for retry/timeout/raise-exceptions behavior.
 
 Guardrails:
@@ -136,6 +139,7 @@ Tests:
 - Fake embedding and fake judge tests.
 - Response parser tests.
 - Timeout/retry config tests.
+- Usage parser and cost-summary tests.
 - Redaction tests.
 
 ## Macro Task 5 - Adversarial Harness And Regression Detection v0.3
@@ -145,6 +149,9 @@ Branch: `task/adversarial-regression`
 Implement:
 
 - Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance.
+- Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt.
+- Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting.
+- Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon.
 - `eval:adversarial` command.
 - Manifest storing the last N runs.
 - Regression gate: fail when macro-F1 or configured metric drops more than X%.
@@ -159,6 +166,8 @@ Guardrails:
 Tests:
 
 - Adversarial command tests.
+- Multi-input adversarial dataset tests.
+- Compliance mapping serialization tests.
 - Manifest retention tests.
 - Regression pass/fail/missing-baseline tests.
 - Failure export tests.
@@ -171,6 +180,7 @@ Implement:
 
 - Read-only API routes for listing report manifests, showing a report, showing cohorts, showing histograms, and downloading JSON/Markdown artifacts.
 - API resources that expose the exact data needed by a future Web UI package.
+- CSV export endpoints for experiment/report rows, matching the operational need LangSmith covers with downloadable experiment results.
 - Path/id validation to prevent traversal and accidental arbitrary file reads.
 - Optional route prefix/config publishing, but no bundled UI assets.
 - OpenAPI-style contract documentation or JSON examples for UI consumers.
@@ -185,6 +195,7 @@ Tests:
 
 - Feature tests for report API routes.
 - Resource serialization tests.
+- CSV export tests.
 - Path traversal and missing report tests.
 
 ## Macro Task 7 - v1.0 Stabilization, Docs, And Release
@@ -217,9 +228,11 @@ Tests:
 The README already compares against OpenAI Evals, LangSmith, Ragas, Promptfoo, and DeepEval. Keep that comparison current as these roadmap additions close parity gaps:
 
 - Promptfoo: standalone output assertions, tag/facet reporting, broader red-team categories, declarative assertion ergonomics.
+- Promptfoo: multi-input red teaming, compliance framework mapping, and continuous monitoring guidance for recurring security checks.
 - DeepEval: component/span-level evals and trace-aware reports in addition to black-box end-to-end evals.
-- Ragas: runtime retry/timeout config, LLM/embedding abstraction, token/cost parsing, exception isolation.
-- LangSmith: dataset versioning, dataset splits/filtering, export formats, and promoting failed traces/samples back into datasets.
+- Ragas: runtime retry/timeout config, LLM/embedding abstraction, token/cost parsing, exception isolation, and usage/cost summaries.
+- LangSmith: dataset versioning, dataset splits/filtering, export formats, experiment cost/token/latency summaries, and promoting failed traces/samples back into datasets.
+- OpenAI Evals: registry-style eval sets, completion/runner abstractions, and resumable progress for multi-eval runs.
 
 Laravel-native differentiators:
 
