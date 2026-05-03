@@ -104,7 +104,7 @@ final class DatasetBuilder
             $seen[$sample->id] = true;
         }
 
-        $this->explicitSamples = $samples;
+        $this->explicitSamples = array_values($samples);
 
         return $this;
     }

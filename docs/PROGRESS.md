@@ -606,3 +606,17 @@
   - `vendor/bin/phpunit` => `OK (236 tests, 514 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `91d379c` and generated three comments:
+  - serial batch output assembly must not depend on gapped/non-zero-based dataset sample array keys,
+  - `EvalEngine::scoreDatasetOutputs()` assumes batch outputs and dataset samples share the same positional keys,
+  - serial mode should reject positive timeout values, which was already addressed in `91d379c`.
+- Addressed the sample-key comments by normalizing programmatic `withSamples()` input to a zero-based list, validating direct `GoldenDataset` construction, and adding builder/engine/constructor regression coverage.
+- Targeted validation passed after the Copilot sample-key fix:
+  - `vendor/bin/phpunit tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalEngineTest.php` => `OK (50 tests, 109 assertions)`
+  - `vendor/bin/pint --test src/Datasets/DatasetBuilder.php src/Datasets/GoldenDataset.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the Copilot sample-key fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (239 tests, 522 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

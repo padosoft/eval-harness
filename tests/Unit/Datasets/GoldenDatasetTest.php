@@ -24,4 +24,18 @@ final class GoldenDatasetTest extends TestCase
             schemaVersion: 'eval-harness.dataset.v999',
         );
     }
+
+    public function test_constructor_rejects_non_zero_based_samples(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('samples must be a zero-based list');
+
+        new GoldenDataset(
+            name: 'bad.samples',
+            samples: [
+                1 => new DatasetSample(id: 's1', input: [], expectedOutput: 'x'),
+            ],
+            metrics: [new ExactMatchMetric],
+        );
+    }
 }

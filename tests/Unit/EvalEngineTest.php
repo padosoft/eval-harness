@@ -82,6 +82,32 @@ final class EvalEngineTest extends TestCase
         $this->assertSame('wrong', $report->sampleResults[1]->actualOutput);
     }
 
+    public function test_run_batch_serial_scores_normalized_programmatic_samples(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-normalized-samples')
+            ->withSamples([
+                2 => new DatasetSample(id: 'first', input: ['answer' => 'one'], expectedOutput: 'one'),
+                4 => new DatasetSample(id: 'second', input: ['answer' => 'two'], expectedOutput: 'two'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->runBatch(
+            'rag.engine.batch-normalized-samples',
+            static fn (array $input): string => (string) $input['answer'],
+            BatchOptions::serial(),
+        );
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame('first', $report->sampleResults[0]->sample->id);
+        $this->assertSame('one', $report->sampleResults[0]->actualOutput);
+        $this->assertSame('second', $report->sampleResults[1]->sample->id);
+        $this->assertSame('two', $report->sampleResults[1]->actualOutput);
+    }
+
     public function test_score_outputs_scores_precomputed_outputs_without_sut(): void
     {
         /** @var EvalEngine $engine */
