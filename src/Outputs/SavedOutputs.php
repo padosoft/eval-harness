@@ -50,11 +50,12 @@ final class SavedOutputs
                 ));
             }
 
-            if (array_key_exists($id, $seen)) {
+            $key = self::sampleIdKey($id);
+            if (array_key_exists($key, $seen)) {
                 throw new EvalRunException(sprintf("Duplicate saved output for sample '%s'.", $id));
             }
 
-            $seen[$id] = true;
+            $seen[$key] = true;
             $normalizedEntries[] = ['id' => $id, 'actual_output' => $actualOutput];
         }
 
@@ -101,5 +102,10 @@ final class SavedOutputs
     public function entries(): array
     {
         return $this->entries;
+    }
+
+    private static function sampleIdKey(string $sampleId): string
+    {
+        return sprintf('sample-id:%d:%s', strlen($sampleId), $sampleId);
     }
 }

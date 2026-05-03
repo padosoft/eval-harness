@@ -49,4 +49,17 @@ final class SavedOutputsTest extends TestCase
             ['id' => 123, 'actual_output' => 'answer'],
         ]);
     }
+
+    public function test_constructor_preserves_numeric_like_ids_as_distinct_entries(): void
+    {
+        $outputs = new SavedOutputs([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '00', 'actual_output' => 'double zero'],
+        ]);
+
+        $this->assertSame([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '00', 'actual_output' => 'double zero'],
+        ], $outputs->entries());
+    }
 }

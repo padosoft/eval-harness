@@ -561,3 +561,15 @@
   - `vendor/bin/phpunit` => `OK (220 tests, 481 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #12 again at head `4c2f46b` and generated one comment:
+  - saved-output normalization still keyed internal PHP arrays by raw sample id, which could reintroduce numeric-string key coercion.
+- Addressed the comment by using non-coercing length-prefixed internal sample-id keys in `EvalEngine` saved-output lookups and `SavedOutputs` duplicate detection, plus numeric-like ID regressions.
+- Targeted validation passed after the second PR #12 review fix round:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsTest.php` => `OK (33 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php src/Outputs/SavedOutputs.php tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the second PR #12 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (222 tests, 485 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

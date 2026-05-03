@@ -239,6 +239,29 @@ final class EvalEngineTest extends TestCase
         $this->assertSame('0', $report->sampleResults[0]->sample->id);
     }
 
+    public function test_score_outputs_distinguishes_numeric_like_saved_output_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-like-ids')
+            ->withSamples([
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+                new DatasetSample(id: '00', input: [], expectedOutput: 'double zero'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-like-ids', new SavedOutputs([
+            ['id' => '00', 'actual_output' => 'double zero'],
+            ['id' => '0', 'actual_output' => 'zero'],
+        ]));
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+        $this->assertSame('zero', $report->sampleResults[0]->actualOutput);
+        $this->assertSame('double zero', $report->sampleResults[1]->actualOutput);
+    }
+
     public function test_run_accepts_sample_runner_contract(): void
     {
         /** @var EvalEngine $engine */

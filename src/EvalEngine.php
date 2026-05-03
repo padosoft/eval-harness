@@ -141,7 +141,7 @@ final class EvalEngine
             datasetName: $datasetName,
             dataset: $dataset,
             startedAt: $startedAt,
-            actualOutputForSample: static fn (DatasetSample $sample, int $_index): string => $outputs[$sample->id],
+            actualOutputForSample: static fn (DatasetSample $sample, int $_index): string => $outputs[self::sampleIdKey($sample->id)],
         );
     }
 
@@ -195,7 +195,7 @@ final class EvalEngine
 
     /**
      * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs
-     * @return array<array-key, string>
+     * @return array<string, string>
      */
     private function savedOutputsForDataset(string $datasetName, GoldenDataset $dataset, array|SavedOutputs $actualOutputs): array
     {
@@ -204,15 +204,19 @@ final class EvalEngine
             : $this->savedOutputsFromArray($datasetName, $dataset, $actualOutputs);
 
         $outputs = [];
+        $outputSampleIds = [];
         foreach ($savedOutputs->entries() as $entry) {
-            $outputs[$entry['id']] = $entry['actual_output'];
+            $key = self::sampleIdKey($entry['id']);
+            $outputs[$key] = $entry['actual_output'];
+            $outputSampleIds[$key] = $entry['id'];
         }
 
         $expectedSampleIds = [];
         $missingSampleIds = [];
         foreach ($dataset->samples as $sample) {
-            $expectedSampleIds[$sample->id] = true;
-            if (! array_key_exists($sample->id, $outputs)) {
+            $key = self::sampleIdKey($sample->id);
+            $expectedSampleIds[$key] = true;
+            if (! array_key_exists($key, $outputs)) {
                 $missingSampleIds[] = $sample->id;
             }
         }
@@ -226,9 +230,9 @@ final class EvalEngine
         }
 
         $unknownSampleIds = [];
-        foreach ($outputs as $sampleId => $_output) {
-            if (! isset($expectedSampleIds[$sampleId])) {
-                $unknownSampleIds[] = (string) $sampleId;
+        foreach ($outputs as $sampleIdKey => $_output) {
+            if (! isset($expectedSampleIds[$sampleIdKey])) {
+                $unknownSampleIds[] = $outputSampleIds[$sampleIdKey];
             }
         }
 
@@ -251,13 +255,13 @@ final class EvalEngine
         if ($actualOutputs !== [] && array_is_list($actualOutputs)) {
             $expectedIds = array_fill_keys(
                 array_map(
-                    static fn (DatasetSample $sample): string => $sample->id,
+                    static fn (DatasetSample $sample): string => self::sampleIdKey($sample->id),
                     $dataset->samples,
                 ),
                 true,
             );
             $listIds = array_map(
-                static fn (int $index): string => (string) $index,
+                static fn (int $index): string => self::sampleIdKey((string) $index),
                 array_keys($actualOutputs),
             );
             $listIdSet = array_fill_keys($listIds, true);
@@ -287,6 +291,11 @@ final class EvalEngine
         }
 
         return SavedOutputs::fromMap($actualOutputs, "dataset '{$datasetName}'");
+    }
+
+    private static function sampleIdKey(string $sampleId): string
+    {
+        return sprintf('sample-id:%d:%s', strlen($sampleId), $sampleId);
     }
 
     /**
