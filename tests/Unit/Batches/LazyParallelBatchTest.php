@@ -552,12 +552,12 @@ final class LazyParallelBatchTest extends TestCase
         $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('initialized runner object state to match a fresh container-resolved runner');
+        $this->expectExceptionMessage('caller-specific object configuration remains serial-only');
 
         $batch->dispatch(
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
-            runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig('custom output')),
+            runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig),
             options: BatchOptions::lazyParallel(),
         );
     }

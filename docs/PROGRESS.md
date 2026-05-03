@@ -922,4 +922,18 @@
   - `vendor/bin/phpunit` => `OK (301 tests, 642 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding three lazy-batch/job tests. README has no test-count claim; update the PR body validation line to `301 tests, 642 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding three lazy-batch/job tests. README has no test-count claim; PR #14 body was updated to `301 tests, 642 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `d6b1e0c` and generated two comments:
+  - initialized object-valued dependencies with DTO/config state could still be treated as queue-safe even though workers rebuild runners by class name,
+  - `EvaluateSampleJob::failed()` should guard result-store resolution/write failures so the original queue failure is not lost behind a later generic timeout.
+- Addressed the latest PR #14 Copilot round by recursively rejecting initialized dependency objects that carry scalar/array/null configuration and wrapping `failed()` result-store errors in `EvalRunException` messages that include the original queue failure.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (33 tests, 63 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (302 tests, 644 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one failed-hook regression. README has no test-count claim; update the PR body validation line to `302 tests, 644 assertions` before requesting the next Copilot review.

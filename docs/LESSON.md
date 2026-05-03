@@ -170,3 +170,5 @@
 - Public batch APIs that index results by sample position must reject sparse or 1-based arrays before writing batch metadata. PHPDoc `list<T>` does not protect runtime callers, and a late index error can otherwise leave active metadata behind.
 - Result-store interfaces should document lifecycle invariants, not only signatures. Lazy queue behavior depends on first-writer-wins, ignoring writes after close, and finished successes staying readable for idempotent collection.
 - Worker-side container guards need direct coverage. Even if constructor validation accepts only `SampleRunner` class strings, a host app can misbind that class to a non-runner at runtime.
+- Object-valued runner dependencies are not automatically queue-safe. If an initialized dependency object carries scalar/array/null configuration, treat it as caller-specific state and keep it serial-only.
+- Queue job `failed()` hooks should wrap result-store resolution/write failures with the original queue failure message. Otherwise a cache outage while recording the failure degrades into a later generic missing-output timeout.

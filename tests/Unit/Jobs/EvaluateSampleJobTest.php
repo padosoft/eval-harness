@@ -43,6 +43,19 @@ final class EvaluateSampleJobTest extends TestCase
         $this->assertTrue($job->failOnTimeout);
     }
 
+    public function test_failed_hook_wraps_result_store_errors_with_original_failure(): void
+    {
+        $this->app->instance(BatchResultStore::class, new ThrowingFailureBatchResultStore);
+        $job = $this->job(JobAnswerRunner::class);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Failed to record lazy parallel batch failure for sample 's1'");
+        $this->expectExceptionMessage('worker timed out');
+        $this->expectExceptionMessage('cache write failed');
+
+        $job->failed(new \RuntimeException('worker timed out'));
+    }
+
     public function test_handle_rejects_container_misbound_runner_class(): void
     {
         $store = new JobRecordingBatchResultStore;
@@ -234,5 +247,53 @@ final class JobRecordingBatchResultStore implements BatchResultStore
         }
 
         return array_intersect_key($this->failures, array_flip($indexes));
+    }
+}
+
+final class ThrowingFailureBatchResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        throw new \RuntimeException('cache write failed');
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }

@@ -111,16 +111,27 @@ final class EvaluateSampleJob implements ShouldQueue
 
     public function failed(?Throwable $e): void
     {
-        /** @var BatchResultStore $resultStore */
-        $resultStore = LaravelContainer::getInstance()->make(BatchResultStore::class);
+        $failureMessage = $this->failureMessage($e);
 
-        $resultStore->recordFailure(
-            batchId: $this->batchId,
-            index: $this->index,
-            sampleId: $this->sampleId,
-            error: $this->failureMessage($e),
-            ttlSeconds: $this->resultTtlSeconds,
-        );
+        try {
+            /** @var BatchResultStore $resultStore */
+            $resultStore = LaravelContainer::getInstance()->make(BatchResultStore::class);
+
+            $resultStore->recordFailure(
+                batchId: $this->batchId,
+                index: $this->index,
+                sampleId: $this->sampleId,
+                error: $failureMessage,
+                ttlSeconds: $this->resultTtlSeconds,
+            );
+        } catch (Throwable $storeError) {
+            throw new EvalRunException(sprintf(
+                "Failed to record lazy parallel batch failure for sample '%s' after queue job failed with: %s. Result store error: %s.",
+                $this->sampleId,
+                $failureMessage,
+                $storeError->getMessage() !== '' ? $storeError->getMessage() : $storeError::class,
+            ), previous: $storeError);
+        }
     }
 
     private function failureMessage(?Throwable $e): string
