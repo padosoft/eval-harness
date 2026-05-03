@@ -10,6 +10,55 @@ use PHPUnit\Framework\TestCase;
 
 final class SavedOutputsLoaderTest extends TestCase
 {
+    public function test_load_file_parses_json_by_extension(): void
+    {
+        $path = $this->writeTempFile('.json', '{"outputs":{"s1":"answer one"}}');
+
+        try {
+            $outputs = (new SavedOutputsLoader)->loadFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertSame([['id' => 's1', 'actual_output' => 'answer one']], $outputs->entries());
+    }
+
+    public function test_load_file_parses_yaml_by_extension(): void
+    {
+        $path = $this->writeTempFile('.yaml', "outputs:\n  s1: answer one\n");
+
+        try {
+            $outputs = (new SavedOutputsLoader)->loadFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertSame([['id' => 's1', 'actual_output' => 'answer one']], $outputs->entries());
+    }
+
+    public function test_load_file_parses_extensionless_yaml_flow_style(): void
+    {
+        $path = $this->writeTempFile('', '{outputs: {s1: answer one}}');
+
+        try {
+            $outputs = (new SavedOutputsLoader)->loadFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertSame([['id' => 's1', 'actual_output' => 'answer one']], $outputs->entries());
+    }
+
+    public function test_load_file_rejects_missing_paths(): void
+    {
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-harness-missing-'.bin2hex(random_bytes(8)).'.json';
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('does not exist or is not a regular file');
+
+        (new SavedOutputsLoader)->loadFile($path);
+    }
+
     public function test_loads_json_outputs_map(): void
     {
         $outputs = (new SavedOutputsLoader)->loadString(
@@ -185,5 +234,13 @@ final class SavedOutputsLoaderTest extends TestCase
         $this->expectExceptionMessage('could not be parsed as JSON or YAML');
 
         (new SavedOutputsLoader)->loadString('{"outputs":', 'artifact');
+    }
+
+    private function writeTempFile(string $suffix, string $contents): string
+    {
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-harness-'.bin2hex(random_bytes(8)).$suffix;
+        file_put_contents($path, $contents);
+
+        return $path;
     }
 }

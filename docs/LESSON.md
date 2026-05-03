@@ -96,3 +96,5 @@
 - Do not add convenience `toMap()` APIs to ID-preserving DTOs when IDs can be numeric strings; the conversion itself reintroduces PHP key coercion.
 - Programmatic saved-output array input should reject list-shaped arrays unless the engine can prove their stringified numeric indexes exactly match the registered dataset sample IDs. Otherwise `['a', 'b']` can silently become sample ids `0`/`1`, while valid datasets that intentionally use `"0"`, `"1"`, ... remain scoreable.
 - Loader APIs that accept either a file path or inline source string should use "source" in parse diagnostics. Calling inline input a "file" makes `loadString()` failures misleading.
+- Public constructors that advertise list-shaped payloads should reject associative arrays before per-index validation. Otherwise `%d` index diagnostics can hide the caller's actual associative key.
+- Loader tests should cover `loadFile()` directly when file extension changes parser behavior. `loadString()` and CLI tests are not enough to protect path-based JSON/YAML/extensionless branches or missing-file diagnostics.

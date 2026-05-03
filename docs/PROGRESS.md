@@ -489,3 +489,13 @@
   - `vendor/bin/phpunit` => `OK (210 tests, 452 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `e698868` and generated three comments:
+  - `SavedOutputsLoader::loadFile()` needed direct unit coverage for JSON, YAML, extensionless parsing, and missing paths,
+  - missing/non-regular files should not be reported only as "not readable",
+  - `SavedOutputs` constructor diagnostics should reject associative arrays before index-based entry validation.
+- Addressed the comments by adding focused `loadFile()` tests, separating missing/non-regular file diagnostics from unreadable files, and rejecting associative constructor input with an explicit list-shape error.
+- Full local gate passed after the ninth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (215 tests, 459 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

@@ -22,7 +22,11 @@ final class SavedOutputsLoader
 {
     public function loadFile(string $path): SavedOutputs
     {
-        if (! is_file($path) || ! is_readable($path)) {
+        if (! is_file($path)) {
+            throw new EvalRunException(sprintf("Saved outputs file '%s' does not exist or is not a regular file.", $path));
+        }
+
+        if (! is_readable($path)) {
             throw new EvalRunException(sprintf("Saved outputs file '%s' is not readable.", $path));
         }
 

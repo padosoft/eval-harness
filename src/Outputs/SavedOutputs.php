@@ -21,6 +21,10 @@ final class SavedOutputs
      */
     public function __construct(array $entries)
     {
+        if ($entries !== [] && ! array_is_list($entries)) {
+            throw new EvalRunException('Saved output entries must be a list of entry arrays; use SavedOutputs::fromMap() for keyed maps.');
+        }
+
         $normalizedEntries = [];
         $seen = [];
         foreach ($entries as $index => $entry) {

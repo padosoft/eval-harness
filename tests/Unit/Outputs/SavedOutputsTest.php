@@ -30,6 +30,16 @@ final class SavedOutputsTest extends TestCase
         ]);
     }
 
+    public function test_constructor_rejects_associative_entry_arrays(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be a list of entry arrays');
+
+        new SavedOutputs([
+            's1' => ['id' => 's1', 'actual_output' => 'answer'],
+        ]);
+    }
+
     public function test_constructor_rejects_non_string_id(): void
     {
         $this->expectException(EvalRunException::class);
