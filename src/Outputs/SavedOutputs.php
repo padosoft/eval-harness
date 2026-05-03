@@ -59,6 +59,9 @@ final class SavedOutputs
 
     /**
      * @param  array<array-key, mixed>  $outputs
+     *
+     * Use the entry-list constructor when numeric-string sample IDs must be
+     * preserved; PHP coerces list-shaped numeric keys before this method runs.
      */
     public static function fromMap(array $outputs, string $context): self
     {
