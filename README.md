@@ -112,6 +112,9 @@ surface small and the offline path fast.
 - **Cohort-ready report data** — JSON and Markdown reports aggregate
   scores by `metadata.tags`, expose an explicit untagged bucket, and
   include per-metric score histograms for dashboards.
+- **Citation evidence checks** — `citation-groundedness` can score
+  simple citation markers or stricter `metadata.citation_evidence`
+  spans that require both citation markers and quote text.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -144,6 +147,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
+| Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
 | CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
 | Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
@@ -561,6 +565,20 @@ same chat-completions settings. `refusal-quality` requires each sample
 to declare `metadata.refusal_expected: true|false` so safety/refusal
 behavior is explicit in the dataset contract.
 
+For stricter RAG groundedness, `citation-groundedness` accepts
+`metadata.citation_evidence`:
+
+```yaml
+metadata:
+  citation_evidence:
+    - citation: "[policy:refunds]"
+      quote: "Refunds are available within 30 days."
+```
+
+Each evidence span scores only when the actual output contains both
+the citation marker and the quoted evidence text. Report details expose
+counts only, not raw citation or quote strings.
+
 ---
 
 ## Architecture
@@ -693,9 +711,9 @@ accidentally and never burns API credits.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   without invoking an agent, closing the Promptfoo-style CI workflow
   gap. Implemented through `Eval::scoreOutputs()` and `--outputs`.
-- **More built-in metrics**: ROUGE-L, citation-groundedness baseline,
-  a fakeable embedding-backed BERTScore-like metric, and strict-schema
-  refusal-quality judging are implemented.
+- **More built-in metrics**: ROUGE-L, citation-groundedness baseline
+  plus citation evidence spans, a fakeable embedding-backed BERTScore-like
+  metric, and strict-schema refusal-quality judging are implemented.
 - **Usage summaries** — token, cost, and latency fields when metric
   providers expose usage.
 
