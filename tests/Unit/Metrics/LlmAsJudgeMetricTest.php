@@ -157,7 +157,7 @@ final class LlmAsJudgeMetricTest extends TestCase
         $sample = new DatasetSample(id: 'a', input: ['question' => 'q'], expectedOutput: 'e');
 
         $this->expectException(MetricException::class);
-        $this->expectExceptionMessage('LLM-as-judge request failed');
+        $this->expectExceptionMessage('LLM judge request failed');
 
         $metric->score($sample, 'a');
     }

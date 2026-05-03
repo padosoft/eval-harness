@@ -20,6 +20,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *   - {@see BertScoreLikeMetric} — token-level semantic overlap via
  *     the configured embedding client.
  *   - {@see LlmAsJudgeMetric} — strict-JSON LLM grading.
+ *   - {@see RefusalQualityMetric} — strict-JSON refusal behavior grading.
  *
  * Adding a new metric:
  *   1. Implement this interface.

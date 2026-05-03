@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Metrics;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Http\Client\Factory as HttpFactory;
+use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
-use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * LLM-as-judge metric: ask a model to grade `actual` against
@@ -27,9 +26,9 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
  *     throw {@see MetricException} so the operator notices instead
  *     of silently scoring 0.
  *
- * Transport: raw `Http::` against an OpenAI-compatible chat
- * completions endpoint (works with OpenAI / OpenRouter / Regolo).
- * Tests substitute via `Http::fake()`.
+ * Transport is delegated to {@see JudgeClient}. The package binds an
+ * OpenAI-compatible HTTP client by default, while tests and host apps
+ * can bind deterministic fakes or Laravel AI-backed clients.
  */
 final class LlmAsJudgeMetric implements Metric
 {
@@ -50,7 +49,7 @@ Return ONLY the JSON object. No prose, no code fences.
 PROMPT;
 
     public function __construct(
-        private readonly HttpFactory $http,
+        private readonly JudgeClient $judge,
         private readonly ConfigRepository $config,
     ) {}
 
@@ -78,7 +77,7 @@ PROMPT;
 
         $prompt = $this->renderPrompt($expected, $actualOutput, $question);
 
-        $rawJson = $this->callJudge($prompt);
+        $rawJson = $this->judge->judge($prompt);
         $decoded = $this->decodeStrictJson($rawJson, $sample->id);
 
         $rawScore = $decoded['score'];
@@ -126,69 +125,6 @@ PROMPT;
             '{actual}' => $actual,
             '{question}' => $question,
         ]);
-    }
-
-    private function callJudge(string $prompt): string
-    {
-        $endpoint = (string) $this->config->get(
-            'eval-harness.metrics.llm_as_judge.endpoint',
-            'https://api.openai.com/v1/chat/completions',
-        );
-        $apiKey = (string) $this->config->get(
-            'eval-harness.metrics.llm_as_judge.api_key',
-            '',
-        );
-        $model = (string) $this->config->get(
-            'eval-harness.metrics.llm_as_judge.model',
-            'gpt-4o-mini',
-        );
-        // Defensive: any non-positive / non-numeric env value collapses
-        // a naive (int) cast to 0, which Http::timeout(0) interprets
-        // as "no timeout" — a misconfigured EVAL_HARNESS_JUDGE_TIMEOUT
-        // would then hang forever instead of falling back to the
-        // documented default. TimeoutNormalizer enforces a positive
-        // int with the default fallback.
-        $timeout = TimeoutNormalizer::normalize(
-            $this->config->get('eval-harness.metrics.llm_as_judge.timeout_seconds'),
-            60,
-        );
-
-        $request = $this->http->timeout($timeout);
-        if ($apiKey !== '') {
-            $request = $request->withToken($apiKey);
-        }
-
-        $response = $request->post($endpoint, [
-            'model' => $model,
-            'temperature' => 0,
-            'seed' => 42,
-            'response_format' => ['type' => 'json_object'],
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt],
-            ],
-        ]);
-
-        if ($response->failed()) {
-            throw new MetricException(
-                sprintf(
-                    'LLM-as-judge request failed: HTTP %d (%s).',
-                    $response->status(),
-                    substr((string) $response->body(), 0, 200),
-                ),
-            );
-        }
-
-        /** @var array<mixed> $body */
-        $body = (array) $response->json();
-        $content = $body['choices'][0]['message']['content'] ?? null;
-
-        if (! is_string($content) || $content === '') {
-            throw new MetricException(
-                'LLM-as-judge response missing choices[0].message.content (or it is empty).',
-            );
-        }
-
-        return $content;
     }
 
     /**

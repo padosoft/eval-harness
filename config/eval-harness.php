@@ -36,6 +36,7 @@ return [
             ),
         ],
 
+        // Shared by `llm-as-judge` and `refusal-quality`.
         'llm_as_judge' => [
             'endpoint' => env(
                 'EVAL_HARNESS_JUDGE_ENDPOINT',
