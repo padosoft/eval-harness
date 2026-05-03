@@ -135,15 +135,14 @@ final class LazyParallelBatch
      */
     public function collectOutputs(string $batchId, array $samples): array
     {
-        $indexedSamples = $this->indexedSamples($samples);
-        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $indexedSamples, count($samples));
+        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, count($samples));
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
 
             return array_values($outputsByIndex);
         }
 
-        $missingSampleIds = $this->missingSampleIds($batchId, $indexedSamples, count($samples));
+        $missingSampleIds = $this->missingSampleIds($batchId, $samples, count($samples));
 
         throw new EvalRunException(sprintf(
             "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
@@ -319,20 +318,6 @@ final class LazyParallelBatch
         }
 
         return $missing;
-    }
-
-    /**
-     * @param  list<DatasetSample>  $samples
-     * @return array<int, DatasetSample>
-     */
-    private function indexedSamples(array $samples): array
-    {
-        $indexed = [];
-        foreach ($samples as $index => $sample) {
-            $indexed[$index] = $sample;
-        }
-
-        return $indexed;
     }
 
     private function newBatchId(): string
