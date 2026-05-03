@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Outputs;
 
 use JsonException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use stdClass;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -42,18 +43,38 @@ final class SavedOutputsLoader
     public function loadString(string $contents, string $source = 'inline saved outputs'): array
     {
         $decoded = $this->decode($contents, $source);
-        if (! is_array($decoded)) {
+        if (! $decoded instanceof stdClass && ! is_array($decoded)) {
             throw new EvalRunException(sprintf("Saved outputs in '%s' must be a JSON/YAML object or list.", $source));
         }
 
-        $rawOutputs = array_key_exists('outputs', $decoded) ? $decoded['outputs'] : $decoded;
-        if (! is_array($rawOutputs)) {
+        $rawOutputs = $this->rawOutputs($decoded);
+        if (! $rawOutputs instanceof stdClass && ! is_array($rawOutputs)) {
             throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs object or list.", $source));
         }
 
-        return $this->isListShape($rawOutputs)
-            ? $this->normalizeList($rawOutputs, $source)
-            : $this->normalizeMap($rawOutputs, $source);
+        if ($rawOutputs instanceof stdClass) {
+            return $this->normalizeMap(get_object_vars($rawOutputs), $source);
+        }
+
+        if ($this->isListShape($rawOutputs, $source)) {
+            return $this->normalizeList($rawOutputs, $source);
+        }
+
+        return $this->normalizeMap($rawOutputs, $source);
+    }
+
+    /**
+     * @param  stdClass|array<array-key, mixed>  $decoded
+     */
+    private function rawOutputs(stdClass|array $decoded): mixed
+    {
+        if ($decoded instanceof stdClass) {
+            $properties = get_object_vars($decoded);
+
+            return array_key_exists('outputs', $properties) ? $properties['outputs'] : $decoded;
+        }
+
+        return $decoded;
     }
 
     private function decode(string $contents, string $source): mixed
@@ -67,9 +88,9 @@ final class SavedOutputsLoader
         }
 
         try {
-            return json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
+            return json_decode($contents, false, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $jsonException) {
-            if ($this->looksLikeJsonPath($source) || $this->looksLikeJsonDocument($contents)) {
+            if ($this->looksLikeJsonPath($source)) {
                 throw new EvalRunException(sprintf(
                     "Saved outputs file '%s' contains invalid JSON: %s.",
                     $source,
@@ -77,14 +98,26 @@ final class SavedOutputsLoader
                 ), previous: $jsonException);
             }
 
-            return $this->decodeYaml($contents, $source);
+            try {
+                return $this->decodeYaml($contents, $source);
+            } catch (EvalRunException $yamlException) {
+                if ($this->looksLikeJsonDocument($contents)) {
+                    throw new EvalRunException(sprintf(
+                        "Saved outputs file '%s' contains invalid JSON: %s.",
+                        $source,
+                        $jsonException->getMessage(),
+                    ), previous: $jsonException);
+                }
+
+                throw $yamlException;
+            }
         }
     }
 
     private function decodeYaml(string $contents, string $source): mixed
     {
         try {
-            return Yaml::parse($contents);
+            return Yaml::parse($contents, Yaml::PARSE_OBJECT_FOR_MAP);
         } catch (ParseException $e) {
             throw new EvalRunException(sprintf(
                 "Saved outputs file '%s' contains invalid YAML: %s.",
@@ -102,6 +135,10 @@ final class SavedOutputsLoader
     {
         $outputs = [];
         foreach ($rawOutputs as $index => $entry) {
+            if ($entry instanceof stdClass) {
+                $entry = get_object_vars($entry);
+            }
+
             if (! is_array($entry)) {
                 throw new EvalRunException(sprintf(
                     "Saved outputs entry at index %d in '%s' must be an object with id and actual_output.",
@@ -165,16 +202,22 @@ final class SavedOutputsLoader
     /**
      * @param  array<mixed>  $rawOutputs
      */
-    private function isListShape(array $rawOutputs): bool
+    private function isListShape(array $rawOutputs, string $source): bool
     {
         if (! array_is_list($rawOutputs)) {
             return false;
         }
 
-        foreach ($rawOutputs as $entry) {
-            if (! is_array($entry)) {
-                return false;
+        foreach ($rawOutputs as $index => $entry) {
+            if ($entry instanceof stdClass || is_array($entry)) {
+                continue;
             }
+
+            throw new EvalRunException(sprintf(
+                "Saved outputs entry at index %d in '%s' must be an object with id and actual_output.",
+                $index,
+                $source,
+            ));
         }
 
         return true;

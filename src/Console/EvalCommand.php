@@ -94,7 +94,13 @@ final class EvalCommand extends Command
         }
 
         $outputsPath = $this->option('outputs');
-        if (is_string($outputsPath) && $outputsPath !== '') {
+        if ($outputsPath !== null) {
+            if (! is_string($outputsPath) || $outputsPath === '') {
+                $this->error('The --outputs option requires a non-empty file path.');
+
+                return self::FAILURE;
+            }
+
             try {
                 /** @var SavedOutputsLoader $loader */
                 $loader = $this->laravel->make(SavedOutputsLoader::class);

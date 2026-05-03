@@ -426,3 +426,15 @@
   - `vendor/bin/phpunit` => `OK (194 tests, 423 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `9c86d18` and generated four comments:
+  - scalar list-form payloads should be rejected instead of interpreted as numeric sample-id maps,
+  - extensionless YAML flow-style documents should still parse as YAML,
+  - README saved-output sample ids should match the quick-start dataset,
+  - `AGENTS.md` current priority should remain valid after subtask merge.
+- Also addressed the earlier empty `--outputs=` path concern by making it an explicit command error.
+- Refactored `SavedOutputsLoader` to parse JSON/YAML maps as `stdClass` before normalization, reject scalar lists, keep extensionless YAML fallback after failed JSON parse, update README/AGENTS, and add regression coverage for those cases.
+- Full local gate passed after the third PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (198 tests, 429 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

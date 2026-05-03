@@ -106,6 +106,23 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_outputs_option_requires_non_empty_path(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-empty-path')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'saved-output-cli-empty-path',
+            '--outputs' => '',
+        ])
+            ->expectsOutputToContain('The --outputs option requires a non-empty file path.')
+            ->assertExitCode(1);
+    }
+
     public function test_runs_with_pre_registered_dataset_and_bound_sample_runner(): void
     {
         /** @var EvalEngine $engine */

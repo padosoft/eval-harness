@@ -60,6 +60,26 @@ final class SavedOutputsLoaderTest extends TestCase
         $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
     }
 
+    public function test_loads_yaml_numeric_key_outputs_map(): void
+    {
+        $outputs = (new SavedOutputsLoader)->loadString(
+            "outputs:\n  0: zero\n  1: one\n",
+            'outputs.yaml',
+        );
+
+        $this->assertSame(['0' => 'zero', '1' => 'one'], $outputs);
+    }
+
+    public function test_loads_extensionless_yaml_flow_style_map(): void
+    {
+        $outputs = (new SavedOutputsLoader)->loadString(
+            '{outputs: {s1: answer one, s2: answer two}}',
+            'artifact',
+        );
+
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+    }
+
     public function test_preserves_sample_ids_verbatim(): void
     {
         $outputs = (new SavedOutputsLoader)->loadString(
@@ -68,6 +88,14 @@ final class SavedOutputsLoaderTest extends TestCase
         );
 
         $this->assertSame([' s1 ' => 'answer'], $outputs);
+    }
+
+    public function test_rejects_scalar_list_outputs(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be an object with id and actual_output');
+
+        (new SavedOutputsLoader)->loadString('{"outputs":["answer"]}', 'outputs.json');
     }
 
     public function test_rejects_duplicate_list_ids(): void

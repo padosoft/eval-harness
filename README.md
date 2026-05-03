@@ -252,8 +252,8 @@ dataset and score those outputs directly:
 ```json
 {
   "outputs": {
-    "return-window": "Customers have 30 days from delivery.",
-    "policy-escalation": "Escalate VIP refund requests to support tier 2."
+    "capital-france": "Paris",
+    "refund-policy": "Customers have 30 days from delivery."
   }
 }
 ```
