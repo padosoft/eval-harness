@@ -27,8 +27,6 @@ final class EvalSetRunner
         $manifest->assertMatches($definition);
         $batchOptions ??= BatchOptions::serial();
 
-        $this->assertCanStart($definition, $systemUnderTest, $batchOptions);
-
         $reports = [];
         foreach ($definition->datasetNames as $datasetName) {
             $status = $manifest->statusFor($datasetName);
@@ -44,6 +42,7 @@ final class EvalSetRunner
                 );
             }
 
+            $this->assertCanRunDataset($datasetName, $systemUnderTest, $batchOptions);
             $manifest = $manifest->markRunning($datasetName);
 
             try {
@@ -80,11 +79,9 @@ final class EvalSetRunner
         return $message !== '' ? $message : $e::class;
     }
 
-    private function assertCanStart(EvalSetDefinition $definition, callable|SampleRunner $systemUnderTest, BatchOptions $batchOptions): void
+    private function assertCanRunDataset(string $datasetName, callable|SampleRunner $systemUnderTest, BatchOptions $batchOptions): void
     {
-        foreach ($definition->datasetNames as $datasetName) {
-            $this->engine->getDataset($datasetName);
-        }
+        $this->engine->getDataset($datasetName);
 
         if ($batchOptions->mode === BatchOptions::MODE_LAZY_PARALLEL && ! $this->isSampleRunnerSystemUnderTest($systemUnderTest)) {
             throw new EvalRunException(

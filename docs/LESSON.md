@@ -197,3 +197,5 @@
 - Eval-set manifest `updated_at` must be at least every entry `started_at` / `finished_at`. Deserialized manifests with a global update time before entry progress are impossible resume states.
 - Direct `GoldenDataset` construction must validate every sample element, not only list keys. Later report paths dereference `DatasetSample` properties and should not turn malformed constructor input into raw runtime errors.
 - Eval-set resume manifests should capture dataset execution failures, not setup/configuration failures. Surface unregistered datasets, invalid lazy-parallel SUTs, and lazy batch service resolution errors to the caller before or instead of marking a dataset failed.
+- Eval-set setup preflight must respect manifest status. Skip preflight for completed entries and return existing failed manifests before validating SUT shape so resume can work even when skipped datasets are no longer registered.
+- Public queue jobs need the same fresh-runner guard as the batch API. Direct `EvaluateSampleJob` dispatch should reject singleton or instance-bound `SampleRunner` bindings because state can leak across samples in one worker process.

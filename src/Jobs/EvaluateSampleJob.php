@@ -98,6 +98,24 @@ final class EvaluateSampleJob implements ShouldQueue
             ));
         }
 
+        $freshRunner = $container->make($this->runnerClass);
+        if (! $freshRunner instanceof SampleRunner) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must resolve to %s; got %s.",
+                $this->runnerClass,
+                SampleRunner::class,
+                get_debug_type($freshRunner),
+            ));
+        }
+
+        if ($freshRunner === $runner) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must resolve to a fresh %s instance; singleton or instance-bound runners can carry state across samples.",
+                $this->runnerClass,
+                SampleRunner::class,
+            ));
+        }
+
         $actualOutput = $runner->run($this->sample);
 
         $resultStore->recordSuccess(

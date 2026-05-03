@@ -14,6 +14,7 @@ use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifestEntry;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalSetRunnerTest extends TestCase
@@ -198,6 +199,62 @@ final class EvalSetRunnerTest extends TestCase
             new EvalSetAnswerRunner,
             BatchOptions::lazyParallel(),
         );
+    }
+
+    public function test_engine_skips_completed_unregistered_dataset_when_resuming_pending_suffix(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $this->registerDataset($engine, 'rag.second', 'second');
+
+        $definition = new EvalSetDefinition('nightly', ['rag.first', 'rag.second']);
+        $completedReport = new EvalReport(
+            datasetName: 'rag.first',
+            sampleResults: [],
+            failures: [],
+            startedAt: 1.0,
+            finishedAt: 2.0,
+        );
+        $manifest = EvalSetManifest::start($definition, 1.0)
+            ->markRunning('rag.first', 1.0)
+            ->markCompleted('rag.first', $completedReport);
+
+        $calls = [];
+        $result = $engine->runEvalSet(
+            $definition,
+            static function (array $input) use (&$calls): string {
+                $calls[] = $input['answer'];
+
+                return (string) $input['answer'];
+            },
+            manifest: $manifest,
+        );
+
+        $this->assertSame(['second'], $calls);
+        $this->assertTrue($result->isComplete());
+        $this->assertCount(1, $result->reports);
+        $this->assertNull($result->reportFor('rag.first'));
+    }
+
+    public function test_engine_returns_existing_failed_manifest_without_lazy_parallel_sut_preflight(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $definition = new EvalSetDefinition('nightly', ['rag.first']);
+        $manifest = EvalSetManifest::start($definition, 1.0)
+            ->markRunning('rag.first', 1.0)
+            ->markFailed('rag.first', 'already failed', 2.0);
+
+        $result = $engine->runEvalSet(
+            $definition,
+            static fn (array $input): string => (string) $input['answer'],
+            BatchOptions::lazyParallel(),
+            $manifest,
+        );
+
+        $this->assertFalse($result->isComplete());
+        $this->assertSame(['rag.first'], $result->failedDatasetNames());
+        $this->assertSame('already failed', $result->manifest->entryFor('rag.first')?->error);
     }
 
     private function registerDataset(EvalEngine $engine, string $name, string $answer): void

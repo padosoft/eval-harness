@@ -73,6 +73,23 @@ final class EvaluateSampleJobTest extends TestCase
         $this->assertSame([], $store->successfulResults('batch-1', 1));
     }
 
+    public function test_handle_rejects_instance_bound_runner_class(): void
+    {
+        $store = new JobRecordingBatchResultStore;
+        $this->app->instance(JobAnswerRunner::class, new JobAnswerRunner);
+        $job = $this->job(JobAnswerRunner::class);
+
+        try {
+            $job->handle($this->app, $store);
+
+            $this->fail('Expected instance-bound runner rejection.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('must resolve to a fresh '.SampleRunner::class.' instance', $e->getMessage());
+        }
+
+        $this->assertSame([], $store->successfulResults('batch-1', 1));
+    }
+
     public function test_constructor_rejects_invalid_timeout_seconds(): void
     {
         $this->expectException(EvalRunException::class);

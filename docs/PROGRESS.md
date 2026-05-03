@@ -1150,3 +1150,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding four setup/error-boundary tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `346 tests, 752 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #17 again at head `ab4ca2a` and generated three actionable comments:
+  - eval-set setup preflight should skip already completed datasets so resumed pending suffixes can run even if skipped datasets are no longer registered,
+  - lazy-parallel SUT validation should not run when a supplied manifest is already failed or complete and no dataset will execute,
+  - direct `EvaluateSampleJob` dispatch should re-check the fresh-runner invariant and reject singleton/instance-bound runner classes.
+- Addressed the PR #17 resume/preflight/job comments by moving eval-set setup checks inside the executable dataset path, adding completed/failed manifest regression coverage, and making `EvaluateSampleJob::handle()` reject runner classes that resolve to the same instance twice.
+- Targeted validation passed after the PR #17 resume/preflight/job fixes:
+  - `vendor/bin/phpunit tests/Unit/EvalSets/EvalSetRunnerTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (19 tests, 57 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/EvalSets/EvalSetRunner.php src/Jobs/EvaluateSampleJob.php tests/Unit/EvalSets/EvalSetRunnerTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the PR #17 resume/preflight/job fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (349 tests, 761 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three resume/preflight/job tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `349 tests, 761 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
