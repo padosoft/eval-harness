@@ -968,4 +968,10 @@
   - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding three lazy-batch validation tests. README has no test-count claim; update the PR body validation line to `308 tests, 653 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding three lazy-batch validation tests. README has no test-count claim; PR #14 body was updated to `308 tests, 653 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `adcadc6` and only flagged the stale PR-body handoff note above. Corrected it to record that the PR body already shows `308 tests, 653 assertions`.
+- Full local gate passed after the docs-only stale-note correction:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
