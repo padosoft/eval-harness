@@ -1165,3 +1165,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding three resume/preflight/job tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `349 tests, 761 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #17 again at head `e35ddcd` and generated three actionable comments:
+  - cache-backed batch metadata TTL can expire before delayed per-sample result keys in dispatch/collect flows,
+  - lazy-parallel `SampleInvocation` queue-safety failures should surface as setup errors instead of returning failed manifests,
+  - direct `EvaluateSampleJob` fresh-runner validation should not double container construction on every queued sample.
+- Addressed the PR #17 cache/setup/job-throughput comments by refreshing active metadata TTL after result writes, surfacing `SampleInvocation` setup failures from eval-set runs, caching successful fresh-runner validation per runner class inside `EvaluateSampleJob`, and adding regression coverage.
+- Targeted validation passed after the PR #17 cache/setup/job-throughput fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (32 tests, 79 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/CacheBatchResultStore.php src/EvalSets/EvalSetRunner.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the PR #17 cache/setup/job-throughput fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (352 tests, 766 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three cache/setup/job-throughput tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `352 tests, 766 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

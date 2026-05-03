@@ -201,6 +201,25 @@ final class EvalSetRunnerTest extends TestCase
         );
     }
 
+    public function test_engine_surfaces_lazy_parallel_sample_invocation_errors_as_setup_errors(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('rag.first')
+            ->withSamples([new DatasetSample(id: 's1', input: ['bad' => new \stdClass], expectedOutput: 'x')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be queue-serializable');
+
+        $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.first']),
+            new EvalSetAnswerRunner,
+            BatchOptions::lazyParallel(),
+        );
+    }
+
     public function test_engine_skips_completed_unregistered_dataset_when_resuming_pending_suffix(): void
     {
         /** @var EvalEngine $engine */

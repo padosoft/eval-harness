@@ -194,6 +194,30 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->successfulResults('aborting-batch', 1));
     }
 
+    public function test_recording_result_refreshes_active_metadata_ttl_to_match_newest_result(): void
+    {
+        $cache = new PutRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('refresh-meta', 1, 60);
+        $cache->putRecords = [];
+
+        $store->recordSuccess('refresh-meta', 0, 's1', 'first output', 120);
+
+        $metaPuts = array_values(array_filter(
+            $cache->putRecords,
+            fn (array $record): bool => $record['key'] === $this->metaKey('refresh-meta'),
+        ));
+
+        $this->assertSame([
+            [
+                'key' => $this->metaKey('refresh-meta'),
+                'value' => ['sample_count' => 1, 'status' => 'active', 'ttl_seconds' => 120],
+                'ttl' => 120,
+            ],
+        ], $metaPuts);
+    }
+
     private function store(): CacheBatchResultStore
     {
         return new CacheBatchResultStore($this->cache);
@@ -236,5 +260,18 @@ final class GetRecordingCacheRepository extends IlluminateCacheRepository
         $this->getKeys[] = $key;
 
         return parent::get($key, $default);
+    }
+}
+
+final class PutRecordingCacheRepository extends IlluminateCacheRepository
+{
+    /** @var list<array{key: mixed, value: mixed, ttl: mixed}> */
+    public array $putRecords = [];
+
+    public function put($key, $value, $ttl = null): bool
+    {
+        $this->putRecords[] = ['key' => $key, 'value' => $value, 'ttl' => $ttl];
+
+        return parent::put($key, $value, $ttl);
     }
 }

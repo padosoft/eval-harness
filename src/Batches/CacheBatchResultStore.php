@@ -223,8 +223,28 @@ final class CacheBatchResultStore implements BatchResultStore
         $resultKey = $this->resultKey($batchId, $index);
         $added = $this->cache->add($resultKey, $payload, $ttlSeconds);
 
-        if ($added && ! in_array($this->status($batchId), [self::STATUS_ACTIVE, self::STATUS_FINISHED], true)) {
+        if (! $added) {
+            return;
+        }
+
+        $metaPayload = $this->metaPayload($batchId);
+        if ($metaPayload === null || $metaPayload['status'] === self::STATUS_ABORTED) {
             $this->cache->forget($resultKey);
+
+            return;
+        }
+
+        if ($metaPayload['status'] === self::STATUS_ACTIVE) {
+            $effectiveTtlSeconds = max($metaPayload['ttl_seconds'], $ttlSeconds);
+            $this->cache->put(
+                $this->metaKey($batchId),
+                [
+                    'sample_count' => $metaPayload['sample_count'],
+                    'status' => self::STATUS_ACTIVE,
+                    'ttl_seconds' => $effectiveTtlSeconds,
+                ],
+                $effectiveTtlSeconds,
+            );
         }
     }
 

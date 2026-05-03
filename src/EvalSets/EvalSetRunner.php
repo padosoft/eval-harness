@@ -112,6 +112,7 @@ final class EvalSetRunner
         return str_starts_with($message, 'Failed to resolve lazy parallel batch services:')
             || str_starts_with($message, 'Container binding for ')
             || str_starts_with($message, 'Lazy parallel batch mode requires ')
-            || str_starts_with($message, 'Lazy parallel batch mode could not resolve ');
+            || str_starts_with($message, 'Lazy parallel batch mode could not resolve ')
+            || str_starts_with($message, 'SampleInvocation ');
     }
 }

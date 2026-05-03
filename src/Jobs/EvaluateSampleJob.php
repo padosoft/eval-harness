@@ -24,6 +24,9 @@ final class EvaluateSampleJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
+    /** @var array<class-string<SampleRunner>, true> */
+    private static array $freshRunnerValidationCache = [];
+
     public bool $failOnTimeout = true;
 
     public ?int $timeout = null;
@@ -98,22 +101,9 @@ final class EvaluateSampleJob implements ShouldQueue
             ));
         }
 
-        $freshRunner = $container->make($this->runnerClass);
-        if (! $freshRunner instanceof SampleRunner) {
-            throw new EvalRunException(sprintf(
-                "Queued sample runner '%s' must resolve to %s; got %s.",
-                $this->runnerClass,
-                SampleRunner::class,
-                get_debug_type($freshRunner),
-            ));
-        }
-
-        if ($freshRunner === $runner) {
-            throw new EvalRunException(sprintf(
-                "Queued sample runner '%s' must resolve to a fresh %s instance; singleton or instance-bound runners can carry state across samples.",
-                $this->runnerClass,
-                SampleRunner::class,
-            ));
+        if (! isset(self::$freshRunnerValidationCache[$this->runnerClass])) {
+            $this->assertFreshRunnerResolution($container, $runner);
+            self::$freshRunnerValidationCache[$this->runnerClass] = true;
         }
 
         $actualOutput = $runner->run($this->sample);
@@ -159,5 +149,26 @@ final class EvaluateSampleJob implements ShouldQueue
         }
 
         return $e->getMessage() !== '' ? $e->getMessage() : $e::class;
+    }
+
+    private function assertFreshRunnerResolution(Container $container, SampleRunner $runner): void
+    {
+        $freshRunner = $container->make($this->runnerClass);
+        if (! $freshRunner instanceof SampleRunner) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must resolve to %s; got %s.",
+                $this->runnerClass,
+                SampleRunner::class,
+                get_debug_type($freshRunner),
+            ));
+        }
+
+        if ($freshRunner === $runner) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must resolve to a fresh %s instance; singleton or instance-bound runners can carry state across samples.",
+                $this->runnerClass,
+                SampleRunner::class,
+            ));
+        }
     }
 }

@@ -76,8 +76,8 @@ final class EvaluateSampleJobTest extends TestCase
     public function test_handle_rejects_instance_bound_runner_class(): void
     {
         $store = new JobRecordingBatchResultStore;
-        $this->app->instance(JobAnswerRunner::class, new JobAnswerRunner);
-        $job = $this->job(JobAnswerRunner::class);
+        $this->app->instance(JobInstanceBoundRunner::class, new JobInstanceBoundRunner);
+        $job = $this->job(JobInstanceBoundRunner::class);
 
         try {
             $job->handle($this->app, $store);
@@ -88,6 +88,25 @@ final class EvaluateSampleJobTest extends TestCase
         }
 
         $this->assertSame([], $store->successfulResults('batch-1', 1));
+    }
+
+    public function test_handle_caches_fresh_runner_validation_per_runner_class(): void
+    {
+        $store = new JobRecordingBatchResultStore;
+        $makeCount = 0;
+        $this->app->bind(JobCountingRunner::class, static function () use (&$makeCount): JobCountingRunner {
+            $makeCount++;
+
+            return new JobCountingRunner;
+        });
+
+        $this->job(JobCountingRunner::class)->handle($this->app, $store);
+        $this->job(JobCountingRunner::class)->handle($this->app, $store);
+
+        $this->assertSame(3, $makeCount);
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'ok'],
+        ], $store->successfulResults('batch-1', 1));
     }
 
     public function test_constructor_rejects_invalid_timeout_seconds(): void
@@ -195,6 +214,22 @@ final class JobFailingRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         throw new \RuntimeException('transient runner failure');
+    }
+}
+
+final class JobInstanceBoundRunner implements SampleRunner
+{
+    public function run(SampleInvocation $sample): string
+    {
+        return 'stateful';
+    }
+}
+
+final class JobCountingRunner implements SampleRunner
+{
+    public function run(SampleInvocation $sample): string
+    {
+        return 'ok';
     }
 }
 
