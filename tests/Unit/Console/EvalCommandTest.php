@@ -44,6 +44,68 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(0);
     }
 
+    public function test_outputs_option_runs_without_bound_sut(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli',
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
+            $this->assertEqualsWithDelta(1.0, $decoded['metrics']['exact-match']['mean'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_option_surfaces_missing_sample_errors(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-missing')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'bye'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $this->assertNotFalse($outputs);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli-missing',
+                '--outputs' => $outputs,
+            ])
+                ->expectsOutputToContain('missing sample ids: s2')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
     public function test_runs_with_pre_registered_dataset_and_bound_sample_runner(): void
     {
         /** @var EvalEngine $engine */

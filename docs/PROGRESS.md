@@ -392,3 +392,14 @@
 - Remote CI for PR #10 passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
 - PR #10 was merged into `task/metrics-reporting` at merge commit `4e9889b`.
 - `gh pr merge --delete-branch` returned non-zero only because remote branch deletion hit HTTP 504 after the merge; verified the PR was merged, deleted `task/metrics-reporting-offline-metrics` remotely with `git push origin --delete`, and confirmed the local branch was already gone.
+- Started subtask branch `task/metrics-reporting-standalone-assertions` from `task/metrics-reporting`.
+- Implemented standalone scoring primitives:
+  - `EvalEngine::scoreOutputs()` scores precomputed sample-id => output maps without invoking a SUT,
+  - `SavedOutputsLoader` accepts JSON/YAML map and list shapes,
+  - `eval-harness:run --outputs=<path>` scores saved outputs without requiring `eval-harness.sut`.
+- Updated README and roadmap text to mark Promptfoo-style standalone output assertions as implemented.
+- Full local gate passed before opening the standalone assertions subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (188 tests, 416 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

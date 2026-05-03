@@ -102,11 +102,6 @@ final class EvalEngine
     {
         $dataset = $this->getDataset($datasetName);
 
-        $startedAt = microtime(true);
-
-        $sampleResults = [];
-        $failures = [];
-
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
         $callableExpectsSampleInvocation = $sampleRunner === null
             && $this->callableExpectsSampleInvocation($systemUnderTest);
@@ -115,14 +110,55 @@ final class EvalEngine
             usesSampleInvocation: $sampleRunner instanceof SampleRunner || $callableExpectsSampleInvocation,
         );
 
-        foreach ($dataset->samples as $index => $sample) {
-            $actualOutput = $this->runSample(
+        return $this->scoreDataset(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            actualOutputForSample: fn (DatasetSample $sample, int $index): string => $this->runSample(
                 systemUnderTest: $systemUnderTest,
                 sample: $sample,
                 sampleInvocation: $sampleInvocations[$index] ?? null,
                 sampleRunner: $sampleRunner,
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
-            );
+            ),
+        );
+    }
+
+    /**
+     * Score precomputed sample outputs without invoking a system-under-test.
+     *
+     * @param  array<array-key, mixed>  $actualOutputs  Map of sample id to actual output string.
+     */
+    public function scoreOutputs(string $datasetName, array $actualOutputs): EvalReport
+    {
+        $dataset = $this->getDataset($datasetName);
+        $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
+
+        return $this->scoreDataset(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            actualOutputForSample: static fn (DatasetSample $sample): string => $outputs[$sample->id],
+        );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     */
+    private function scoreDataset(string $datasetName, GoldenDataset $dataset, callable $actualOutputForSample): EvalReport
+    {
+        $startedAt = microtime(true);
+
+        $sampleResults = [];
+        $failures = [];
+
+        foreach ($dataset->samples as $index => $sample) {
+            $actualOutput = $actualOutputForSample($sample, $index);
+            if (! is_string($actualOutput)) {
+                throw new EvalRunException(sprintf(
+                    "Actual output for sample '%s' must be a string; got %s.",
+                    $sample->id,
+                    get_debug_type($actualOutput),
+                ));
+            }
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -152,6 +188,77 @@ final class EvalEngine
             finishedAt: microtime(true),
             datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $actualOutputs
+     * @return array<string, string>
+     */
+    private function savedOutputsForDataset(string $datasetName, GoldenDataset $dataset, array $actualOutputs): array
+    {
+        $outputs = [];
+        foreach ($actualOutputs as $sampleId => $actualOutput) {
+            $normalizedSampleId = trim((string) $sampleId);
+            if ($normalizedSampleId === '') {
+                throw new EvalRunException(sprintf(
+                    "Saved outputs for dataset '%s' contain an empty sample id.",
+                    $datasetName,
+                ));
+            }
+
+            if (! is_string($actualOutput)) {
+                throw new EvalRunException(sprintf(
+                    "Saved output for sample '%s' in dataset '%s' must be a string; got %s.",
+                    $normalizedSampleId,
+                    $datasetName,
+                    get_debug_type($actualOutput),
+                ));
+            }
+
+            if (array_key_exists($normalizedSampleId, $outputs)) {
+                throw new EvalRunException(sprintf(
+                    "Saved outputs for dataset '%s' contain duplicate sample id '%s'.",
+                    $datasetName,
+                    $normalizedSampleId,
+                ));
+            }
+
+            $outputs[$normalizedSampleId] = $actualOutput;
+        }
+
+        $expectedSampleIds = [];
+        $missingSampleIds = [];
+        foreach ($dataset->samples as $sample) {
+            $expectedSampleIds[$sample->id] = true;
+            if (! array_key_exists($sample->id, $outputs)) {
+                $missingSampleIds[] = $sample->id;
+            }
+        }
+
+        if ($missingSampleIds !== []) {
+            throw new EvalRunException(sprintf(
+                "Saved outputs for dataset '%s' are missing sample ids: %s.",
+                $datasetName,
+                implode(', ', $missingSampleIds),
+            ));
+        }
+
+        $unknownSampleIds = [];
+        foreach ($outputs as $sampleId => $_output) {
+            if (! isset($expectedSampleIds[$sampleId])) {
+                $unknownSampleIds[] = (string) $sampleId;
+            }
+        }
+
+        if ($unknownSampleIds !== []) {
+            throw new EvalRunException(sprintf(
+                "Saved outputs for dataset '%s' contain unknown sample ids: %s.",
+                $datasetName,
+                implode(', ', $unknownSampleIds),
+            ));
+        }
+
+        return $outputs;
     }
 
     /**

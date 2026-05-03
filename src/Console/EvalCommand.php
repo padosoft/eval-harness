@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 
 /**
  * Artisan entry point: `php artisan eval-harness:run <dataset>`.
@@ -27,6 +28,9 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
  *     container key `eval-harness.sut`. If either is missing, the
  *     command errors out with a non-zero exit code. The bound value
  *     may be either a callable or a SampleRunner implementation.
+ *   - With `--outputs=<path>`: the command scores precomputed
+ *     sample outputs from a JSON/YAML file and does not require a
+ *     system-under-test binding.
  *
  * Output:
  *   - Markdown report on stdout by default.
@@ -53,6 +57,7 @@ final class EvalCommand extends Command
     protected $signature = 'eval-harness:run
         {dataset : Dataset name (e.g. rag.factuality.fy2026)}
         {--registrar= : FQCN of an invokable class that registers the dataset + drives the SUT}
+        {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
@@ -88,28 +93,41 @@ final class EvalCommand extends Command
             return self::FAILURE;
         }
 
-        if (! $engine->container()->bound('eval-harness.sut')) {
-            $this->error(
-                "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
-            );
+        $outputsPath = $this->option('outputs');
+        if (is_string($outputsPath) && $outputsPath !== '') {
+            try {
+                /** @var SavedOutputsLoader $loader */
+                $loader = $this->laravel->make(SavedOutputsLoader::class);
+                $report = $engine->scoreOutputs($datasetName, $loader->loadFile($outputsPath));
+            } catch (EvalHarnessException $e) {
+                $this->error($e->getMessage());
 
-            return self::FAILURE;
+                return self::FAILURE;
+            }
+        } else {
+            if (! $engine->container()->bound('eval-harness.sut')) {
+                $this->error(
+                    "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
+                );
+
+                return self::FAILURE;
+            }
+
+            $sut = $engine->container()->make('eval-harness.sut');
+
+            if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
+                $this->error(
+                    sprintf(
+                        "System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got %s. Update the binding to return a callable, or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
+                        get_debug_type($sut),
+                    ),
+                );
+
+                return self::FAILURE;
+            }
+
+            $report = $engine->run($datasetName, $sut);
         }
-
-        $sut = $engine->container()->make('eval-harness.sut');
-
-        if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
-            $this->error(
-                sprintf(
-                    "System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got %s. Update the binding to return a callable, or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
-                    get_debug_type($sut),
-                ),
-            );
-
-            return self::FAILURE;
-        }
-
-        $report = $engine->run($datasetName, $sut);
 
         if ($this->option('json')) {
             try {

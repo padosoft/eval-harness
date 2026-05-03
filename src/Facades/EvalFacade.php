@@ -37,6 +37,7 @@ use Padosoft\EvalHarness\Reports\EvalReport;
  *
  * @method static DatasetBuilder dataset(string $name)
  * @method static EvalReport run(string $datasetName, callable|\Padosoft\EvalHarness\Contracts\SampleRunner $systemUnderTest)
+ * @method static EvalReport scoreOutputs(string $datasetName, array<array-key, mixed> $actualOutputs)
  * @method static bool hasDataset(string $name)
  * @method static GoldenDataset getDataset(string $name)
  * @method static list<string> registeredDatasetNames()
