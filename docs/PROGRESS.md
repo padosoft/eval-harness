@@ -741,4 +741,21 @@
   - `vendor/bin/phpunit` => `OK (271 tests, 584 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding batch/cache tests. README has no test-count claim; PR #14 body needs updating from `268 tests, 580 assertions` to `271 tests, 584 assertions` before push/re-review.
+- Ran the test-count README sync search after adding batch/cache tests. README has no test-count claim; PR #14 body was updated from `268 tests, 580 assertions` to `271 tests, 584 assertions` before push/re-review.
+- Copilot reviewed PR #14 again at head `c51ffcd` and generated five comments:
+  - lazy-parallel runner instances with state would lose that state because jobs only carry the runner class name,
+  - the progress note saying the PR body needed updating was stale after the body had already been updated,
+  - the README config snippet still cast batch timeout/TTL env vars with `(int) env(...)` instead of using `TimeoutNormalizer`,
+  - `AGENTS.md` still described PR #14 as in-flight instead of only documenting the post-merge next step,
+  - result-store cache-driver failures escaped as raw framework exceptions that `EvalCommand` would not catch.
+- Addressed the fourth PR #14 Copilot round by requiring stateless concrete lazy-parallel `SampleRunner` classes, wrapping result-store operations in `EvalRunException`, updating README config snippets to use `TimeoutNormalizer`, making `AGENTS.md` post-merge only, and correcting the stale PR-body progress note.
+- Targeted validation passed after the fourth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (29 tests, 60 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the fourth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (273 tests, 588 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two lazy-parallel tests. README has no test-count claim; PR #14 body was updated to `273 tests, 588 assertions` and reformatted with preserved Markdown newlines before push/re-review.

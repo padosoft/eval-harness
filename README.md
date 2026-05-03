@@ -401,9 +401,10 @@ Eval::dataset('rag.recall')
 
 `--batch=lazy-parallel` dispatches one queue job per sample and then
 assembles outputs in dataset order through the shared batch result
-store. It requires the SUT to be a concrete `SampleRunner` class so
-queue workers can resolve it; arbitrary callables and closures remain
-serial-only.
+store. It requires the SUT to be a stateless concrete `SampleRunner`
+class so queue workers can resolve it by class name; arbitrary
+callables, closures, anonymous runners, and preconfigured runner
+instances remain serial-only.
 
 ```php
 use App\Eval\MyRagRunner;
@@ -438,6 +439,8 @@ window to finish before the command reports missing queued outputs.
 `config/eval-harness.php` (after `vendor:publish`):
 
 ```php
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+
 return [
     'metrics' => [
 
@@ -445,14 +448,14 @@ return [
             'endpoint' => env('EVAL_HARNESS_EMBEDDINGS_ENDPOINT', 'https://api.openai.com/v1/embeddings'),
             'api_key'  => env('EVAL_HARNESS_EMBEDDINGS_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_EMBEDDINGS_MODEL', 'text-embedding-3-small'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT', 30),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT'), 30),
         ],
 
         'llm_as_judge' => [
             'endpoint' => env('EVAL_HARNESS_JUDGE_ENDPOINT', 'https://api.openai.com/v1/chat/completions'),
             'api_key'  => env('EVAL_HARNESS_JUDGE_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_JUDGE_MODEL', 'gpt-4o-mini'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_JUDGE_TIMEOUT', 60),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_JUDGE_TIMEOUT'), 60),
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
@@ -466,8 +469,8 @@ return [
     'batches' => [
         'lazy_parallel' => [
             'cache_store' => env('EVAL_HARNESS_BATCH_CACHE_STORE'),
-            'result_ttl_seconds' => (int) env('EVAL_HARNESS_BATCH_RESULT_TTL', 3600),
-            'wait_timeout_seconds' => (int) env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT', 60),
+            'result_ttl_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_RESULT_TTL'), 3600),
+            'wait_timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT'), 60),
         ],
     ],
 ];

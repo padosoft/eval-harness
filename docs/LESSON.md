@@ -138,3 +138,6 @@
 - PHPStan may remember private method return values across repeated calls. For cache-backed state that can change outside the current process, mark the read helper `@phpstan-impure` rather than changing production logic to satisfy a single-process assumption.
 - Validating `trim($queue) !== ''` is not enough for queue names. Retain the trimmed value so operators do not dispatch to whitespace-padded queues that workers are not listening on.
 - `AGENTS.md` current-priority sections should describe what to do after an in-flight PR merges, not only the branch that is active while editing the PR, otherwise the macro branch inherits stale handoff instructions.
+- Lazy-parallel jobs only carry scalar job payload plus a runner class name. Reject stateful `SampleRunner` instances for lazy-parallel mode so caller-instance configuration is not silently lost when workers resolve the class.
+- README config snippets should mirror published config normalization. If config uses `TimeoutNormalizer`, do not document `(int) env(...)` casts, because invalid or blank env vars would become `0` instead of falling back to defaults.
+- Wrap cache/result-store infrastructure failures in package exceptions before they reach Artisan commands. `EvalCommand` catches `EvalHarnessException`, not arbitrary Redis/cache driver exceptions.

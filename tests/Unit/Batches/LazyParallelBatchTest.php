@@ -212,6 +212,43 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_rejects_stateful_runners_because_workers_only_receive_the_class_name(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('requires a stateless concrete SampleRunner class');
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new StatefulLazyParallelRunner('configured output'),
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_result_store_failures_are_wrapped_as_eval_run_exceptions(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new ThrowingStartBatchResultStore,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Failed to initialize lazy parallel batch result store');
+        $this->expectExceptionMessage('redis down');
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
     /**
      * @return list<DatasetSample>
      */
@@ -249,6 +286,18 @@ final class LazyParallelFailingRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         throw new \RuntimeException('runner exploded');
+    }
+}
+
+final class StatefulLazyParallelRunner implements SampleRunner
+{
+    public function __construct(
+        private readonly string $answer,
+    ) {}
+
+    public function run(SampleInvocation $sample): string
+    {
+        return $this->answer;
     }
 }
 
@@ -483,5 +532,43 @@ final class RecordingBatchResultStore implements BatchResultStore
         }
 
         return array_intersect_key($this->failures, array_flip($indexes));
+    }
+}
+
+final class ThrowingStartBatchResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        throw new \RuntimeException('redis down');
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }

@@ -75,4 +75,4 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 Macro Task 3 is active on `task/parallel-batch-queues`.
 
-The in-flight slice is queue-backed `LazyParallelBatch` until PR #14 merges. After PR #14 merges, create the next subtask branch from `task/parallel-batch-queues` for eval-set/resume manifests and update `AGENTS.md` / `docs/PROGRESS.md` with that branch. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch.
+Next slice: create a fresh subtask branch from `task/parallel-batch-queues` for eval-set/resume manifests, then update `AGENTS.md` / `docs/PROGRESS.md` with that branch. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch.
