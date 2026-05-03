@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness;
 
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
@@ -49,11 +50,16 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new SavedOutputsLoader;
         });
 
+        $this->app->singleton(SerialBatch::class, static function (): SerialBatch {
+            return new SerialBatch;
+        });
+
         $this->app->singleton(EvalEngine::class, static function (Container $app): EvalEngine {
             return new EvalEngine(
                 container: $app,
                 metricResolver: $app->make(MetricResolver::class),
                 yamlLoader: $app->make(YamlDatasetLoader::class),
+                serialBatch: $app->make(SerialBatch::class),
             );
         });
     }

@@ -6,6 +6,8 @@ namespace Padosoft\EvalHarness;
 
 use Closure;
 use Illuminate\Contracts\Container\Container;
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
@@ -53,6 +55,7 @@ final class EvalEngine
         private readonly Container $container,
         private readonly MetricResolver $metricResolver,
         private readonly YamlDatasetLoader $yamlLoader,
+        private readonly SerialBatch $serialBatch,
     ) {}
 
     public function dataset(string $name): DatasetBuilder
@@ -101,8 +104,19 @@ final class EvalEngine
      */
     public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
+        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial());
+    }
+
+    /**
+     * Run an eval pass through an explicit batch strategy.
+     *
+     * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
+     */
+    public function runBatch(string $datasetName, callable|SampleRunner $systemUnderTest, ?BatchOptions $batchOptions = null): EvalReport
+    {
         $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
+        $batchOptions ??= BatchOptions::serial();
 
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
         $callableExpectsSampleInvocation = $sampleRunner === null
@@ -123,6 +137,7 @@ final class EvalEngine
                 sampleRunner: $sampleRunner,
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
             ),
+            batchOptions: $batchOptions,
         );
     }
 
@@ -148,20 +163,41 @@ final class EvalEngine
     /**
      * @param  callable(DatasetSample, int): string  $actualOutputForSample
      */
-    private function scoreDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
+    private function scoreDataset(
+        string $datasetName,
+        GoldenDataset $dataset,
+        float $startedAt,
+        callable $actualOutputForSample,
+        ?BatchOptions $batchOptions = null,
+    ): EvalReport {
+        $batchOptions ??= BatchOptions::serial();
+
+        return $this->scoreDatasetOutputs(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            startedAt: $startedAt,
+            actualOutputs: $this->sampleOutputsForBatch($dataset, $actualOutputForSample, $batchOptions),
+        );
+    }
+
+    /**
+     * @param  list<string>  $actualOutputs
+     */
+    private function scoreDatasetOutputs(string $datasetName, GoldenDataset $dataset, float $startedAt, array $actualOutputs): EvalReport
     {
         $sampleResults = [];
         $failures = [];
 
         foreach ($dataset->samples as $index => $sample) {
-            $actualOutput = $actualOutputForSample($sample, $index);
-            if (! is_string($actualOutput)) {
+            if (! array_key_exists($index, $actualOutputs)) {
                 throw new EvalRunException(sprintf(
-                    "Actual output for sample '%s' must be a string; got %s.",
+                    "Batch output for sample '%s' at index %d is missing.",
                     $sample->id,
-                    get_debug_type($actualOutput),
+                    $index,
                 ));
             }
+
+            $actualOutput = $actualOutputs[$index];
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -191,6 +227,22 @@ final class EvalEngine
             finishedAt: microtime(true),
             datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     * @return list<string>
+     */
+    private function sampleOutputsForBatch(GoldenDataset $dataset, callable $actualOutputForSample, BatchOptions $batchOptions): array
+    {
+        if ($batchOptions->mode === BatchOptions::MODE_SERIAL) {
+            return $this->serialBatch->run($dataset->samples, $actualOutputForSample);
+        }
+
+        throw new EvalRunException(sprintf(
+            "Unsupported batch mode '%s'.",
+            $batchOptions->mode,
+        ));
     }
 
     /**

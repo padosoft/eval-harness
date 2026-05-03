@@ -573,3 +573,23 @@
   - `vendor/bin/phpunit` => `OK (222 tests, 485 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- PR #12 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `e3ac10e`.
+- Copilot reviewed PR #12 again at head `e3ac10e` and generated no new comments.
+- Verified all three PR #12 review threads resolved, mergeability `MERGEABLE`, and no failed checks.
+- PR #12 was merged into `main` at merge commit `f707317`.
+- Started Macro Task 3 on `task/parallel-batch-queues` from `main` and pushed the macro branch.
+- Started subtask branch `task/parallel-batch-queues-contracts` from `task/parallel-batch-queues`.
+- Implemented the deterministic batch foundation:
+  - `BatchOptions` validates the current serial batch surface,
+  - `SerialBatch` runs samples in dataset order and enforces string outputs,
+  - `EvalEngine::run()` now routes through `EvalEngine::runBatch()` with `BatchOptions::serial()`,
+  - `eval-harness:run` accepts `--batch=serial`, `--concurrency`, `--queue`, and `--timeout` while rejecting parallel-only options for serial mode.
+- Targeted validation passed after the first Macro Task 3 slice:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (61 tests, 131 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed before opening the Macro Task 3 contracts subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (234 tests, 510 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

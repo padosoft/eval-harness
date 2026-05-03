@@ -73,4 +73,6 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 2 is active on `task/metrics-reporting`. Completed subtasks on this macro branch include cohort/histogram reporting, offline metrics, and standalone saved-output scoring. Unless `docs/PROGRESS.md` records a newer active branch, the next step is macro-task validation and a PR from `task/metrics-reporting` into `main`.
+Macro Task 3 is active on `task/parallel-batch-queues`. Current subtask branch: `task/parallel-batch-queues-contracts`.
+
+This slice is the deterministic batch foundation: `BatchOptions`, `SerialBatch`, `EvalEngine::runBatch()`, and `eval-harness:run --batch=serial`. The next slices should add queue-backed `LazyParallelBatch`, Horizon guidance, and eval-set/resume manifests. Unless `docs/PROGRESS.md` records a newer active branch, continue from this branch and keep subtask PRs targeted into `task/parallel-batch-queues`.

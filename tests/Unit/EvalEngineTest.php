@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Closure;
 use Illuminate\Support\Facades\Http;
+use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -55,6 +56,30 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(0, $report->totalFailures());
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->meanScore('exact-match'), 1e-9);
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->macroF1('exact-match'), 1e-9);
+    }
+
+    public function test_run_batch_serial_scores_samples(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-serial')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '2+2'], expectedOutput: '4'),
+                new DatasetSample(id: 's2', input: ['q' => '3+3'], expectedOutput: '6'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->runBatch(
+            'rag.engine.batch-serial',
+            static fn (array $input): string => $input['q'] === '2+2' ? '4' : 'wrong',
+            BatchOptions::serial(),
+        );
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('wrong', $report->sampleResults[1]->actualOutput);
     }
 
     public function test_score_outputs_scores_precomputed_outputs_without_sut(): void

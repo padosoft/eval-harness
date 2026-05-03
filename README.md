@@ -114,6 +114,9 @@ surface small and the offline path fast.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
+- **Batch execution foundation** — SUT runs now flow through a
+  deterministic `SerialBatch` contract and `--batch=serial`, preparing
+  the package for queue-backed parallel workers.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -461,8 +464,8 @@ already implement that contract.
 ┌──────────────────────────────────────────────────────────────────┐
 │  EvalEngine                                                      │
 │  - dataset registry (in-memory, single source of truth)          │
-│  - run(dataset, sut)                                             │
-│      ├─► iterate samples                                         │
+│  - run(dataset, sut) / runBatch(dataset, sut, BatchOptions)      │
+│      ├─► dispatch samples through SerialBatch                    │
 │      ├─► invoke input callable or SampleInvocation callable/runner│
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
@@ -566,8 +569,10 @@ accidentally and never burns API credits.
   questions are 60%" instead of a single mean. Implemented in
   Markdown/JSON reports.
 - **Histogram view** in Markdown and JSON reports.
-- **Parallel batch evals** — run N samples in parallel via Laravel
-  queues (`SerialBatch`, `LazyParallelBatch`).
+- **Parallel batch evals** — `SerialBatch` and `--batch=serial` are
+  implemented as the deterministic foundation; queue-backed
+  `LazyParallelBatch` remains planned for running N samples in
+  parallel via Laravel queues.
 - **Eval sets with resumable progress** — run named groups of
   datasets and resume interrupted multi-dataset runs.
 - **Standalone output assertions** — score saved JSON/YAML outputs
