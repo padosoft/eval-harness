@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\ProviderHttpRetry;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
@@ -44,15 +45,21 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient
             $request = $request->withToken($apiKey);
         }
 
-        $response = $request->post($endpoint, [
-            'model' => $model,
-            'temperature' => 0,
-            'seed' => 42,
-            'response_format' => ['type' => 'json_object'],
-            'messages' => [
-                ['role' => 'user', 'content' => $prompt],
+        $response = ProviderHttpRetry::post(
+            request: $request,
+            config: $this->config,
+            endpoint: $endpoint,
+            payload: [
+                'model' => $model,
+                'temperature' => 0,
+                'seed' => 42,
+                'response_format' => ['type' => 'json_object'],
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
             ],
-        ]);
+            operation: 'LLM judge',
+        );
 
         if ($response->failed()) {
             throw new MetricException(
