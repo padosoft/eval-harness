@@ -88,7 +88,7 @@ final class LazyParallelBatchTest extends TestCase
             'start:2',
             'dispatch:s1',
             'failures:2',
-            'forget:2',
+            'abort:2',
         ], $store->events);
     }
 
@@ -144,7 +144,7 @@ final class LazyParallelBatchTest extends TestCase
             'success:s3',
             'failures:3',
             'outputs:3',
-            'forget:3',
+            'finish:3',
         ], $store->events);
     }
 
@@ -368,6 +368,20 @@ final class RecordingBatchResultStore implements BatchResultStore
         $this->events[] = 'start:'.$sampleCount;
     }
 
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->events[] = 'finish:'.$sampleCount;
+        $this->outputs = [];
+        $this->failures = [];
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->events[] = 'abort:'.$sampleCount;
+        $this->outputs = [];
+        $this->failures = [];
+    }
+
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
     {
         $this->events[] = 'success:'.$sampleId;
@@ -380,18 +394,26 @@ final class RecordingBatchResultStore implements BatchResultStore
         $this->failures[$index] = ['sample_id' => $sampleId, 'error' => $error];
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount): array
+    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         $this->events[] = 'outputs:'.$sampleCount;
 
-        return $this->outputs;
+        if ($indexes === null) {
+            return $this->outputs;
+        }
+
+        return array_intersect_key($this->outputs, array_flip($indexes));
     }
 
-    public function failures(string $batchId, int $sampleCount): array
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         $this->events[] = 'failures:'.$sampleCount;
 
-        return $this->failures;
+        if ($indexes === null) {
+            return $this->failures;
+        }
+
+        return array_intersect_key($this->failures, array_flip($indexes));
     }
 
     public function forget(string $batchId, int $sampleCount): void

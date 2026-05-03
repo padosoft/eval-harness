@@ -14,6 +14,12 @@ final class CacheBatchResultStore implements BatchResultStore
 {
     private const KEY_PREFIX = 'eval-harness:batch-results';
 
+    private const STATUS_ACTIVE = 'active';
+
+    private const STATUS_ABORTED = 'aborted';
+
+    private const STATUS_FINISHED = 'finished';
+
     public function __construct(
         private readonly CacheRepository $cache,
     ) {}
@@ -25,9 +31,19 @@ final class CacheBatchResultStore implements BatchResultStore
 
         $this->cache->put(
             $this->metaKey($batchId),
-            ['sample_count' => $sampleCount],
+            ['sample_count' => $sampleCount, 'status' => self::STATUS_ACTIVE],
             $ttlSeconds,
         );
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->close($batchId, $sampleCount, $ttlSeconds, self::STATUS_FINISHED);
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->close($batchId, $sampleCount, $ttlSeconds, self::STATUS_ABORTED);
     }
 
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
@@ -35,15 +51,19 @@ final class CacheBatchResultStore implements BatchResultStore
         $this->assertNonNegativeIndex($index);
         $this->assertPositiveTtl($ttlSeconds);
 
-        $this->cache->put(
-            $this->outputKey($batchId, $index),
+        if (! $this->isActive($batchId)) {
+            return;
+        }
+
+        $this->cache->add(
+            $this->resultKey($batchId, $index),
             [
+                'status' => 'success',
                 'sample_id' => $sampleId,
                 'actual_output' => $actualOutput,
             ],
             $ttlSeconds,
         );
-        $this->cache->forget($this->failureKey($batchId, $index));
     }
 
     public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
@@ -51,33 +71,46 @@ final class CacheBatchResultStore implements BatchResultStore
         $this->assertNonNegativeIndex($index);
         $this->assertPositiveTtl($ttlSeconds);
 
-        $this->cache->put(
-            $this->failureKey($batchId, $index),
+        if (! $this->isActive($batchId)) {
+            return;
+        }
+
+        $this->cache->add(
+            $this->resultKey($batchId, $index),
             [
+                'status' => 'failure',
                 'sample_id' => $sampleId,
                 'error' => $error,
             ],
             $ttlSeconds,
         );
-        $this->cache->forget($this->outputKey($batchId, $index));
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount): array
+    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        $this->assertNonNegativeSampleCount($sampleCount);
-
         $outputs = [];
-        for ($index = 0; $index < $sampleCount; $index++) {
-            $payload = $this->cache->get($this->outputKey($batchId, $index));
+        foreach ($this->indexesToScan($sampleCount, $indexes) as $index) {
+            $payload = $this->cache->get($this->resultKey($batchId, $index));
             if ($payload === null) {
                 continue;
             }
 
             if (
                 ! is_array($payload)
-                || ! array_key_exists('actual_output', $payload)
-                || ! is_string($payload['actual_output'])
+                || ! array_key_exists('status', $payload)
+                || $payload['status'] !== 'success'
             ) {
+                if (is_array($payload) && ($payload['status'] ?? null) === 'failure') {
+                    continue;
+                }
+
+                throw new EvalRunException(sprintf(
+                    'Stored lazy parallel batch result for index %d is invalid.',
+                    $index,
+                ));
+            }
+
+            if (! array_key_exists('actual_output', $payload) || ! is_string($payload['actual_output'])) {
                 throw new EvalRunException(sprintf(
                     'Stored lazy parallel batch output for index %d is invalid.',
                     $index,
@@ -92,20 +125,32 @@ final class CacheBatchResultStore implements BatchResultStore
         return $outputs;
     }
 
-    public function failures(string $batchId, int $sampleCount): array
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        $this->assertNonNegativeSampleCount($sampleCount);
-
         $failures = [];
-        for ($index = 0; $index < $sampleCount; $index++) {
-            $payload = $this->cache->get($this->failureKey($batchId, $index));
+        foreach ($this->indexesToScan($sampleCount, $indexes) as $index) {
+            $payload = $this->cache->get($this->resultKey($batchId, $index));
             if ($payload === null) {
                 continue;
             }
 
             if (
                 ! is_array($payload)
-                || ! array_key_exists('sample_id', $payload)
+                || ! array_key_exists('status', $payload)
+                || $payload['status'] !== 'failure'
+            ) {
+                if (is_array($payload) && ($payload['status'] ?? null) === 'success') {
+                    continue;
+                }
+
+                throw new EvalRunException(sprintf(
+                    'Stored lazy parallel batch result for index %d is invalid.',
+                    $index,
+                ));
+            }
+
+            if (
+                ! array_key_exists('sample_id', $payload)
                 || ! is_string($payload['sample_id'])
                 || ! array_key_exists('error', $payload)
                 || ! is_string($payload['error'])
@@ -133,9 +178,73 @@ final class CacheBatchResultStore implements BatchResultStore
 
         $this->cache->forget($this->metaKey($batchId));
         for ($index = 0; $index < $sampleCount; $index++) {
-            $this->cache->forget($this->outputKey($batchId, $index));
-            $this->cache->forget($this->failureKey($batchId, $index));
+            $this->cache->forget($this->resultKey($batchId, $index));
         }
+    }
+
+    private function close(string $batchId, int $sampleCount, int $ttlSeconds, string $status): void
+    {
+        $this->assertNonNegativeSampleCount($sampleCount);
+        $this->assertPositiveTtl($ttlSeconds);
+
+        $this->cache->put(
+            $this->metaKey($batchId),
+            ['sample_count' => $sampleCount, 'status' => $status],
+            $ttlSeconds,
+        );
+
+        for ($index = 0; $index < $sampleCount; $index++) {
+            $this->cache->forget($this->resultKey($batchId, $index));
+        }
+    }
+
+    private function isActive(string $batchId): bool
+    {
+        $payload = $this->cache->get($this->metaKey($batchId));
+
+        return is_array($payload)
+            && ($payload['status'] ?? null) === self::STATUS_ACTIVE;
+    }
+
+    /**
+     * @param  list<int>|null  $indexes
+     * @return list<int>
+     */
+    private function indexesToScan(int $sampleCount, ?array $indexes): array
+    {
+        $this->assertNonNegativeSampleCount($sampleCount);
+
+        if ($indexes === null) {
+            if ($sampleCount === 0) {
+                return [];
+            }
+
+            return range(0, max(0, $sampleCount - 1));
+        }
+
+        $normalized = [];
+        foreach ($indexes as $index) {
+            if (! is_int($index)) {
+                throw new EvalRunException(sprintf(
+                    'Batch sample index must be an integer; got %s.',
+                    get_debug_type($index),
+                ));
+            }
+
+            $this->assertNonNegativeIndex($index);
+
+            if ($index >= $sampleCount) {
+                throw new EvalRunException(sprintf(
+                    'Batch sample index %d must be less than sample count %d.',
+                    $index,
+                    $sampleCount,
+                ));
+            }
+
+            $normalized[] = $index;
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     private function metaKey(string $batchId): string
@@ -143,14 +252,9 @@ final class CacheBatchResultStore implements BatchResultStore
         return sprintf('%s:%s:meta', self::KEY_PREFIX, $batchId);
     }
 
-    private function outputKey(string $batchId, int $index): string
+    private function resultKey(string $batchId, int $index): string
     {
-        return sprintf('%s:%s:output:%d', self::KEY_PREFIX, $batchId, $index);
-    }
-
-    private function failureKey(string $batchId, int $index): string
-    {
-        return sprintf('%s:%s:failure:%d', self::KEY_PREFIX, $batchId, $index);
+        return sprintf('%s:%s:result:%d', self::KEY_PREFIX, $batchId, $index);
     }
 
     private function assertNonNegativeSampleCount(int $sampleCount): void

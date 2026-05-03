@@ -61,5 +61,24 @@ final class ServiceProviderTest extends TestCase
         $endpoint = config('eval-harness.metrics.cosine_embedding.endpoint');
         $this->assertIsString($endpoint);
         $this->assertNotEmpty($endpoint);
+        $this->assertSame(3600, config('eval-harness.batches.lazy_parallel.result_ttl_seconds'));
+        $this->assertSame(60, config('eval-harness.batches.lazy_parallel.wait_timeout_seconds'));
+    }
+
+    public function test_lazy_parallel_batch_uses_configured_ttl_and_wait_timeout(): void
+    {
+        config([
+            'eval-harness.batches.lazy_parallel.result_ttl_seconds' => 7200,
+            'eval-harness.batches.lazy_parallel.wait_timeout_seconds' => 120,
+        ]);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+
+        $ttl = new \ReflectionProperty($batch, 'resultTtlSeconds');
+        $wait = new \ReflectionProperty($batch, 'defaultWaitTimeoutSeconds');
+
+        $this->assertSame(7200, $ttl->getValue($batch));
+        $this->assertSame(120, $wait->getValue($batch));
     }
 }

@@ -128,3 +128,9 @@
 - If a queued eval job must surface worker timeouts as batch failures, set `failOnTimeout` and keep enough scalar job payload data to write a deterministic failure entry from `failed()`.
 - Dispatch-only batch APIs that write shared result metadata need cleanup around queue transport errors; otherwise a partial dispatch can leave stale cache keys even though no collector will read them.
 - Result polling against a shared cache should back off instead of using a fixed tight interval, because each poll may scan the whole batch state and become a Redis/Horizon bottleneck on large evals.
+- For queue-backed result stores, cleanup alone is not enough: late async jobs can recreate cache keys after `forget()`. Leave a short-lived finished/aborted marker and have workers ignore writes unless the batch is still active.
+- At-least-once queue delivery means sample result writes must be idempotent. Store one terminal result per sample index with first-writer-wins semantics instead of separate success/failure keys that can overwrite each other.
+- Bounded producer windows should also bound result-store reads. Polling a window should request only that window's indexes, not rescan every sample in the dataset.
+- Horizon guidance needs host-app knobs for the shared batch cache store and result TTL. Do not force operators to change their global default cache driver just so eval workers and the command process can share results.
+- Keep optional queue services lazy for serial-only users. `EvalEngine` can resolve `LazyParallelBatch` on demand from the container instead of requiring queue/cache services during engine resolution.
+- CLI wording should distinguish producer fan-out (`--concurrency` dispatch window size) from actual worker concurrency, which belongs to Horizon/queue worker configuration.

@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness;
 
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
@@ -62,14 +63,24 @@ class EvalHarnessServiceProvider extends ServiceProvider
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);
+            /** @var ConfigRepository $config */
+            $config = $app->make(ConfigRepository::class);
+            $cacheStore = $config->get('eval-harness.batches.lazy_parallel.cache_store');
 
-            return new CacheBatchResultStore($cache->store());
+            return new CacheBatchResultStore(
+                $cache->store(is_string($cacheStore) && $cacheStore !== '' ? $cacheStore : null),
+            );
         });
 
         $this->app->singleton(LazyParallelBatch::class, static function (Container $app): LazyParallelBatch {
+            /** @var ConfigRepository $config */
+            $config = $app->make(ConfigRepository::class);
+
             return new LazyParallelBatch(
                 dispatcher: $app->make(Dispatcher::class),
                 resultStore: $app->make(BatchResultStore::class),
+                resultTtlSeconds: (int) $config->get('eval-harness.batches.lazy_parallel.result_ttl_seconds', 3600),
+                defaultWaitTimeoutSeconds: (int) $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds', 60),
             );
         });
 
@@ -79,7 +90,6 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 metricResolver: $app->make(MetricResolver::class),
                 yamlLoader: $app->make(YamlDatasetLoader::class),
                 serialBatch: $app->make(SerialBatch::class),
-                lazyParallelBatch: $app->make(LazyParallelBatch::class),
             );
         });
     }

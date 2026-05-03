@@ -11,19 +11,25 @@ interface BatchResultStore
 {
     public function start(string $batchId, int $sampleCount, int $ttlSeconds): void;
 
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void;
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void;
+
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void;
 
     public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void;
 
     /**
+     * @param  list<int>|null  $indexes
      * @return array<int, string>
      */
-    public function successfulOutputs(string $batchId, int $sampleCount): array;
+    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array;
 
     /**
+     * @param  list<int>|null  $indexes
      * @return array<int, array{sample_id: string, error: string}>
      */
-    public function failures(string $batchId, int $sampleCount): array;
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array;
 
     public function forget(string $batchId, int $sampleCount): void;
 }

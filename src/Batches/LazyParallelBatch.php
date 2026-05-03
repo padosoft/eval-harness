@@ -58,6 +58,7 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $outputsByIndex = [];
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+        $completed = false;
 
         $this->resultStore->start($batchId, $sampleCount, $this->resultTtlSeconds);
 
@@ -75,6 +76,7 @@ final class LazyParallelBatch
                     $this->throwStoredFailureOrDispatchException(
                         batchId: $batchId,
                         sampleCount: $sampleCount,
+                        indexes: $this->sampleIndexes($sampleWindow),
                         previous: $e,
                     );
                 }
@@ -102,9 +104,15 @@ final class LazyParallelBatch
                 $outputs[] = $outputsByIndex[$index];
             }
 
+            $completed = true;
+
             return $outputs;
         } finally {
-            $this->resultStore->forget($batchId, $sampleCount);
+            if ($completed) {
+                $this->resultStore->finish($batchId, $sampleCount, $this->resultTtlSeconds);
+            } else {
+                $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
+            }
         }
     }
 
@@ -125,10 +133,14 @@ final class LazyParallelBatch
 
         $runnerClass = $this->runnerClassFor($runner);
         $batchId = $this->newBatchId();
-        $this->resultStore->start($batchId, count($samples), $this->resultTtlSeconds);
+        $sampleCount = count($samples);
+        $this->resultStore->start($batchId, $sampleCount, $this->resultTtlSeconds);
+        $currentIndexes = $this->sampleIndexes($samples);
 
         try {
             foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+                $currentIndexes = $this->sampleIndexes($sampleWindow);
+
                 $this->dispatchSampleJobs(
                     batchId: $batchId,
                     samples: $sampleWindow,
@@ -141,11 +153,12 @@ final class LazyParallelBatch
             try {
                 $this->throwStoredFailureOrDispatchException(
                     batchId: $batchId,
-                    sampleCount: count($samples),
+                    sampleCount: $sampleCount,
+                    indexes: $currentIndexes,
                     previous: $e,
                 );
             } finally {
-                $this->resultStore->forget($batchId, count($samples));
+                $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
             }
         }
 
@@ -158,14 +171,23 @@ final class LazyParallelBatch
      */
     public function collectOutputs(string $batchId, array $samples): array
     {
-        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, count($samples));
-        if ($outputsByIndex !== null) {
-            ksort($outputsByIndex);
+        $sampleCount = count($samples);
 
-            return array_values($outputsByIndex);
+        try {
+            $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
+            if ($outputsByIndex !== null) {
+                ksort($outputsByIndex);
+                $this->resultStore->finish($batchId, $sampleCount, $this->resultTtlSeconds);
+
+                return array_values($outputsByIndex);
+            }
+        } catch (Throwable $e) {
+            $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
+
+            throw $e;
         }
 
-        $missingSampleIds = $this->missingSampleIds($batchId, $samples, count($samples));
+        $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
 
         throw new EvalRunException(sprintf(
             "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
@@ -211,9 +233,12 @@ final class LazyParallelBatch
         ));
     }
 
-    private function throwStoredFailureOrDispatchException(string $batchId, int $sampleCount, Throwable $previous): never
+    /**
+     * @param  list<int>  $indexes
+     */
+    private function throwStoredFailureOrDispatchException(string $batchId, int $sampleCount, array $indexes, Throwable $previous): never
     {
-        $failure = $this->firstFailure($batchId, $sampleCount);
+        $failure = $this->firstFailure($batchId, $sampleCount, $indexes);
         if ($failure !== null) {
             throw new EvalRunException(sprintf(
                 "Lazy parallel batch job for sample '%s' failed: %s.",
@@ -230,11 +255,12 @@ final class LazyParallelBatch
     }
 
     /**
+     * @param  list<int>  $indexes
      * @return array{sample_id: string, error: string}|null
      */
-    private function firstFailure(string $batchId, int $sampleCount): ?array
+    private function firstFailure(string $batchId, int $sampleCount, array $indexes): ?array
     {
-        $failures = $this->resultStore->failures($batchId, $sampleCount);
+        $failures = $this->resultStore->failures($batchId, $sampleCount, $indexes);
         if ($failures === []) {
             return null;
         }
@@ -248,7 +274,8 @@ final class LazyParallelBatch
      */
     private function collectIndexedOutputsOrNull(string $batchId, array $samples, int $sampleCount): ?array
     {
-        $failures = $this->resultStore->failures($batchId, $sampleCount);
+        $indexes = $this->sampleIndexes($samples);
+        $failures = $this->resultStore->failures($batchId, $sampleCount, $indexes);
         if ($failures !== []) {
             $firstFailure = $failures[array_key_first($failures)];
 
@@ -259,7 +286,7 @@ final class LazyParallelBatch
             ));
         }
 
-        $storedOutputs = $this->resultStore->successfulOutputs($batchId, $sampleCount);
+        $storedOutputs = $this->resultStore->successfulOutputs($batchId, $sampleCount, $indexes);
         $outputs = [];
 
         foreach ($samples as $index => $_sample) {
@@ -369,7 +396,7 @@ final class LazyParallelBatch
      */
     private function missingSampleIds(string $batchId, array $samples, int $sampleCount): array
     {
-        $storedOutputs = $this->resultStore->successfulOutputs($batchId, $sampleCount);
+        $storedOutputs = $this->resultStore->successfulOutputs($batchId, $sampleCount, $this->sampleIndexes($samples));
         $missing = [];
 
         foreach ($samples as $index => $sample) {
@@ -379,6 +406,27 @@ final class LazyParallelBatch
         }
 
         return $missing;
+    }
+
+    /**
+     * @param  array<int, DatasetSample>  $samples
+     * @return list<int>
+     */
+    private function sampleIndexes(array $samples): array
+    {
+        $indexes = [];
+        foreach ($samples as $index => $_sample) {
+            if (! is_int($index)) {
+                throw new EvalRunException(sprintf(
+                    'Lazy parallel batch sample indexes must be integers; got %s.',
+                    get_debug_type($index),
+                ));
+            }
+
+            $indexes[] = $index;
+        }
+
+        return $indexes;
     }
 
     private function newBatchId(): string

@@ -422,10 +422,13 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 ```
 
 Use Laravel's `sync` queue driver for unit tests. In production, run
-Horizon workers on the chosen queue and use a cache backend shared by
-the command process and workers so queued sample outputs can be
-collected for report assembly. `--timeout` is the per-sample job
-timeout; `--batch-timeout` is the maximum wait for each concurrency
+Horizon workers on the chosen queue and set
+`EVAL_HARNESS_BATCH_CACHE_STORE` to a cache backend shared by the
+command process and workers so queued sample outputs can be collected
+for report assembly. `--concurrency` caps how many sample jobs this
+command dispatches before waiting for the current window; Horizon
+worker counts are configured in Horizon. `--timeout` is the per-sample
+job timeout; `--batch-timeout` is the maximum wait for each dispatch
 window to finish before the command reports missing queued outputs.
 
 ---
@@ -458,6 +461,14 @@ return [
     'reports' => [
         'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
         'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
+    ],
+
+    'batches' => [
+        'lazy_parallel' => [
+            'cache_store' => env('EVAL_HARNESS_BATCH_CACHE_STORE'),
+            'result_ttl_seconds' => (int) env('EVAL_HARNESS_BATCH_RESULT_TTL', 3600),
+            'wait_timeout_seconds' => (int) env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT', 60),
+        ],
     ],
 ];
 ```

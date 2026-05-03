@@ -88,6 +88,18 @@ final class JobRecordingBatchResultStore implements BatchResultStore
         //
     }
 
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->outputs = [];
+        $this->failures = [];
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->outputs = [];
+        $this->failures = [];
+    }
+
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
     {
         $this->outputs[$index] = $actualOutput;
@@ -98,14 +110,22 @@ final class JobRecordingBatchResultStore implements BatchResultStore
         $this->failures[$index] = ['sample_id' => $sampleId, 'error' => $error];
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount): array
+    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        return $this->outputs;
+        if ($indexes === null) {
+            return $this->outputs;
+        }
+
+        return array_intersect_key($this->outputs, array_flip($indexes));
     }
 
-    public function failures(string $batchId, int $sampleCount): array
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        return $this->failures;
+        if ($indexes === null) {
+            return $this->failures;
+        }
+
+        return array_intersect_key($this->failures, array_flip($indexes));
     }
 
     public function forget(string $batchId, int $sampleCount): void

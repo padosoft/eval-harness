@@ -703,3 +703,23 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding job/batch tests. README has no test-count claim; this progress file records the current `262 tests, 567 assertions` result.
+- Copilot reviewed PR #14 again at head `3ef480d` and generated ten comments. The actionable points were:
+  - dispatch/timeout failure paths and external collect flows needed a closed/aborted batch marker so late async jobs cannot recreate orphaned result keys after cleanup,
+  - per-window polling should scan only in-flight sample indexes instead of the full dataset,
+  - lazy-parallel cache store, result TTL, and default wait timeout needed host-app config hooks for Horizon deployments,
+  - `CacheBatchResultStore` needed direct invalid-payload and at-least-once duplicate-delivery coverage,
+  - successful external `dispatch()` / `collectOutputs()` flows needed cleanup,
+  - `EvalEngine` should not eagerly resolve `LazyParallelBatch` for serial-only container consumers,
+  - `--concurrency` wording should describe producer dispatch windows, not Horizon worker counts.
+- Addressed the second PR #14 Copilot round by adding `BatchResultStore::finish()` / `abort()` markers, making cache results first-writer-wins per sample index, ignoring late writes after finished/aborted batches, reading only requested sample indexes, exposing `eval-harness.batches.lazy_parallel.*` config, resolving `LazyParallelBatch` lazily from `EvalEngine`, updating CLI/README wording, and adding direct cache store tests.
+- Targeted validation passed after the second official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/Console/EvalCommandTest.php` => `OK (59 tests, 126 assertions)`
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (14 tests, 26 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalHarnessServiceProvider.php src/Console/EvalCommand.php config/eval-harness.php tests/Unit/Batches tests/Unit/Jobs tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the second official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (268 tests, 580 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding cache store tests. README has no test-count claim; this progress file records the current `268 tests, 580 assertions` result.

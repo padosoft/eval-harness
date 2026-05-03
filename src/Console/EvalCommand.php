@@ -64,7 +64,7 @@ final class EvalCommand extends Command
         {--registrar= : FQCN of an invokable class that registers the dataset + drives the SUT}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
-        {--concurrency=1 : Desired worker concurrency for queue-backed batch modes}
+        {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
         {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}
