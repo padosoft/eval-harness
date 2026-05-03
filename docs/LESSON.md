@@ -98,3 +98,5 @@
 - Loader APIs that accept either a file path or inline source string should use "source" in parse diagnostics. Calling inline input a "file" makes `loadString()` failures misleading.
 - Public constructors that advertise list-shaped payloads should reject associative arrays before per-index validation. Otherwise `%d` index diagnostics can hide the caller's actual associative key.
 - Loader tests should cover `loadFile()` directly when file extension changes parser behavior. `loadString()` and CLI tests are not enough to protect path-based JSON/YAML/extensionless branches or missing-file diagnostics.
+- Eval report timing should start at the public entry point, before runner resolution, DTO construction, and saved-output normalization. Otherwise `duration_seconds` excludes real operator-visible work.
+- Extensionless artifact support needs both JSON and YAML `loadFile()` fixtures, because the fallback order itself is part of the contract.

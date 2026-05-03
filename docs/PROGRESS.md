@@ -499,3 +499,12 @@
   - `vendor/bin/phpunit` => `OK (215 tests, 459 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `bb2fcc3` and generated two comments:
+  - report timing should include public-entry-point work before shared sample scoring,
+  - `loadFile()` still needed direct extensionless JSON coverage.
+- Addressed the comments by starting the report clock at `run()` / `scoreOutputs()` entry before runner/output normalization and by adding an extensionless JSON `loadFile()` regression test.
+- Full local gate passed after the tenth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (216 tests, 460 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

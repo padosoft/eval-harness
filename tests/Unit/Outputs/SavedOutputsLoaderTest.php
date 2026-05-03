@@ -49,6 +49,19 @@ final class SavedOutputsLoaderTest extends TestCase
         $this->assertSame([['id' => 's1', 'actual_output' => 'answer one']], $outputs->entries());
     }
 
+    public function test_load_file_parses_extensionless_json(): void
+    {
+        $path = $this->writeTempFile('', '{"outputs":{"s1":"answer one"}}');
+
+        try {
+            $outputs = (new SavedOutputsLoader)->loadFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertSame([['id' => 's1', 'actual_output' => 'answer one']], $outputs->entries());
+    }
+
     public function test_load_file_rejects_missing_paths(): void
     {
         $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-harness-missing-'.bin2hex(random_bytes(8)).'.json';

@@ -101,6 +101,7 @@ final class EvalEngine
      */
     public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
+        $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
 
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
@@ -114,6 +115,7 @@ final class EvalEngine
         return $this->scoreDataset(
             datasetName: $datasetName,
             dataset: $dataset,
+            startedAt: $startedAt,
             actualOutputForSample: fn (DatasetSample $sample, int $index): string => $this->runSample(
                 systemUnderTest: $systemUnderTest,
                 sample: $sample,
@@ -131,12 +133,14 @@ final class EvalEngine
      */
     public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs): EvalReport
     {
+        $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
         $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
 
         return $this->scoreDataset(
             datasetName: $datasetName,
             dataset: $dataset,
+            startedAt: $startedAt,
             actualOutputForSample: static fn (DatasetSample $sample): string => $outputs[$sample->id],
         );
     }
@@ -144,10 +148,8 @@ final class EvalEngine
     /**
      * @param  callable(DatasetSample, int): string  $actualOutputForSample
      */
-    private function scoreDataset(string $datasetName, GoldenDataset $dataset, callable $actualOutputForSample): EvalReport
+    private function scoreDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
     {
-        $startedAt = microtime(true);
-
         $sampleResults = [];
         $failures = [];
 
