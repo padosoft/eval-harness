@@ -1044,3 +1044,12 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding one running-resume regression. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `328 tests, 715 assertions` before requesting the next Copilot review.
+- Updated PR #15 body to `328 tests, 715 assertions`, requested a fresh official Copilot review through the GraphQL fallback, verified CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, and Copilot reviewed head `bb411e3` with no new comments.
+- Merged PR #15 into `task/parallel-batch-queues` at merge commit `05a59b7`.
+- Started the next Macro Task 3 subtask branch `task/parallel-batch-queues-horizon-guidance` from `task/parallel-batch-queues`. Scope: Horizon-ready deployment guidance for lazy-parallel queues, cache-store and timeout sizing docs, and stale handoff cleanup in `AGENTS.md`.
+- Added `docs/HORIZON_BATCH_QUEUES.md`, linked it from README, updated the roadmap Horizon guidance item, and made `AGENTS.md` point at the in-flight guidance slice while instructing future agents to reassess Macro Task 3 after merge.
+- Full local gate passed for the Horizon guidance slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

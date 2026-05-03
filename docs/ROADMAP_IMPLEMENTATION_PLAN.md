@@ -98,7 +98,7 @@ Implement:
 - Laravel queue jobs for sample evaluation and report assembly.
 - CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`, `--batch-timeout=...`.
 - Eval-set runner for executing named groups of datasets, inspired by OpenAI Evals `oaievalset`, with resumable progress manifests for interrupted multi-dataset runs. Implemented programmatically through `EvalEngine::runEvalSet()`; future slices can add CLI/persistence ergonomics if needed.
-- Horizon deployment guidance without requiring Horizon in package tests.
+- Horizon deployment guidance without requiring Horizon in package tests. Implemented in `docs/HORIZON_BATCH_QUEUES.md`.
 - Stable ordering even when queued samples finish out of order.
 
 Guardrails:

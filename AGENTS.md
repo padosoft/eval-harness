@@ -75,6 +75,6 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 Macro Task 3 is active on `task/parallel-batch-queues`.
 
-Current subtask branch: `task/parallel-batch-queues-eval-set-manifests`.
+Current subtask branch while in flight: `task/parallel-batch-queues-horizon-guidance`.
 
-This slice adds headless eval-set definitions, resumable progress manifests, and `EvalEngine::runEvalSet()` for multi-dataset runs. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch.
+This slice closes the Macro Task 3 operational guidance item with Horizon-ready deployment docs for queue-backed lazy parallel batches. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch. After this slice merges, reassess Macro Task 3 for remaining code gaps before preparing the macro PR to `main`.

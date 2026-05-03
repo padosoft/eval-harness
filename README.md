@@ -447,6 +447,8 @@ window to finish before the command reports missing queued outputs.
 Programmatic external `dispatch()` / `collectOutputs()` flows can set
 `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
 metadata and sample outputs alive long enough for delayed collection.
+See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
+Horizon supervisor, cache-store, and timeout sizing guidance.
 
 ### Eval sets and resume manifests
 
