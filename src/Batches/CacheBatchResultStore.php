@@ -76,6 +76,10 @@ final class CacheBatchResultStore implements BatchResultStore
 
     public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
+        if (! $this->isActive($batchId)) {
+            return [];
+        }
+
         $results = [];
         foreach ($this->indexesToScan($sampleCount, $indexes) as $index) {
             $payload = $this->cache->get($this->resultKey($batchId, $index));
@@ -123,6 +127,10 @@ final class CacheBatchResultStore implements BatchResultStore
 
     public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
+        if (! $this->isActive($batchId)) {
+            return [];
+        }
+
         $failures = [];
         foreach ($this->indexesToScan($sampleCount, $indexes) as $index) {
             $payload = $this->cache->get($this->resultKey($batchId, $index));
@@ -179,9 +187,7 @@ final class CacheBatchResultStore implements BatchResultStore
             $ttlSeconds,
         );
 
-        for ($index = 0; $index < $sampleCount; $index++) {
-            $this->cache->forget($this->resultKey($batchId, $index));
-        }
+        // Per-sample keys expire naturally. The closed marker makes readers and late writers ignore them.
     }
 
     /**

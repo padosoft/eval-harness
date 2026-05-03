@@ -41,8 +41,13 @@ final class LazyParallelBatchTest extends TestCase
     {
         Queue::fake();
 
-        /** @var LazyParallelBatch $batch */
-        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
         $samples = $this->samples();
 
         $batchId = $batch->dispatch(
@@ -57,7 +62,8 @@ final class LazyParallelBatchTest extends TestCase
             return $job->batchId === $batchId
                 && $job->sampleId === 's1'
                 && $job->queue === 'evals'
-                && $job->timeout === 45;
+                && $job->timeout === 45
+                && $job->resultTtlSeconds === 120;
         });
     }
 
@@ -229,14 +235,14 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
-    public function test_rejects_stateful_runners_because_workers_only_receive_the_class_name(): void
+    public function test_rejects_scalar_constructor_state_because_workers_resolve_fresh_runner_instances(): void
     {
         /** @var LazyParallelBatch $batch */
         $batch = $this->app->make(LazyParallelBatch::class);
         $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('requires a stateless concrete SampleRunner class');
+        $this->expectExceptionMessage('scalar constructor state from the caller instance cannot be preserved');
 
         $batch->dispatch(
             samples: $samples,
@@ -244,6 +250,30 @@ final class LazyParallelBatchTest extends TestCase
             runner: new StatefulLazyParallelRunner('configured output'),
             options: BatchOptions::lazyParallel(),
         );
+    }
+
+    public function test_allows_container_resolvable_runner_constructor_dependencies(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+        );
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new DependencyInjectedLazyParallelRunner(new LazyParallelRunnerDependency),
+            options: BatchOptions::lazyParallel(),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->runnerClass === DependencyInjectedLazyParallelRunner::class;
+        });
     }
 
     public function test_result_store_failures_are_wrapped_as_eval_run_exceptions(): void
@@ -339,6 +369,23 @@ final class StatefulLazyParallelRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         return $this->answer;
+    }
+}
+
+final class LazyParallelRunnerDependency
+{
+    //
+}
+
+final class DependencyInjectedLazyParallelRunner implements SampleRunner
+{
+    public function __construct(
+        private readonly LazyParallelRunnerDependency $dependency,
+    ) {}
+
+    public function run(SampleInvocation $sample): string
+    {
+        return get_debug_type($this->dependency);
     }
 }
 

@@ -774,3 +774,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding three queue/batch service tests. README has no test-count claim; PR #14 body was updated from `273 tests, 588 assertions` to `276 tests, 594 assertions` before push/re-review.
+- Copilot reviewed PR #14 again at head `415a00a` and generated four comments:
+  - lazy-parallel runner validation rejected normal container constructor injection,
+  - result TTL could be lower than job timeout or batch wait timeout,
+  - result-store close did one cache delete per sample and could become an O(n) Redis/Horizon cleanup path,
+  - README queue guidance still implied constructor-injected runners were unsupported.
+- Addressed the sixth PR #14 Copilot round by accepting concrete `SampleRunner` classes with required object-typed constructor dependencies, continuing to reject scalar/untyped caller-instance constructor state, deriving an effective result TTL from configured TTL, per-sample timeout, batch wait timeout, and bounded dispatch windows, changing cache close to leave per-sample keys for natural TTL expiry behind a closed marker, and updating queue docs.
+- Targeted validation passed after the sixth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 55 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Contracts/SampleRunner.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the sixth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (278 tests, 597 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two lazy-parallel/cache tests. README has no test-count claim; PR #14 body was updated from `276 tests, 594 assertions` to `278 tests, 597 assertions` through the GitHub REST API because `gh pr edit` was blocked by missing `read:project`.

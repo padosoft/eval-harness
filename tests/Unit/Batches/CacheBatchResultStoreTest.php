@@ -87,6 +87,18 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->failures('duplicate-delivery', 1));
     }
 
+    public function test_closed_batches_hide_existing_result_keys_until_ttl_expiry(): void
+    {
+        $store = $this->store();
+        $store->start('closed-batch', 1, 60);
+        $store->recordSuccess('closed-batch', 0, 's1', 'first output', 60);
+
+        $store->finish('closed-batch', 1, 60);
+
+        $this->assertSame([], $store->successfulResults('closed-batch', 1));
+        $this->assertSame([], $store->failures('closed-batch', 1));
+    }
+
     public function test_finished_or_aborted_batches_ignore_late_job_writes(): void
     {
         $store = $this->store();

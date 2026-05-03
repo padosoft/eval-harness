@@ -401,10 +401,13 @@ Eval::dataset('rag.recall')
 
 `--batch=lazy-parallel` dispatches one queue job per sample and then
 assembles outputs in dataset order through the shared batch result
-store. It requires the SUT to be a stateless concrete `SampleRunner`
-class so queue workers can resolve it by class name; arbitrary
-callables, closures, anonymous runners, and preconfigured runner
-instances remain serial-only.
+store. It requires the SUT to be a container-resolvable concrete
+`SampleRunner` class that queue workers can resolve through the
+Laravel container.
+Constructor-injected object dependencies are supported when the worker
+container can resolve them. Arbitrary callables, closures, anonymous
+runners, scalar constructor state, and preconfigured runner instances
+remain serial-only.
 
 ```php
 use App\Eval\MyRagRunner;

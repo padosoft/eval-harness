@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Jobs\EvaluateSampleJob;
 use Random\RandomException;
 use ReflectionClass;
+use ReflectionNamedType;
 use Throwable;
 
 /**
@@ -59,9 +60,10 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $outputsByIndex = [];
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
         $completed = false;
 
-        $this->startResults($batchId, $sampleCount);
+        $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         try {
             foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
@@ -72,6 +74,7 @@ final class LazyParallelBatch
                         sampleInvocations: $sampleInvocations,
                         runnerClass: $runnerClass,
                         options: $options,
+                        resultTtlSeconds: $resultTtlSeconds,
                     );
                 } catch (Throwable $e) {
                     $this->throwStoredFailureOrDispatchException(
@@ -106,12 +109,12 @@ final class LazyParallelBatch
             }
 
             $completed = true;
-            $this->finishResultsSafely($batchId, $sampleCount);
+            $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
 
             return $outputs;
         } catch (Throwable $e) {
             if (! $completed) {
-                $this->abortResultsSafely($batchId, $sampleCount);
+                $this->abortResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
             }
 
             throw $e;
@@ -136,7 +139,9 @@ final class LazyParallelBatch
         $runnerClass = $this->runnerClassFor($runner);
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
-        $this->startResults($batchId, $sampleCount);
+        $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
+        $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
         $currentIndexes = $this->sampleIndexes($samples);
 
         try {
@@ -149,6 +154,7 @@ final class LazyParallelBatch
                     sampleInvocations: $sampleInvocations,
                     runnerClass: $runnerClass,
                     options: $options,
+                    resultTtlSeconds: $resultTtlSeconds,
                 );
             }
         } catch (Throwable $e) {
@@ -160,7 +166,7 @@ final class LazyParallelBatch
                     previous: $e,
                 );
             } catch (Throwable $primary) {
-                $this->abortResultsSafely($batchId, $sampleCount);
+                $this->abortResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
 
                 throw $primary;
             }
@@ -181,12 +187,12 @@ final class LazyParallelBatch
             $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
             if ($outputsByIndex !== null) {
                 ksort($outputsByIndex);
-                $this->finishResultsSafely($batchId, $sampleCount);
+                $this->finishResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
 
                 return array_values($outputsByIndex);
             }
         } catch (Throwable $e) {
-            $this->abortResultsSafely($batchId, $sampleCount);
+            $this->abortResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
 
             throw $e;
         }
@@ -368,6 +374,7 @@ final class LazyParallelBatch
         array $sampleInvocations,
         string $runnerClass,
         BatchOptions $options,
+        int $resultTtlSeconds,
     ): void {
         foreach ($samples as $index => $sample) {
             $sampleInvocation = $sampleInvocations[$index];
@@ -377,7 +384,7 @@ final class LazyParallelBatch
                 sampleId: $sample->id,
                 sample: $sampleInvocation,
                 runnerClass: $runnerClass,
-                resultTtlSeconds: $this->resultTtlSeconds,
+                resultTtlSeconds: $resultTtlSeconds,
                 timeoutSeconds: $options->timeoutSeconds,
             );
 
@@ -402,12 +409,19 @@ final class LazyParallelBatch
             );
         }
 
-        $reflection = new ReflectionClass($runnerClass);
-        foreach ($reflection->getProperties() as $property) {
-            if (! $property->isStatic()) {
-                throw new EvalRunException(
-                    'Lazy parallel batch mode requires a stateless concrete SampleRunner class because queued workers resolve the runner by class name and cannot preserve state from the caller instance.',
-                );
+        $constructor = (new ReflectionClass($runnerClass))->getConstructor();
+        if ($constructor !== null) {
+            foreach ($constructor->getParameters() as $parameter) {
+                if ($parameter->isOptional()) {
+                    continue;
+                }
+
+                $type = $parameter->getType();
+                if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                    throw new EvalRunException(
+                        'Lazy parallel batch mode requires a container-resolvable SampleRunner class; scalar constructor state from the caller instance cannot be preserved by queued workers.',
+                    );
+                }
             }
         }
 
@@ -453,27 +467,39 @@ final class LazyParallelBatch
         return $indexes;
     }
 
-    private function startResults(string $batchId, int $sampleCount): void
+    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
+    {
+        $windowCount = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
+
+        return max(
+            $this->resultTtlSeconds,
+            $waitTimeoutSeconds,
+            $waitTimeoutSeconds * $windowCount,
+            $options->timeoutSeconds ?? 0,
+        );
+    }
+
+    private function startResults(string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
         $this->withResultStore(
             action: 'initialize',
             batchId: $batchId,
-            callback: function () use ($batchId, $sampleCount): bool {
-                $this->resultStore->start($batchId, $sampleCount, $this->resultTtlSeconds);
+            callback: function () use ($batchId, $sampleCount, $resultTtlSeconds): bool {
+                $this->resultStore->start($batchId, $sampleCount, $resultTtlSeconds);
 
                 return true;
             },
         );
     }
 
-    private function finishResultsSafely(string $batchId, int $sampleCount): void
+    private function finishResultsSafely(string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
-        $this->cleanupResultsSafely('finish', $batchId, $sampleCount);
+        $this->cleanupResultsSafely('finish', $batchId, $sampleCount, $resultTtlSeconds);
     }
 
-    private function abortResultsSafely(string $batchId, int $sampleCount): void
+    private function abortResultsSafely(string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
-        $this->cleanupResultsSafely('abort', $batchId, $sampleCount);
+        $this->cleanupResultsSafely('abort', $batchId, $sampleCount, $resultTtlSeconds);
     }
 
     /**
@@ -502,16 +528,16 @@ final class LazyParallelBatch
         );
     }
 
-    private function cleanupResultsSafely(string $action, string $batchId, int $sampleCount): void
+    private function cleanupResultsSafely(string $action, string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
         try {
             if ($action === 'finish') {
-                $this->resultStore->finish($batchId, $sampleCount, $this->resultTtlSeconds);
+                $this->resultStore->finish($batchId, $sampleCount, $resultTtlSeconds);
 
                 return;
             }
 
-            $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
+            $this->resultStore->abort($batchId, $sampleCount, $resultTtlSeconds);
         } catch (Throwable) {
             // Cleanup is best-effort; it must not mask the run, dispatch, or timeout outcome.
         }
