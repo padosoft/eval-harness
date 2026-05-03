@@ -43,12 +43,26 @@ final class EvaluateSampleJob implements ShouldQueue
             throw new EvalRunException('Queued sample index must be greater than or equal to 0.');
         }
 
+        if ($sampleId !== $sample->id) {
+            throw new EvalRunException(sprintf(
+                "Queued sample id '%s' must match SampleInvocation id '%s'.",
+                $sampleId,
+                $sample->id,
+            ));
+        }
+
         if ($resultTtlSeconds < 1) {
             throw new EvalRunException('Batch result TTL must be greater than or equal to 1 second.');
         }
 
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Queued sample timeout must be null or greater than or equal to 1 second.');
+        }
+
+        if (str_contains($runnerClass, "\0") || str_contains($runnerClass, '@anonymous')) {
+            throw new EvalRunException(
+                'Queued sample runner must be a concrete, autoloadable SampleRunner class.',
+            );
         }
 
         if (! is_a($runnerClass, SampleRunner::class, true)) {

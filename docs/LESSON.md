@@ -158,3 +158,5 @@
 - Lazy-parallel runner instance-state validation should reject scalar/array/null properties, but allow object-valued properties so common constructor-DI patterns can store dependencies under renamed or inherited properties.
 - Batch metadata corruption should fail loudly. Cache stores should validate meta payload type, status, and sample count before treating a batch as inactive, otherwise corrupted metadata degrades into misleading timeout or missing-metadata errors.
 - Direct queue job constructors need the same timeout guardrails as `BatchOptions`; validate job-level timeout seconds even when jobs are instantiated outside the batch option path.
+- Queue job constructors should duplicate invariants that the higher-level batch API enforces. `EvaluateSampleJob` must reject anonymous runner classes and sample-id mismatches because direct job construction bypasses `LazyParallelBatch` validation.
+- Be precise in docs about object-valued runner state. The implementation can allow object properties for container-DI compatibility, but it does not serialize caller-specific object configuration to workers.

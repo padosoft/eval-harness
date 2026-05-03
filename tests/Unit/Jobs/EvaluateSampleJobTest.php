@@ -59,6 +59,46 @@ final class EvaluateSampleJobTest extends TestCase
         );
     }
 
+    public function test_constructor_rejects_mismatched_sample_id(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Queued sample id 'other' must match SampleInvocation id 's1'");
+
+        new EvaluateSampleJob(
+            batchId: 'batch-1',
+            index: 0,
+            sampleId: 'other',
+            sample: new SampleInvocation(id: 's1', input: ['answer' => 'ok']),
+            runnerClass: JobAnswerRunner::class,
+            resultTtlSeconds: 60,
+            timeoutSeconds: 30,
+        );
+    }
+
+    public function test_constructor_rejects_anonymous_runner_classes(): void
+    {
+        $runner = new class implements SampleRunner
+        {
+            public function run(SampleInvocation $sample): string
+            {
+                return (string) $sample->input['answer'];
+            }
+        };
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be a concrete, autoloadable SampleRunner class');
+
+        new EvaluateSampleJob(
+            batchId: 'batch-1',
+            index: 0,
+            sampleId: 's1',
+            sample: new SampleInvocation(id: 's1', input: ['answer' => 'ok']),
+            runnerClass: $runner::class,
+            resultTtlSeconds: 60,
+            timeoutSeconds: 30,
+        );
+    }
+
     /**
      * @param  class-string<SampleRunner>  $runnerClass
      */

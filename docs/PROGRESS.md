@@ -839,3 +839,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding three lazy-parallel/cache/job tests. README has no test-count claim; PR #14 body was updated from `285 tests, 611 assertions` to `288 tests, 616 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `a3bc1f0` and generated three comments:
+  - direct `EvaluateSampleJob` construction should reject anonymous/non-autoloadable runner classes,
+  - job `sampleId` should match the embedded `SampleInvocation::$id`,
+  - README overstated current validation for custom object-valued runner state.
+- Addressed the tenth PR #14 Copilot round by mirroring concrete/autoloadable runner validation in `EvaluateSampleJob`, rejecting sample-id mismatches before execution, and clarifying README wording around object-valued dependencies versus caller-specific object configuration.
+- Targeted validation passed after the tenth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (24 tests, 46 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Jobs/EvaluateSampleJob.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the tenth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (290 tests, 620 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two job-constructor tests. README has no test-count claim; PR #14 body was updated from `288 tests, 616 assertions` to `290 tests, 620 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

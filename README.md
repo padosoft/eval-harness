@@ -406,8 +406,10 @@ store. It requires the SUT to be a container-resolvable concrete
 Laravel container.
 Constructor-injected object dependencies are supported when the worker
 container can resolve them. Arbitrary callables, closures, anonymous
-runners, scalar constructor state, and preconfigured runner instances
-remain serial-only.
+runners, optional/defaulted constructor state, and scalar/array/null
+runner properties remain serial-only. Object-valued runner properties
+are accepted as container-resolved dependencies; caller-specific object
+configuration is not serialized to workers.
 
 ```php
 use App\Eval\MyRagRunner;
