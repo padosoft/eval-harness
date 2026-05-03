@@ -206,3 +206,5 @@
 - Handoff docs should avoid naming even macro branches when the same text merges into `main`. Use `docs/PROGRESS.md` as the source of truth for open macro PRs.
 - Macro Task 4 embedding metrics should use a fakeable `EmbeddingClient` boundary instead of each metric owning HTTP transport. Keep the default OpenAI-compatible client for current env/config compatibility, but let host apps bind deterministic fakes or Laravel AI-backed clients.
 - Name the new token-overlap metric `bertscore-like`, not plain BERTScore. It embeds normalized expected/actual tokens and computes best-match cosine precision/recall/F1; it is useful and fakeable, but not a contextual Python BERTScore implementation.
+- Judge-backed metrics should share a fakeable `JudgeClient` boundary. Keep `llm-as-judge` and `refusal-quality` on the same OpenAI-compatible chat config, but validate each metric's own strict JSON shape after the shared transport returns message content.
+- `refusal-quality` datasets must mark `metadata.refusal_expected` as a boolean. Do not infer safety intent from expected text, because refusal behavior needs an explicit dataset contract.

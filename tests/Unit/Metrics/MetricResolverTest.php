@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Metrics\CosineEmbeddingMetric;
 use Padosoft\EvalHarness\Metrics\ExactMatchMetric;
 use Padosoft\EvalHarness\Metrics\LlmAsJudgeMetric;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Metrics\RefusalQualityMetric;
 use Padosoft\EvalHarness\Metrics\RegexMetric;
 use Padosoft\EvalHarness\Metrics\RougeLMetric;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -74,6 +75,13 @@ final class MetricResolverTest extends TestCase
         $this->assertInstanceOf(BertScoreLikeMetric::class, $resolver->resolve('bertscore-like'));
     }
 
+    public function test_alias_resolves_refusal_quality(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(RefusalQualityMetric::class, $resolver->resolve('refusal-quality'));
+    }
+
     public function test_metric_instance_is_passed_through(): void
     {
         /** @var MetricResolver $resolver */
@@ -126,6 +134,7 @@ final class MetricResolverTest extends TestCase
         $this->assertArrayHasKey('cosine-embedding', $aliases);
         $this->assertArrayHasKey('bertscore-like', $aliases);
         $this->assertArrayHasKey('llm-as-judge', $aliases);
+        $this->assertArrayHasKey('refusal-quality', $aliases);
     }
 
     /**

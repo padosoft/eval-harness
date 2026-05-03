@@ -10,6 +10,7 @@ use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
@@ -42,6 +43,11 @@ final class ServiceProviderTest extends TestCase
     public function test_embedding_client_is_bound(): void
     {
         $this->assertInstanceOf(EmbeddingClient::class, $this->app->make(EmbeddingClient::class));
+    }
+
+    public function test_judge_client_is_bound(): void
+    {
+        $this->assertInstanceOf(JudgeClient::class, $this->app->make(JudgeClient::class));
     }
 
     public function test_yaml_loader_is_bound(): void

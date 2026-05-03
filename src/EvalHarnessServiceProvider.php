@@ -16,8 +16,10 @@ use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
+use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
@@ -54,6 +56,13 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(EmbeddingClient::class, static function (Container $app): EmbeddingClient {
             return new OpenAiCompatibleEmbeddingClient(
+                http: $app->make(Factory::class),
+                config: $app->make(ConfigRepository::class),
+            );
+        });
+
+        $this->app->singleton(JudgeClient::class, static function (Container $app): JudgeClient {
+            return new OpenAiCompatibleJudgeClient(
                 http: $app->make(Factory::class),
                 config: $app->make(ConfigRepository::class),
             );

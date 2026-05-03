@@ -1208,3 +1208,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding embedding metric tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #18 (`task/advanced-metrics-embedding-bertscore` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 18 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #18 merged into `task/advanced-metrics` at `b7fa442`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-refusal-quality` from `task/advanced-metrics`.
+- Implemented the refusal-quality slice: a fakeable `JudgeClient` contract, default `OpenAiCompatibleJudgeClient`, `LlmAsJudgeMetric` refactor through the shared judge client, and new `refusal-quality` metric alias requiring `metadata.refusal_expected` plus strict `score`/`refusal` JSON validation.
+- Updated README's comparison matrix with a refusal-quality/safety-judge row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the refusal-quality slice:
+  - `vendor/bin/phpunit tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Metrics/MetricResolverTest.php tests/Unit/ServiceProviderTest.php` => `OK (55 tests, 96 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the refusal-quality slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (390 tests, 842 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding refusal-quality tests. README has no numeric PHPUnit test-count claim to update.
