@@ -202,3 +202,5 @@
 - Cache-backed batch metadata TTL should be refreshed when later result keys are written. In dispatch/collect flows, metadata starts expiring at `start()`, while per-sample results start expiring at worker write time.
 - Queue-safety failures while building `SampleInvocation` are setup/configuration errors. Eval-set runs should surface them instead of returning a failed manifest for a dataset that never dispatched.
 - Fresh-runner validation in `EvaluateSampleJob` is invariant per runner class inside a worker. Cache successful validation per class so direct public jobs keep the guard without doubling container construction for every sample.
+- Dispatch-only lazy-parallel batches should scan the full batch for stored failures when dispatch fails in a later window. Earlier workers can record a more actionable sample failure while the producer is still enqueueing later windows.
+- Handoff docs should avoid naming even macro branches when the same text merges into `main`. Use `docs/PROGRESS.md` as the source of truth for open macro PRs.

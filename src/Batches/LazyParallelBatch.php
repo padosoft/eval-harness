@@ -147,12 +147,9 @@ final class LazyParallelBatch
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
-        $currentIndexes = $sampleIndexes;
 
         try {
             foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
-                $currentIndexes = $this->sampleIndexes($sampleWindow);
-
                 $this->dispatchSampleJobs(
                     batchId: $batchId,
                     samples: $sampleWindow,
@@ -167,7 +164,7 @@ final class LazyParallelBatch
                 $this->throwStoredFailureOrDispatchException(
                     batchId: $batchId,
                     sampleCount: $sampleCount,
-                    indexes: $currentIndexes,
+                    indexes: $sampleIndexes,
                     previous: $e,
                 );
             } catch (Throwable $primary) {

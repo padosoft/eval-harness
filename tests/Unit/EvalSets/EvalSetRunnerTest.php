@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\EvalSets;
 
+use Illuminate\Contracts\Bus\Dispatcher;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifestEntry;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -220,6 +224,30 @@ final class EvalSetRunnerTest extends TestCase
         );
     }
 
+    public function test_engine_surfaces_lazy_parallel_result_store_errors_as_setup_errors(): void
+    {
+        $lazyBatch = new LazyParallelBatch(
+            dispatcher: $this->app->make(Dispatcher::class),
+            resultStore: new EvalSetThrowingStartBatchResultStore,
+        );
+        $engine = new EvalEngine(
+            container: $this->app,
+            metricResolver: $this->app->make(MetricResolver::class),
+            yamlLoader: $this->app->make(YamlDatasetLoader::class),
+            lazyParallelBatch: $lazyBatch,
+        );
+        $this->registerDataset($engine, 'rag.first', 'first');
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Failed to initialize lazy parallel batch result store');
+
+        $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.first']),
+            new EvalSetAnswerRunner,
+            BatchOptions::lazyParallel(),
+        );
+    }
+
     public function test_engine_skips_completed_unregistered_dataset_when_resuming_pending_suffix(): void
     {
         /** @var EvalEngine $engine */
@@ -290,5 +318,53 @@ final class EvalSetAnswerRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         return (string) $sample->input['answer'];
+    }
+}
+
+final class EvalSetThrowingStartBatchResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        throw new \RuntimeException('cache unavailable');
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }

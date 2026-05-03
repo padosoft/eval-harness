@@ -1180,3 +1180,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding three cache/setup/job-throughput tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `352 tests, 766 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #17 again at head `1e8fe16` and generated three actionable comments:
+  - dispatch-only lazy-parallel flows should scan all sample indexes for stored failures when a later dispatch window fails,
+  - eval-set runs should surface lazy-parallel result-store corruption/infrastructure errors instead of returning failed manifests,
+  - `AGENTS.md` still named the macro branch in a handoff sentence that will be stale after merge.
+- Addressed the PR #17 dispatch/infrastructure/handoff comments by scanning the full batch for stored failures on dispatch errors, surfacing lazy-parallel result-store errors from eval-set runs, making the current-priority handoff branch-neutral, and adding regression coverage.
+- Targeted validation passed after the PR #17 dispatch/infrastructure/handoff fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php` => `OK (45 tests, 102 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test AGENTS.md src/Batches/LazyParallelBatch.php src/EvalSets/EvalSetRunner.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php`
+- Full local gate passed after the PR #17 dispatch/infrastructure/handoff fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (354 tests, 770 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two dispatch/infrastructure tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `354 tests, 770 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

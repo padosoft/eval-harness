@@ -177,6 +177,26 @@ final class LazyParallelBatchTest extends TestCase
         ], $store->events);
     }
 
+    public function test_dispatch_reports_earlier_window_failure_when_later_window_dispatch_fails(): void
+    {
+        $samples = $this->samples();
+        $store = new RecordingBatchResultStore;
+        $batch = new LazyParallelBatch(
+            dispatcher: new FailureBeforeLaterDispatchThrowsDispatcher($store),
+            resultStore: $store,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Lazy parallel batch job for sample 's1' failed: first failed");
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 1),
+        );
+    }
+
     public function test_collect_outputs_preserves_order_when_jobs_finish_out_of_order(): void
     {
         /** @var LazyParallelBatch $batch */
@@ -934,6 +954,74 @@ final class ThrowingDispatcher implements Dispatcher
     {
         if ($command instanceof EvaluateSampleJob) {
             $this->store->events[] = 'dispatch:'.$command->sampleId;
+        }
+
+        throw new \RuntimeException('queue unavailable');
+    }
+
+    public function dispatchSync($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchNow($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchAfterResponse($command, $handler = null): void
+    {
+        $this->dispatch($command);
+    }
+
+    public function chain($jobs = null): mixed
+    {
+        return null;
+    }
+
+    public function hasCommandHandler($command): bool
+    {
+        return false;
+    }
+
+    public function getCommandHandler($command): mixed
+    {
+        return null;
+    }
+
+    public function pipeThrough(array $pipes): self
+    {
+        return $this;
+    }
+
+    public function map(array $map): self
+    {
+        return $this;
+    }
+}
+
+final class FailureBeforeLaterDispatchThrowsDispatcher implements Dispatcher
+{
+    public function __construct(
+        private readonly RecordingBatchResultStore $store,
+    ) {}
+
+    public function dispatch($command): mixed
+    {
+        if (! $command instanceof EvaluateSampleJob) {
+            return null;
+        }
+
+        if ($command->index === 0) {
+            $this->store->recordFailure(
+                batchId: $command->batchId,
+                index: $command->index,
+                sampleId: $command->sampleId,
+                error: 'first failed',
+                ttlSeconds: $command->resultTtlSeconds,
+            );
+
+            return null;
         }
 
         throw new \RuntimeException('queue unavailable');

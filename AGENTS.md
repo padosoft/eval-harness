@@ -75,6 +75,6 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 Do not assume the active branch from this file. Check `docs/PROGRESS.md` and `git status --short --branch` for the latest in-flight PR or branch.
 
-The latest roadmap work added deterministic serial batches, queue-backed `LazyParallelBatch`, eval-set/resume manifests, Horizon-ready deployment guidance, and the README comparison/status matrix updates. If `task/parallel-batch-queues` is still open, finish the macro PR loop into `main` before starting new roadmap work.
+The latest roadmap work added deterministic serial batches, queue-backed `LazyParallelBatch`, eval-set/resume manifests, Horizon-ready deployment guidance, and the README comparison/status matrix updates. Finish any open macro PR recorded in `docs/PROGRESS.md` before starting new roadmap work.
 
 After Macro Task 3 merges to `main`, continue with Macro Task 4 on `task/advanced-metrics` from updated `main` unless `docs/PROGRESS.md` records a newer priority.
