@@ -81,3 +81,4 @@
 - Contains-style metrics must reject empty expected strings because `str_contains($actual, '')` always returns true and can silently inflate pass rates.
 - ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower` when available; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
 - Regex metrics should report a general evaluation failure when `preg_match()` returns false, because failures can come from invalid patterns or from subject/modifier issues such as `/u` with invalid UTF-8.
+- For deterministic Unicode metric behavior, depend directly on `symfony/polyfill-mbstring` and call `mb_strtolower()` unconditionally instead of falling back to ASCII `strtolower()`.

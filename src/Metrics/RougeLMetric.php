@@ -72,9 +72,7 @@ final class RougeLMetric implements Metric
             );
         }
 
-        $lowercased = function_exists('mb_strtolower')
-            ? mb_strtolower($value, 'UTF-8')
-            : strtolower($value);
+        $lowercased = mb_strtolower($value, 'UTF-8');
 
         $result = preg_match_all('/[[:alnum:]]+/u', $lowercased, $matches);
         if ($result === false) {

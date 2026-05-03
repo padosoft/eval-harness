@@ -349,3 +349,11 @@
   - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `3d127c4` and generated one comment:
+  - ROUGE-L Unicode lowercasing should not depend on environment-specific `mb_strtolower()` availability.
+- Addressed the comment by adding `symfony/polyfill-mbstring` as a direct dependency and making ROUGE-L call `mb_strtolower()` unconditionally.
+- Full local gate passed after the third PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
