@@ -86,7 +86,7 @@ final class CacheBatchResultStore implements BatchResultStore
 
     public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        if (! $this->isActive($batchId)) {
+        if (! $this->isReadable($batchId)) {
             return [];
         }
 
@@ -230,6 +230,14 @@ final class CacheBatchResultStore implements BatchResultStore
         $payload = $this->metaPayload($batchId);
 
         return $payload !== null && ($payload['status'] ?? null) === self::STATUS_ACTIVE;
+    }
+
+    private function isReadable(string $batchId): bool
+    {
+        $payload = $this->metaPayload($batchId);
+
+        return $payload !== null
+            && in_array($payload['status'], [self::STATUS_ACTIVE, self::STATUS_FINISHED], true);
     }
 
     /**

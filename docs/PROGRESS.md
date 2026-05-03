@@ -854,3 +854,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding two job-constructor tests. README has no test-count claim; PR #14 body was updated from `288 tests, 616 assertions` to `290 tests, 620 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `510a2ca` and generated two comments:
+  - direct `EvaluateSampleJob` construction should reject abstract classes or interfaces that implement/extend `SampleRunner`,
+  - successful external `collectOutputs()` should be idempotent because a caller can crash after collection but before persisting the assembled report.
+- Addressed the eleventh PR #14 Copilot round by requiring queued runner classes to be instantiable and keeping finished cache-backed success results readable until TTL expiry while late writes still require an active batch marker.
+- Targeted validation passed after the eleventh official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (33 tests, 63 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the eleventh official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (291 tests, 623 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one job/cache idempotence test. README has no test-count claim; PR #14 body was updated from `290 tests, 620 assertions` to `291 tests, 623 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

@@ -99,6 +99,25 @@ final class EvaluateSampleJobTest extends TestCase
         );
     }
 
+    public function test_constructor_rejects_non_instantiable_runner_classes(): void
+    {
+        /** @var class-string<SampleRunner> $runnerClass */
+        $runnerClass = JobRunnerContract::class;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be a concrete, instantiable SampleRunner class');
+
+        new EvaluateSampleJob(
+            batchId: 'batch-1',
+            index: 0,
+            sampleId: 's1',
+            sample: new SampleInvocation(id: 's1', input: ['answer' => 'ok']),
+            runnerClass: $runnerClass,
+            resultTtlSeconds: 60,
+            timeoutSeconds: 30,
+        );
+    }
+
     /**
      * @param  class-string<SampleRunner>  $runnerClass
      */
@@ -130,6 +149,11 @@ final class JobFailingRunner implements SampleRunner
     {
         throw new \RuntimeException('transient runner failure');
     }
+}
+
+interface JobRunnerContract extends SampleRunner
+{
+    //
 }
 
 final class JobRecordingBatchResultStore implements BatchResultStore

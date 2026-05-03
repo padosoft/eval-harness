@@ -114,6 +114,10 @@ final class LazyParallelBatchTest extends TestCase
             ['first output', 'second output'],
             $batch->collectOutputs('manual-batch', $samples),
         );
+        $this->assertSame(
+            ['first output', 'second output'],
+            $batch->collectOutputs('manual-batch', $samples),
+        );
     }
 
     public function test_collect_outputs_rejects_truncated_sample_list_without_closing_batch(): void

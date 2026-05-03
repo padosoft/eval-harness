@@ -13,6 +13,7 @@ use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use ReflectionClass;
 use Throwable;
 
 /**
@@ -70,6 +71,13 @@ final class EvaluateSampleJob implements ShouldQueue
                 "Queued sample runner '%s' must implement %s.",
                 $runnerClass,
                 SampleRunner::class,
+            ));
+        }
+
+        if (! (new ReflectionClass($runnerClass))->isInstantiable()) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must be a concrete, instantiable SampleRunner class.",
+                $runnerClass,
             ));
         }
 

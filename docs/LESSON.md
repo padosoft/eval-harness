@@ -160,3 +160,5 @@
 - Direct queue job constructors need the same timeout guardrails as `BatchOptions`; validate job-level timeout seconds even when jobs are instantiated outside the batch option path.
 - Queue job constructors should duplicate invariants that the higher-level batch API enforces. `EvaluateSampleJob` must reject anonymous runner classes and sample-id mismatches because direct job construction bypasses `LazyParallelBatch` validation.
 - Be precise in docs about object-valued runner state. The implementation can allow object properties for container-DI compatibility, but it does not serialize caller-specific object configuration to workers.
+- `SampleRunner` class-string validation should require instantiability, not only interface compatibility. Interfaces and abstract classes can satisfy `is_a(..., SampleRunner::class, true)` while still being impossible for workers to construct.
+- External `dispatch()` / `collectOutputs()` flows should be idempotent after successful collection. Marking a batch finished should stop late writes but keep existing success results readable until TTL expiry so callers can retry report assembly after a crash.
