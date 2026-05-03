@@ -67,9 +67,9 @@ return [
     |
     | Metric failures are captured into reports by default. Enable
     | `raise_exceptions` for strict CI lanes that should abort on the first
-    | metric/provider error instead. Provider retries are extra attempts after
-    | the initial request and only apply to transient transport errors, HTTP
-    | 429, and 5xx responses.
+    | MetricException/provider contract errors instead. Provider retries are
+    | extra attempts after the initial request and only apply to Laravel HTTP
+    | connection failures, HTTP 429, and 5xx responses.
     |
     */
 

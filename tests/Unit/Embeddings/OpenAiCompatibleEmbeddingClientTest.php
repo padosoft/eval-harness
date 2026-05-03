@@ -138,6 +138,33 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $this->assertSame(2, $calls);
     }
 
+    public function test_non_transport_exceptions_are_not_retried_or_wrapped(): void
+    {
+        config([
+            'eval-harness.runtime.provider_retry_attempts' => 3,
+            'eval-harness.runtime.provider_retry_sleep_milliseconds' => 0,
+        ]);
+
+        $calls = 0;
+        Http::fake(function () use (&$calls): never {
+            $calls++;
+
+            throw new \InvalidArgumentException('bad request setup');
+        });
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        try {
+            $client->embedMany(['one']);
+            $this->fail('Expected non-transport exception to bubble.');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame('bad request setup', $e->getMessage());
+        }
+
+        $this->assertSame(1, $calls);
+    }
+
     public function test_malformed_vector_count_throws_metric_exception(): void
     {
         Http::fake([

@@ -21,6 +21,7 @@ use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
 use Padosoft\EvalHarness\EvalSets\EvalSetRunner;
 use Padosoft\EvalHarness\EvalSets\EvalSetRunResult;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
@@ -321,7 +322,7 @@ final class EvalEngine
             try {
                 $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
             } catch (Throwable $e) {
-                if ($this->shouldRaiseMetricExceptions()) {
+                if ($this->shouldRaiseMetricExceptions() && $e instanceof MetricException) {
                     throw $e;
                 }
 

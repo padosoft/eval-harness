@@ -85,8 +85,8 @@ The package is opinionated. Three decisions matter most:
    metric exception is recorded against `(sample, metric)` and
    surfaced in the final report so the operator can investigate, not
    re-run the whole 30-minute suite. Strict CI lanes can opt into
-   `EVAL_HARNESS_RAISE_EXCEPTIONS=true` to abort on the first metric
-   error.
+   `EVAL_HARNESS_RAISE_EXCEPTIONS=true` to abort on the first
+   `MetricException` provider/metric contract error.
 
 These decisions cost some flexibility (you can't dispatch metrics
 across multiple processes yet — see Roadmap) but they keep the public
@@ -123,8 +123,9 @@ surface small and the offline path fast.
 - **Usage summaries** — JSON and Markdown reports aggregate structured
   `usage` details for provider token counts, cost USD, and latency.
 - **Runtime guardrails** — provider timeouts are normalized, optional
-  retries cover transient HTTP 429/5xx/transport failures, and strict
-  mode can rethrow metric exceptions instead of capturing them.
+  retries cover Laravel HTTP connection failures plus HTTP 429/5xx,
+  and strict mode can rethrow `MetricException` failures instead of
+  capturing them.
 - **Batch execution modes** — SUT runs flow through deterministic
   `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
   `--batch=lazy-parallel` for Laravel queue/Horizon workers.
@@ -156,7 +157,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - JSON/Markdown usage summary from metric details** |
-| Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, provider retries, optional raise_exceptions** |
+| Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
 | Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
 | CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
 | Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
@@ -584,11 +585,11 @@ behavior is explicit in the dataset contract.
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with
 `EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS` between attempts. Retries apply
-only to transient transport errors, HTTP 429, and 5xx responses.
+only to Laravel HTTP connection failures, HTTP 429, and 5xx responses.
 Malformed successful responses still fail closed. By default, metric
 failures are captured in the report; set
 `EVAL_HARNESS_RAISE_EXCEPTIONS=true` when a strict CI lane should abort
-on the first metric error.
+on the first `MetricException` provider/metric contract error.
 
 For stricter RAG groundedness, `citation-groundedness` accepts
 `metadata.citation_evidence`:

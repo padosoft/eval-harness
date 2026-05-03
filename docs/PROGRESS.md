@@ -1267,3 +1267,12 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Opened PR #22 (`task/advanced-metrics-runtime-options` -> `task/advanced-metrics`) for the runtime guardrail slice with summary, guardrails, validation, and README comparison prefix check in the PR body.
+- Copilot reviewed PR #22 at head `4689769` and generated two actionable comments:
+  - provider retries should catch only transport-level exceptions, not every `Throwable`,
+  - strict metric exception mode should either rethrow only `MetricException` or be renamed to make all-throwable propagation explicit.
+- Addressed the PR #22 Copilot comments by limiting provider retry wrapping to Laravel HTTP `ConnectionException`, letting unexpected request throwables bubble immediately, and making strict mode rethrow only `MetricException` while unexpected metric bugs remain captured as report failures.
+- Full local gate passed after the PR #22 Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (414 tests, 923 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

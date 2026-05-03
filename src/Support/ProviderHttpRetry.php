@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Support;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Padosoft\EvalHarness\Exceptions\MetricException;
-use Throwable;
 
 /**
  * Small retry loop for provider transports.
  *
- * Retries are intentionally narrow: transient transport exceptions,
+ * Retries are intentionally narrow: Laravel HTTP connection failures,
  * HTTP 429, and 5xx responses. Non-retryable 4xx responses and
  * successful-but-malformed provider bodies still fail closed in the
- * caller's parser.
+ * caller's parser; unexpected programming/configuration throwables are
+ * not retried or wrapped.
  */
 final class ProviderHttpRetry
 {
@@ -36,7 +37,7 @@ final class ProviderHttpRetry
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
                 $response = $request->post($endpoint, $payload);
-            } catch (Throwable $e) {
+            } catch (ConnectionException $e) {
                 if ($attempt >= $maxAttempts) {
                     throw new MetricException(
                         sprintf(
