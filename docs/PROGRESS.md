@@ -230,3 +230,346 @@
   - `vendor/bin/phpunit` => `OK (142 tests, 291 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Macro PR #8 merged into `main` at `493d261`.
+- Started Macro Task 2 on `task/metrics-reporting` and pushed the macro branch.
+- Started subtask branch `task/metrics-reporting-cohorts-histogram` from the macro branch.
+- Implemented the first reporting slice:
+  - `EvalReport` now exposes per-metric aggregate arrays, metric histograms, normalized sample tags, and cohort summaries grouped by `metadata.tags`,
+  - JSON reports now include `metric_distributions`, `cohorts`, and sample `tags` for the future separate UI package,
+  - Markdown reports now include a summary table, cohort table, and score histogram sections,
+  - README now documents the cohort/histogram report shape and adds competitor-informed planned items for standalone assertions plus dataset split/filter workflows.
+- Targeted report tests passed:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (22 tests, 76 assertions)`
+- Full local gate passed before opening the reporting subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (146 tests, 314 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened subtask PR #9 from `task/metrics-reporting-cohorts-histogram` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- PR #9 CI passed across PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Copilot reviewed PR #9 at head `27c5997` and generated two comments:
+  - final histogram bucket max should be exactly `1.0` for bucket counts such as 3, 6, or 7,
+  - `meanScore()` should not pay for aggregate percentile/pass-rate work, and renderers should avoid repeated aggregate loops/sorts.
+- Codex also generated one actionable review comment:
+  - missing tags should not be represented as a fake `__untagged__` tag because a real sample can use that literal tag.
+- Addressed those comments by restoring mean-only `meanScore()`, using `metricAggregate()` once per Markdown metric row, forcing the final histogram bucket max to `1.0`, and separating missing-tag cohorts with `name: null` / `is_untagged: true` while leaving sample `tags` as real user tags only.
+- Targeted report tests and PHPStan passed after review fixes:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (24 tests, 85 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after PR #9 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (148 tests, 323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `6e5d525` and generated three comments:
+  - Markdown tables need escaping for user-controlled cohort labels and metric names,
+  - JSON sample rows should not emit the free-form metadata bag because it may contain secrets/provider payloads,
+  - `cohortSummaries()` should compute metric names once instead of scanning report data per cohort.
+- Addressed those comments by escaping Markdown table cells, removing full metadata from sample rows while keeping normalized `tags`, and reusing the metric-name list across cohort aggregation.
+- Full local gate passed after the second PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `0d0c4fb` and generated three comments:
+  - `MarkdownReportRenderer` docblock still claimed the H1 includes a timestamp,
+  - README report example needed the new `## Summary` section,
+  - `aggregateValues()` should sort once and reuse the sorted score list for p50/p95.
+- Addressed those comments by correcting the docblock, syncing the README example, and adding a sorted-percentile helper used by `aggregateValues()`.
+- Full local gate passed after the third PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (150 tests, 328 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `c3e4422` and generated one comment:
+  - histogram bucket boundaries should be rounded before they enter the JSON report contract.
+- Addressed the comment by rounding histogram min/max boundaries to fixed precision while keeping the final bucket max exactly `1.0`, with regression coverage for the `0.1 * 3` style artifact.
+- Full local gate passed after the fourth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 330 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `44846a4` and generated one comment:
+  - histogram bucket assignment should normalize boundary-like score floats before computing the bucket index.
+- Addressed the comment by applying the same rounded boundary precision to scores before bucket-index calculation and extending the boundary regression to assert `0.7 - 0.4` lands in the `0.3-0.4` bucket.
+- Full local gate passed after the fifth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (151 tests, 332 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `fa40fd2` and generated one comment:
+  - failure bullets should normalize and escape sample ids, metric names, and error text before rendering Markdown.
+- Addressed the comment by adding inline-code/text escaping helpers for failure bullets and regression coverage for backticks/newlines.
+- Full local gate passed after the sixth PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (152 tests, 336 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #9 again at head `f3148f0` and generated four comments:
+  - histogram headings should escape Markdown-sensitive metric names,
+  - failure identifier rendering should not rely on backslash-escaped backticks inside code spans,
+  - histogram bucket assignment should compare against rounded bucket boundaries for repeating-decimal bucket widths,
+  - README roadmap should not still imply cohort metrics/histograms are purely planned.
+- Addressed those comments by reusing escaped Markdown text for headings, rendering failure identifiers through HTML `<code>` with escaping, assigning histogram buckets by boundary comparison, adding a repeating-decimal boundary test, and marking cohort/histogram reports as implemented in the README roadmap.
+- Full local gate passed after the seventh PR #9 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (153 tests, 339 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+
+## 2026-05-03
+
+- Started subtask branch `task/metrics-reporting-offline-metrics` from `task/metrics-reporting`.
+- Implemented offline metric aliases and classes:
+  - `contains`,
+  - `regex`,
+  - `rouge-l`,
+  - `citation-groundedness` baseline over `metadata.citations`.
+- Updated README feature/comparison/roadmap text to reflect seven built-in metrics and implemented ROUGE-L/citation baseline.
+- Full local gate passed before opening the offline metrics subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (170 tests, 372 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Codex reviewed PR #10 at head `dbf9815` and generated two comments:
+  - `contains` should reject empty `expected_output`,
+  - ROUGE-L should use Unicode-aware lowercasing.
+- Copilot reviewed PR #10 at head `dbf9815` and generated two comments:
+  - invalid regex errors should not append misleading `preg_last_error_msg()` text,
+  - ROUGE-L tokenization should handle invalid UTF-8 deterministically.
+- Addressed those comments with empty-needle validation, a clearer regex invalid-pattern error, UTF-8 validation, Unicode-aware lowercasing, and new regression tests.
+- Full local gate passed after the first PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (173 tests, 377 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `601f653` and generated two comments:
+  - `Metric` docs should point to the public `MetricResolver::aliases()` accessor instead of the private alias map,
+  - regex failures should not always blame an invalid pattern because `preg_match()` can also fail on subject/modifier execution errors.
+- Addressed those comments by fixing the docblock, generalizing the regex evaluation failure message, preserving PCRE error details when available, and adding coverage for `/u` plus invalid UTF-8 input.
+- Full local gate passed after the second PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `3d127c4` and generated one comment:
+  - ROUGE-L Unicode lowercasing should not depend on environment-specific `mb_strtolower()` availability.
+- Addressed the comment by adding `symfony/polyfill-mbstring` as a direct dependency and making ROUGE-L call `mb_strtolower()` unconditionally.
+- Full local gate passed after the third PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `82585fc` and generated five comments:
+  - reflow the `Metric` docblock sentence,
+  - add a dated `PROGRESS.md` section for the new work,
+  - keep the Composer `require` section sorted,
+  - remove stale `mb_strtolower()` conditional wording from `LESSON.md`,
+  - add a ROUGE-L input-size guard before the quadratic LCS pass.
+- Addressed those comments with documentation fixes, Composer ordering, a configurable ROUGE-L token cap, and regression coverage for cap enforcement.
+- Full local gate passed after the fourth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 383 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `9769c7c` and generated one comment:
+  - `citation-groundedness` should not echo raw `metadata.citations` strings into `MetricScore.details`, because report JSON serializes details verbatim.
+- Addressed the comment by exposing citation counts only and adding assertions that raw citation-string detail keys are absent.
+- Full local gate passed after the fifth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 387 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `50ae046` and generated one comment:
+  - ROUGE-L should clamp its floating-point F1 score before constructing `MetricScore`.
+- Addressed the comment by clamping the final score, exposing raw/clamped score diagnostics, and adding regression coverage for floating-point overshoot/undershoot.
+- Full local gate passed after the sixth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (177 tests, 390 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot final review on PR #10 at head `b05d94c` generated no new comments.
+- Remote CI for PR #10 passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
+- PR #10 was merged into `task/metrics-reporting` at merge commit `4e9889b`.
+- `gh pr merge --delete-branch` returned non-zero only because remote branch deletion hit HTTP 504 after the merge; verified the PR was merged, deleted `task/metrics-reporting-offline-metrics` remotely with `git push origin --delete`, and confirmed the local branch was already gone.
+- Started subtask branch `task/metrics-reporting-standalone-assertions` from `task/metrics-reporting`.
+- Implemented standalone scoring primitives:
+  - `EvalEngine::scoreOutputs()` scores precomputed sample-id => output maps without invoking a SUT,
+  - `SavedOutputsLoader` accepts JSON/YAML map and list shapes,
+  - `eval-harness:run --outputs=<path>` scores saved outputs without requiring `eval-harness.sut`.
+- Updated README and roadmap text to mark Promptfoo-style standalone output assertions as implemented.
+- Full local gate passed before opening the standalone assertions subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (188 tests, 416 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened subtask PR #11 from `task/metrics-reporting-standalone-assertions` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- Codex/Copilot reviewed PR #11 and generated six actionable comments:
+  - numeric-key JSON output maps should not be misclassified as list form,
+  - saved-output sample ids must be preserved verbatim and not trimmed in list form, map form, or `scoreOutputs()`,
+  - all advertised JSON/YAML x map/list shapes need test coverage,
+  - the README quick-start numbering should remain sequential.
+- Addressed the comments by detecting list shape from entry structure, preserving ids exactly except for empty-string rejection, adding JSON-list/YAML-map/numeric-key/verbatim-id coverage, and renumbering the README section.
+- Full local gate passed after the first PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (193 tests, 421 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `baa7b8f` and generated seven comments:
+  - README saved-output example should use `--raw-path` when showing a literal relative `--out` path,
+  - extensionless JSON-like files should report invalid JSON instead of falling through to invalid YAML,
+  - map-form duplicate keys are collapsed by JSON/YAML parsers before package validation,
+  - several trim/numeric-map comments were already addressed by the prior fix and covered by tests.
+- Addressed the real gaps by adding `--raw-path` to the README example, detecting JSON-like extensionless contents before YAML fallback, adding regression coverage, and recording the parser duplicate-key limitation in `LESSON.md`.
+- Full local gate passed after the second PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (194 tests, 423 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `9c86d18` and generated four comments:
+  - scalar list-form payloads should be rejected instead of interpreted as numeric sample-id maps,
+  - extensionless YAML flow-style documents should still parse as YAML,
+  - README saved-output sample ids should match the quick-start dataset,
+  - `AGENTS.md` current priority should remain valid after subtask merge.
+- Also addressed the earlier empty `--outputs=` path concern by making it an explicit command error.
+- Refactored `SavedOutputsLoader` to parse JSON/YAML maps as `stdClass` before normalization, reject scalar lists, keep extensionless YAML fallback after failed JSON parse, update README/AGENTS, and add regression coverage for those cases.
+- Full local gate passed after the third PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (198 tests, 429 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `15a2fe1` and generated four comments:
+  - extensionless JSON/YAML parse errors should not guess the operator's intended format,
+  - empty saved-output sample ids need engine and loader regression tests,
+  - README `--out` examples should not depend on non-existent raw parent directories.
+- Addressed the comments by reporting combined JSON/YAML errors for ambiguous extensionless files, adding empty-id tests for engine/list/map paths, and using configured reports-disk paths in README examples.
+- Full local gate passed after the fourth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (201 tests, 435 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `51413e7` and generated comments about:
+  - requiring the documented top-level `outputs` field,
+  - preserving numeric-string IDs for direct loader users,
+  - aligning programmatic datasets with the non-empty sample-id contract,
+  - proving numeric-string IDs via entry-level assertions rather than PHP array literals.
+- Addressed the comments by adding a `SavedOutputs` entry-list DTO, making `SavedOutputsLoader` return it, allowing `EvalEngine::scoreOutputs()` to accept either maps or `SavedOutputs`, requiring the top-level `outputs` field, rejecting empty programmatic sample ids in `DatasetBuilder::withSamples()`, and updating tests accordingly.
+- Full local gate passed after the fifth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (203 tests, 439 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `fcc29cb` and generated four comments:
+  - `SavedOutputs::toMap()` reintroduced numeric-key coercion,
+  - the public `SavedOutputs` constructor needed runtime shape validation,
+  - `scoreOutputs()` needed an engine-level DTO regression for numeric-string ids,
+  - CLI `--outputs` needed coverage for invalid saved-output files.
+- Addressed the comments by removing `toMap()`, validating constructor entries, adding engine/DTO/CLI regression tests, and keeping direct loader assertions on `entries()`.
+- Full local gate passed after the sixth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (207 tests, 447 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `4531d17` and generated two comments:
+  - `SavedOutputs` constructor should reject non-array entries with `EvalRunException`,
+  - programmatic array input to `scoreOutputs()` should reject list-shaped arrays instead of interpreting them as numeric sample ids.
+- Addressed the comments with runtime validation in `SavedOutputs`, list-shaped map rejection in `SavedOutputs::fromMap()`, and regression coverage for both paths.
+- Full local gate passed after the seventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (209 tests, 451 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `5fd7ba3` and generated three comments:
+  - valid datasets with sample ids `"0"`, `"1"`, ... should still be scoreable through programmatic array input,
+  - `loadString()` parse diagnostics should not describe inline contents as a file,
+  - list-shaped array handling needed to preserve the new safety guard while supporting matching numeric ids.
+- Addressed the comments by moving list-shaped array handling into `EvalEngine`, accepting only lists whose stringified indexes exactly match the registered dataset sample ids, preserving `SavedOutputs::fromMap()` as a keyed-map guard, and changing saved-output parse errors from "file" to "source".
+- Full local gate passed after the eighth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (210 tests, 452 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `e698868` and generated three comments:
+  - `SavedOutputsLoader::loadFile()` needed direct unit coverage for JSON, YAML, extensionless parsing, and missing paths,
+  - missing/non-regular files should not be reported only as "not readable",
+  - `SavedOutputs` constructor diagnostics should reject associative arrays before index-based entry validation.
+- Addressed the comments by adding focused `loadFile()` tests, separating missing/non-regular file diagnostics from unreadable files, and rejecting associative constructor input with an explicit list-shape error.
+- Full local gate passed after the ninth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (215 tests, 459 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `bb2fcc3` and generated two comments:
+  - report timing should include public-entry-point work before shared sample scoring,
+  - `loadFile()` still needed direct extensionless JSON coverage.
+- Addressed the comments by starting the report clock at `run()` / `scoreOutputs()` entry before runner/output normalization and by adding an extensionless JSON `loadFile()` regression test.
+- Full local gate passed after the tenth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (216 tests, 460 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `eab389b` and generated three comments:
+  - the Artisan command description still only mentioned the system-under-test mode,
+  - the documented `--registrar + --outputs` workflow needed command regression coverage,
+  - the README saved-output example needed to match the quick-start golden expected output for `exact-match`.
+- Addressed the comments by widening the command description, adding a no-SUT registrar fixture plus command test for `--registrar + --outputs`, and aligning the saved-output example with the golden output.
+- Targeted validation passed after the eleventh PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php` => `OK (16 tests, 44 assertions)`
+  - `vendor/bin/pint --test src/Console/EvalCommand.php tests/Unit/Console/EvalCommandTest.php tests/Fixtures/SavedOutputsOnlyRegistrar.php`
+- Full local gate passed after the eleventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (217 tests, 467 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `8cdc98a` and generated two comments:
+  - list-shaped programmatic saved outputs should validate numeric sample-id membership without depending on dataset declaration order,
+  - top-level saved-output list diagnostics should not imply the wrapperless list shape is accepted.
+- Addressed the comments by validating list-shaped arrays against the dataset's numeric sample-id set, adding unordered numeric-id regression coverage, tightening the loader error text, and adding top-level-list diagnostic coverage.
+- Targeted validation passed after the twelfth PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php` => `OK (49 tests, 85 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php src/Outputs/SavedOutputsLoader.php tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php`
+- Full local gate passed after the twelfth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (219 tests, 472 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- PR #11 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `553cc4a`.
+- After the normal `copilot-pull-request-reviewer` request stayed pending, `@copilot review` triggered `copilot-swe-agent`, which reported the previous review passes addressed and CI green, but also warned that its environment could not install dependencies because GitHub download URLs were blocked by firewall rules.
+- Verified all PR #11 review threads resolved, mergeability `MERGEABLE`, and no failed checks.
+- PR #11 was merged into `task/metrics-reporting` at merge commit `bd4ab98`.
+- Reviewed current official competitor docs/search results and expanded the plan/README/RULES with additional useful targets:
+  - OpenAI Evals-style eval sets and resumable multi-eval progress,
+  - Promptfoo-style multi-input red teaming, compliance mapping, and continuous monitoring guidance,
+  - LangSmith-style CSV export plus cost/token/latency reporting,
+  - Ragas-style usage/cost summaries.
+- Macro branch local gate passed after merging PR #11 and updating competitor-informed roadmap notes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (219 tests, 472 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened Macro Task 2 PR #12 from `task/metrics-reporting` into `main`, requested Copilot through the GraphQL fallback, and verified CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
+- Copilot reviewed PR #12 at head `98c9466` and generated two comments:
+  - Markdown report escaping protected table syntax but still allowed raw HTML in dataset names, tag labels, metric names, and failure text,
+  - `EvalEngine::scoreOutputs()` passed a one-argument callback into the shared two-argument scoring helper.
+- Addressed the comments by HTML-escaping Markdown report text before Markdown-specific escaping, adding malicious HTML regression coverage, and aligning the saved-output callback signature with `scoreDataset()`.
+- Targeted validation passed after the first PR #12 review fix round:
+  - `vendor/bin/phpunit tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/EvalEngineTest.php` => `OK (33 tests, 84 assertions)`
+  - `vendor/bin/pint --test src/Reports/MarkdownReportRenderer.php src/EvalEngine.php tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the first PR #12 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (220 tests, 481 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #12 again at head `4c2f46b` and generated one comment:
+  - saved-output normalization still keyed internal PHP arrays by raw sample id, which could reintroduce numeric-string key coercion.
+- Addressed the comment by using non-coercing length-prefixed internal sample-id keys in `EvalEngine` saved-output lookups and `SavedOutputs` duplicate detection, plus numeric-like ID regressions.
+- Targeted validation passed after the second PR #12 review fix round:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsTest.php` => `OK (33 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php src/Outputs/SavedOutputs.php tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the second PR #12 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (222 tests, 485 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

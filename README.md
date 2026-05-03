@@ -1,6 +1,6 @@
 # padosoft/eval-harness
 
-> Laravel-native evaluation framework for RAG / LLM applications. Golden datasets in YAML, deterministic metrics (exact-match + cosine-embedding + LLM-as-judge), Markdown + JSON reports, an Artisan CI gate. Stop shipping silent regressions in your AI pipeline.
+> Laravel-native evaluation framework for RAG / LLM applications. Golden datasets in YAML, seven built-in metrics, standalone output assertions, Markdown + JSON reports, and an Artisan CI gate. Stop shipping silent regressions in your AI pipeline.
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/padosoft/eval-harness.svg?style=flat-square)](https://packagist.org/packages/padosoft/eval-harness)
 [![Tests](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml)
@@ -96,8 +96,10 @@ surface small and the offline path fast.
 
 ## Features
 
-- **Three metrics out of the box** — `exact-match`, `cosine-embedding`,
-  `llm-as-judge` — and a clean `Metric` interface for adding more.
+- **Seven metrics out of the box** — `exact-match`, `contains`,
+  `regex`, `rouge-l`, `citation-groundedness`,
+  `cosine-embedding`, `llm-as-judge` — and a clean `Metric`
+  interface for adding more.
 - **Strict-schema YAML loader** — versioned dataset contracts and
   actionable validation errors for malformed samples.
 - **Deterministic LLM-as-judge** — temperature 0, seed 42,
@@ -106,6 +108,12 @@ surface small and the offline path fast.
 - **Stable JSON report shape** — every payload carries explicit
   `schema_version` and `dataset_schema_version` fields. Wire into
   your CI dashboard once, then evolve additively.
+- **Cohort-ready report data** — JSON and Markdown reports aggregate
+  scores by `metadata.tags`, expose an explicit untagged bucket, and
+  include per-metric score histograms for dashboards.
+- **Standalone output assertions** — score saved JSON/YAML outputs
+  with the same metrics and report contract, without invoking your
+  agent in CI.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -125,7 +133,7 @@ surface small and the offline path fast.
 | Language | Python | Python / TS | Python | TS / YAML | Python | **PHP / Laravel** |
 | Runs in your Laravel app | No | No | No | No | No | **Yes** |
 | Storage | OpenAI cloud | LangSmith cloud | Local | Local | Local | **Local YAML + JSON** |
-| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **3 + interface** |
+| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **7 + interface** |
 | LLM-as-judge | Yes | Yes | Yes | Yes | Yes | **Yes (deterministic)** |
 | Provider | OpenAI-only | Multi | Multi | Multi | Multi | **Any OpenAI-compatible** |
 | CI integration | Manual | API hook | Manual | CLI gate | CLI gate | **Artisan + CI matrix** |
@@ -229,14 +237,43 @@ class EvalRegistrar
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
   --registrar="App\\Console\\EvalRegistrar" \
-  --json --out=storage/eval-results/factuality.json
+  --json --out=factuality.json
 ```
 
 Exit code is `0` if every metric scored cleanly, non-zero otherwise.
 Wire that into the same `tests.yml` workflow that runs your PHPUnit
 suite and you've got a regression gate.
 
-### 4. Read the report
+### 4. Score saved outputs
+
+When another job already generated model responses, keep the same
+dataset and score those outputs directly:
+
+```json
+{
+  "outputs": {
+    "capital-france": "Paris",
+    "refund-policy": "30 days from delivery."
+  }
+}
+```
+
+```bash
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --outputs=eval/outputs/factuality.json \
+  --json --out=factuality.json
+```
+
+`--outputs` accepts JSON or YAML, map form (`outputs.sample_id`) or
+list form (`outputs[].id` + `outputs[].actual_output`). Relative
+`--out` paths use the configured reports disk and path prefix
+(`eval-harness/reports` by default). Add `--raw-path` only when you
+want a literal filesystem path and its parent directory already
+exists. The registrar still registers the dataset; no
+`eval-harness.sut` binding is required for this mode.
+
+### 5. Read the report
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
@@ -248,6 +285,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 _Run completed in 2.41s over 30 samples (0 failures captured)._
 
+## Summary
+
+| total samples | total failures | duration seconds |
+| --- | --- | --- |
+| 30 | 0 | 2.41 |
+
 ## Per-metric aggregates
 
 | metric | mean | p50 | p95 | pass-rate (>= 0.5) |
@@ -256,6 +299,22 @@ _Run completed in 2.41s over 30 samples (0 failures captured)._
 | cosine-embedding | 0.9012 | 0.9421 | 0.9893 | 0.9667 |
 
 ## Macro-F1 (avg pass-rate across all metrics): 0.8500
+
+## Cohorts by metadata.tags
+
+| cohort | samples | metric | mean | p50 | p95 | pass-rate (>= 0.5) |
+| --- | --- | --- | --- | --- | --- | --- |
+| geography | 12 | exact-match | 0.9500 | 1.0000 | 1.0000 | 0.9500 |
+| refund-policy | 8 | exact-match | 0.6000 | 0.5000 | 1.0000 | 0.6000 |
+
+## Score histograms
+
+### exact-match
+
+| score range | count |
+| --- | --- |
+| 0.0-0.1 | 8 |
+| 0.9-1.0 inclusive | 22 |
 ```
 
 ---
@@ -275,6 +334,11 @@ Eval::dataset('rag.smoke')
     ])
     ->withMetrics(['exact-match'])
     ->register();
+
+$report = Eval::scoreOutputs('rag.smoke', [
+    's1' => 'hello',
+    's2' => 'wrong answer',
+]);
 ```
 
 ### Custom metric
@@ -495,28 +559,39 @@ accidentally and never burns API credits.
 
 ## Roadmap
 
-### v0.2 (planned)
+### v0.2 (in progress)
 
-- **Parallel batch evals** — run N samples in parallel via Laravel
-  queues (`SerialBatch`, `LazyParallelBatch`).
 - **Cohort metrics** — aggregate scores by `metadata.tags` so the
   report surfaces "geography questions are 95%, refund-policy
-  questions are 60%" instead of a single mean.
-- **Histogram view** in the markdown report.
-- **More built-in metrics**: ROUGE-L, BERTScore (via embeddings),
-  refusal-quality (LLM-as-judge specialised prompt), citation
-  groundedness.
+  questions are 60%" instead of a single mean. Implemented in
+  Markdown/JSON reports.
+- **Histogram view** in Markdown and JSON reports.
+- **Parallel batch evals** — run N samples in parallel via Laravel
+  queues (`SerialBatch`, `LazyParallelBatch`).
+- **Eval sets with resumable progress** — run named groups of
+  datasets and resume interrupted multi-dataset runs.
+- **Standalone output assertions** — score saved JSON/YAML outputs
+  without invoking an agent, closing the Promptfoo-style CI workflow
+  gap. Implemented through `Eval::scoreOutputs()` and `--outputs`.
+- **More built-in metrics**: ROUGE-L and citation-groundedness
+  baseline are implemented; BERTScore (via embeddings) and
+  refusal-quality (LLM-as-judge specialised prompt) remain planned.
+- **Usage summaries** — token, cost, and latency fields when metric
+  providers expose usage.
 
 ### v0.3 (planned)
 
 - **Adversarial harness** — prompt injection / jailbreak / tool-abuse
-  test datasets bundled (opt-in).
+  test datasets bundled (opt-in), including multi-input targets and
+  compliance/framework mapping for security reports.
 - **Regression detection** — store the last N runs in a JSON
   manifest and fail the gate when macro-F1 drops more than X%.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
-  and artifacts. No bundled UI in this package; deploy the UI behind
-  your existing admin gate.
+  CSV export, and artifacts. No bundled UI in this package; deploy
+  the UI behind your existing admin gate.
+- **Dataset splits/filtering and failure promotion** — keep parity
+  with LangSmith-style workflows while staying local-file-first.
 
 ### v1.0
 

@@ -62,3 +62,51 @@
 - Fail-fast runner/DTO tests must cover both concrete `SampleRunner` instances and plain callables typed as `SampleInvocation`; they exercise different dispatch branches.
 - Same-source replacement APIs should fail closed. If a YAML or programmatic replacement attempt throws, clear the old pending source so a caught exception cannot accidentally register stale samples.
 - When adding wrapper branches for queue JSON encoding errors, test a non-recursive JSON failure such as invalid UTF-8 in addition to recursion.
+- `gh pr edit` can be blocked by a missing `read:project` scope even for body edits. Use `gh api -X PATCH repos/$repo/pulls/$number -f body="$body"` with a here-string to preserve Markdown formatting.
+- Cohort reporting should normalize `metadata.tags` as either a string or a string list, count multi-tag samples in every matching cohort, and put missing/empty/non-string tags into an explicit untagged cohort.
+- Histogram buckets for [0, 1] scores should make score `1.0` land in the final bucket and should still return zero-count buckets for metrics that only have failures.
+- Do not model missing tags as a fake string tag inside sample `tags`; a real dataset can use the same literal. Keep sample tags as real user tags, represent missing-tag cohorts with `name: null` plus `is_untagged: true`.
+- Markdown renderers should use `metricAggregate()` once per metric row. Calling `meanScore()`, two percentiles, and pass-rate separately repeats loops/sorts and makes report rendering scale worse.
+- Markdown table cells that include user-controlled tag or metric names need escaping for pipes, backticks, and newlines so generated reports stay diffable and parseable.
+- Markdown failure bullets also need single-line normalization and backtick escaping for sample ids, metric names, and metric error text; otherwise exception messages can break the report structure.
+- Do not copy free-form `DatasetSample::$metadata` into JSON reports. Metadata may contain provider payloads or secrets; expose only normalized safe fields such as `tags` until a redaction hook exists.
+- Keep renderer docblocks and README snippets synchronized with actual report section order; generated report examples become contract documentation for downstream users.
+- Aggregate helpers should sort score lists once and reuse the sorted values for multiple percentiles, especially when the same helper powers both global and per-cohort report rows.
+- Histogram boundary floats are part of the JSON report contract; round bucket min/max values to a fixed precision so binary floating-point artifacts do not leak into dashboards or report diffs.
+- Histogram bucket assignment must normalize scores with the same precision used for bucket boundaries, otherwise boundary-like values such as `0.7 - 0.4` can count in the previous bucket while the displayed range says otherwise.
+- Markdown inline code cannot safely escape backticks with backslashes inside a code span. Use HTML `<code>` with `htmlspecialchars()` for user-controlled identifiers.
+- Histogram bucket assignment is most stable when it compares normalized scores against the precomputed rounded bucket boundaries instead of multiplying and flooring the score again.
+- Keep offline metrics deterministic and side-effect free. `contains`, `regex`, `rouge-l`, and baseline `citation-groundedness` should rely only on sample data and actual output so they remain safe for unit tests and CI without HTTP fakes.
+- Citation groundedness baseline currently uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output; advanced span/evidence validation remains a later metric.
+- Metric details are serialized verbatim into JSON reports; do not echo raw `DatasetSample::$metadata` values there unless a redaction or explicit opt-in mechanism exists.
+- Contains-style metrics must reject empty expected strings because `str_contains($actual, '')` always returns true and can silently inflate pass rates.
+- ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower`; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
+- Regex metrics should report a general evaluation failure when `preg_match()` returns false, because failures can come from invalid patterns or from subject/modifier issues such as `/u` with invalid UTF-8.
+- For deterministic Unicode metric behavior, depend directly on `symfony/polyfill-mbstring` and call `mb_strtolower()` unconditionally instead of falling back to ASCII `strtolower()`.
+- O(n*m) offline metrics need defensive input bounds. ROUGE-L should cap token counts before the LCS pass so large eval outputs cannot surprise CI with quadratic CPU work.
+- Metrics that calculate with floating-point arithmetic should clamp final scores into `[0.0, 1.0]` before constructing `MetricScore`, even when the formula is mathematically bounded.
+- `gh pr merge --delete-branch` can merge successfully but exit non-zero if deleting the remote head branch times out. Verify PR state before retrying only the branch cleanup.
+- Standalone output scoring should validate completeness before metric execution: missing and unknown sample ids are dataset-level run errors, not captured per-metric failures.
+- Preserve dataset sample IDs verbatim in saved-output workflows. The dataset contract only rejects the empty string, so trimming IDs creates false missing/unknown failures.
+- JSON/YAML duplicate keys in map form are collapsed by standard parsers before package code sees them. Duplicate saved-output detection is reliable for list form; do not over-claim duplicate-key validation for maps.
+- To distinguish saved-output maps from lists when sample IDs can be numeric strings, parse JSON/YAML maps as objects (`stdClass`) first. Decoding directly to associative arrays loses that shape information.
+- CLI options that accept paths should treat an explicit empty value as an operator error instead of falling back to another execution mode.
+- Extensionless saved-output files can be JSON or YAML. If both parsers fail, report both parse errors instead of guessing which format the operator intended.
+- PHP arrays coerce numeric-string keys to integers. Public loaders that must preserve sample IDs like `"0"` should return an entry-list DTO instead of a keyed array.
+- Do not add convenience `toMap()` APIs to ID-preserving DTOs when IDs can be numeric strings; the conversion itself reintroduces PHP key coercion.
+- Programmatic saved-output array input should reject list-shaped arrays unless the engine can prove their stringified numeric indexes exactly match the registered dataset sample IDs. Otherwise `['a', 'b']` can silently become sample ids `0`/`1`, while valid datasets that intentionally use `"0"`, `"1"`, ... remain scoreable.
+- Loader APIs that accept either a file path or inline source string should use "source" in parse diagnostics. Calling inline input a "file" makes `loadString()` failures misleading.
+- Public constructors that advertise list-shaped payloads should reject associative arrays before per-index validation. Otherwise `%d` index diagnostics can hide the caller's actual associative key.
+- Loader tests should cover `loadFile()` directly when file extension changes parser behavior. `loadString()` and CLI tests are not enough to protect path-based JSON/YAML/extensionless branches or missing-file diagnostics.
+- Eval report timing should start at the public entry point, before runner resolution, DTO construction, and saved-output normalization. Otherwise `duration_seconds` excludes real operator-visible work.
+- Extensionless artifact support needs both JSON and YAML `loadFile()` fixtures, because the fallback order itself is part of the contract.
+- Artisan command descriptions are operator-facing contract text. When adding a new execution mode such as saved-output scoring, update `artisan list/help` descriptions, not only README prose and docblocks.
+- Documented CLI flows that combine `--registrar` with `--outputs` need command-level regression tests. Unit coverage of pre-registered datasets does not protect the README path if registrar dispatch order changes.
+- README saved-output happy-path examples must exactly match the golden expected output when the metric is `exact-match`; otherwise the quick-start command documents a failing run.
+- Programmatic list-shaped saved outputs are only a numeric-ID escape hatch. Validate against the dataset's numeric ID set, not declaration order, because sample order and sample IDs are separate contracts.
+- Saved-output file diagnostics should describe only supported top-level shapes. If the required `outputs` wrapper is mandatory, error text must not imply that top-level lists are accepted.
+- If the `copilot-pull-request-reviewer` request stays pending after a fresh push, an explicit `@copilot review` issue comment may start `copilot-swe-agent`. Treat its output as review context, but record any firewall/tooling limitation and keep local gates, CI, and review-thread state as the hard merge criteria.
+- Official competitor docs reviewed on 2026-05-03 added roadmap targets beyond the original list: OpenAI Evals-style eval sets/resume progress, Promptfoo-style multi-input/compliance/continuous monitoring, LangSmith CSV/export and cost-token-latency reporting, and Ragas usage/cost summaries.
+- Markdown report strings that can later be rendered as HTML need `htmlspecialchars()` in addition to Markdown escaping. Escaping pipes/backticks/newlines keeps Markdown parseable, but raw `<script>`/`<img>` text from datasets, tags, metric names, or errors is still unsafe for GitHub and future UI renderers.
+- Callbacks passed into shared orchestration helpers should match the documented callable arity even when a language runtime tolerates ignored arguments. It keeps static analysis, future refactors, and reviewer expectations aligned.
+- Never key internal PHP arrays directly by user sample IDs when IDs must remain verbatim. Prefix/encode keys with a non-numeric structure, because PHP coerces numeric-string array keys and can hide identity mistakes in saved-output lookups or duplicate detection.

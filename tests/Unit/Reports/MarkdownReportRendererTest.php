@@ -38,8 +38,13 @@ final class MarkdownReportRendererTest extends TestCase
         $md = (new MarkdownReportRenderer)->render($report);
 
         $this->assertStringContainsString('# Eval report — demo', $md);
+        $this->assertStringContainsString('## Summary', $md);
         $this->assertStringContainsString('| exact-match |', $md);
         $this->assertStringContainsString('## Macro-F1', $md);
+        $this->assertStringContainsString('## Cohorts by metadata.tags', $md);
+        $this->assertStringContainsString('## Score histograms', $md);
+        $this->assertStringContainsString('(untagged)', $md);
+        $this->assertStringContainsString('| 0.0-0.1 |', $md);
         $this->assertStringNotContainsString('## Failures', $md);
     }
 
@@ -56,9 +61,90 @@ final class MarkdownReportRendererTest extends TestCase
         $md = (new MarkdownReportRenderer)->render($report);
 
         $this->assertStringContainsString('## Failures', $md);
-        $this->assertStringContainsString('`s1`', $md);
+        $this->assertStringContainsString('<code>s1</code>', $md);
         $this->assertStringContainsString('llm-as-judge', $md);
         $this->assertStringContainsString('timeout', $md);
+    }
+
+    public function test_failures_section_escapes_markdown_sensitive_values(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [],
+            failures: [new SampleFailure("s`1\nnext", 'metric`name', "boom\n`code`")],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('sample <code>s`1 next</code>', $md);
+        $this->assertStringContainsString('metric <code>metric`name</code>', $md);
+        $this->assertStringContainsString('boom \\`code\\`', $md);
+        $this->assertStringNotContainsString("s`1\nnext", $md);
+    }
+
+    public function test_table_cells_escape_user_controlled_labels(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'e',
+                        metadata: ['tags' => ["geo|bad\nline`tick"]],
+                    ),
+                    actualOutput: 'e',
+                    metricScores: ["exact|match\nbad`metric" => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('geo\\|bad line\\`tick', $md);
+        $this->assertStringContainsString('exact\\|match bad\\`metric', $md);
+        $this->assertStringContainsString('### exact|match bad\\`metric', $md);
+        $this->assertStringNotContainsString("geo|bad\nline", $md);
+    }
+
+    public function test_renderer_html_escapes_user_controlled_report_text(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo <script>alert("dataset")</script>',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'e',
+                        metadata: ['tags' => ['<img src=x onerror=alert(1)>|geo']],
+                    ),
+                    actualOutput: 'e',
+                    metricScores: ['<metric onmouseover="x">|quality' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [new SampleFailure('s<1>', 'm<2>', '<script>alert("failure")</script>')],
+            startedAt: 0.0,
+            finishedAt: 0.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('demo &lt;script&gt;alert(&quot;dataset&quot;)&lt;/script&gt;', $md);
+        $this->assertStringContainsString('&lt;img src=x onerror=alert(1)&gt;\\|geo', $md);
+        $this->assertStringContainsString('&lt;metric onmouseover=&quot;x&quot;&gt;\\|quality', $md);
+        $this->assertStringContainsString('sample <code>s&lt;1&gt;</code>', $md);
+        $this->assertStringContainsString('metric <code>m&lt;2&gt;</code>', $md);
+        $this->assertStringContainsString('&lt;script&gt;alert(&quot;failure&quot;)&lt;/script&gt;', $md);
+        $this->assertStringNotContainsString('<script', $md);
+        $this->assertStringNotContainsString('<img', $md);
+        $this->assertStringNotContainsString('<metric', $md);
     }
 
     public function test_output_ends_with_newline(): void
