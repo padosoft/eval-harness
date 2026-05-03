@@ -73,7 +73,7 @@ Implement:
 - Cohort metrics grouped by `metadata.tags`, including explicit bucket behavior for missing tags.
 - Markdown report with summary table, cohort table, failure samples, and histogram.
 - JSON report fields needed by a future UI package: metric distributions, cohorts, failures, run metadata, sample-level score rows.
-- Standalone assertion mode over precomputed outputs, inspired by Promptfoo, so CI can score saved outputs without invoking an agent.
+- Standalone assertion mode over precomputed outputs, inspired by Promptfoo, so CI can score saved outputs without invoking an agent. Implemented through `EvalEngine::scoreOutputs()` and the `eval-harness:run --outputs=<path>` CLI path.
 
 Guardrails:
 

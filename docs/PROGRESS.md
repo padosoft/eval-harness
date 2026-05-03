@@ -392,3 +392,144 @@
 - Remote CI for PR #10 passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
 - PR #10 was merged into `task/metrics-reporting` at merge commit `4e9889b`.
 - `gh pr merge --delete-branch` returned non-zero only because remote branch deletion hit HTTP 504 after the merge; verified the PR was merged, deleted `task/metrics-reporting-offline-metrics` remotely with `git push origin --delete`, and confirmed the local branch was already gone.
+- Started subtask branch `task/metrics-reporting-standalone-assertions` from `task/metrics-reporting`.
+- Implemented standalone scoring primitives:
+  - `EvalEngine::scoreOutputs()` scores precomputed sample-id => output maps without invoking a SUT,
+  - `SavedOutputsLoader` accepts JSON/YAML map and list shapes,
+  - `eval-harness:run --outputs=<path>` scores saved outputs without requiring `eval-harness.sut`.
+- Updated README and roadmap text to mark Promptfoo-style standalone output assertions as implemented.
+- Full local gate passed before opening the standalone assertions subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (188 tests, 416 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened subtask PR #11 from `task/metrics-reporting-standalone-assertions` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- Codex/Copilot reviewed PR #11 and generated six actionable comments:
+  - numeric-key JSON output maps should not be misclassified as list form,
+  - saved-output sample ids must be preserved verbatim and not trimmed in list form, map form, or `scoreOutputs()`,
+  - all advertised JSON/YAML x map/list shapes need test coverage,
+  - the README quick-start numbering should remain sequential.
+- Addressed the comments by detecting list shape from entry structure, preserving ids exactly except for empty-string rejection, adding JSON-list/YAML-map/numeric-key/verbatim-id coverage, and renumbering the README section.
+- Full local gate passed after the first PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (193 tests, 421 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `baa7b8f` and generated seven comments:
+  - README saved-output example should use `--raw-path` when showing a literal relative `--out` path,
+  - extensionless JSON-like files should report invalid JSON instead of falling through to invalid YAML,
+  - map-form duplicate keys are collapsed by JSON/YAML parsers before package validation,
+  - several trim/numeric-map comments were already addressed by the prior fix and covered by tests.
+- Addressed the real gaps by adding `--raw-path` to the README example, detecting JSON-like extensionless contents before YAML fallback, adding regression coverage, and recording the parser duplicate-key limitation in `LESSON.md`.
+- Full local gate passed after the second PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (194 tests, 423 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `9c86d18` and generated four comments:
+  - scalar list-form payloads should be rejected instead of interpreted as numeric sample-id maps,
+  - extensionless YAML flow-style documents should still parse as YAML,
+  - README saved-output sample ids should match the quick-start dataset,
+  - `AGENTS.md` current priority should remain valid after subtask merge.
+- Also addressed the earlier empty `--outputs=` path concern by making it an explicit command error.
+- Refactored `SavedOutputsLoader` to parse JSON/YAML maps as `stdClass` before normalization, reject scalar lists, keep extensionless YAML fallback after failed JSON parse, update README/AGENTS, and add regression coverage for those cases.
+- Full local gate passed after the third PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (198 tests, 429 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `15a2fe1` and generated four comments:
+  - extensionless JSON/YAML parse errors should not guess the operator's intended format,
+  - empty saved-output sample ids need engine and loader regression tests,
+  - README `--out` examples should not depend on non-existent raw parent directories.
+- Addressed the comments by reporting combined JSON/YAML errors for ambiguous extensionless files, adding empty-id tests for engine/list/map paths, and using configured reports-disk paths in README examples.
+- Full local gate passed after the fourth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (201 tests, 435 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `51413e7` and generated comments about:
+  - requiring the documented top-level `outputs` field,
+  - preserving numeric-string IDs for direct loader users,
+  - aligning programmatic datasets with the non-empty sample-id contract,
+  - proving numeric-string IDs via entry-level assertions rather than PHP array literals.
+- Addressed the comments by adding a `SavedOutputs` entry-list DTO, making `SavedOutputsLoader` return it, allowing `EvalEngine::scoreOutputs()` to accept either maps or `SavedOutputs`, requiring the top-level `outputs` field, rejecting empty programmatic sample ids in `DatasetBuilder::withSamples()`, and updating tests accordingly.
+- Full local gate passed after the fifth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (203 tests, 439 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `fcc29cb` and generated four comments:
+  - `SavedOutputs::toMap()` reintroduced numeric-key coercion,
+  - the public `SavedOutputs` constructor needed runtime shape validation,
+  - `scoreOutputs()` needed an engine-level DTO regression for numeric-string ids,
+  - CLI `--outputs` needed coverage for invalid saved-output files.
+- Addressed the comments by removing `toMap()`, validating constructor entries, adding engine/DTO/CLI regression tests, and keeping direct loader assertions on `entries()`.
+- Full local gate passed after the sixth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (207 tests, 447 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `4531d17` and generated two comments:
+  - `SavedOutputs` constructor should reject non-array entries with `EvalRunException`,
+  - programmatic array input to `scoreOutputs()` should reject list-shaped arrays instead of interpreting them as numeric sample ids.
+- Addressed the comments with runtime validation in `SavedOutputs`, list-shaped map rejection in `SavedOutputs::fromMap()`, and regression coverage for both paths.
+- Full local gate passed after the seventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (209 tests, 451 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `5fd7ba3` and generated three comments:
+  - valid datasets with sample ids `"0"`, `"1"`, ... should still be scoreable through programmatic array input,
+  - `loadString()` parse diagnostics should not describe inline contents as a file,
+  - list-shaped array handling needed to preserve the new safety guard while supporting matching numeric ids.
+- Addressed the comments by moving list-shaped array handling into `EvalEngine`, accepting only lists whose stringified indexes exactly match the registered dataset sample ids, preserving `SavedOutputs::fromMap()` as a keyed-map guard, and changing saved-output parse errors from "file" to "source".
+- Full local gate passed after the eighth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (210 tests, 452 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `e698868` and generated three comments:
+  - `SavedOutputsLoader::loadFile()` needed direct unit coverage for JSON, YAML, extensionless parsing, and missing paths,
+  - missing/non-regular files should not be reported only as "not readable",
+  - `SavedOutputs` constructor diagnostics should reject associative arrays before index-based entry validation.
+- Addressed the comments by adding focused `loadFile()` tests, separating missing/non-regular file diagnostics from unreadable files, and rejecting associative constructor input with an explicit list-shape error.
+- Full local gate passed after the ninth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (215 tests, 459 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `bb2fcc3` and generated two comments:
+  - report timing should include public-entry-point work before shared sample scoring,
+  - `loadFile()` still needed direct extensionless JSON coverage.
+- Addressed the comments by starting the report clock at `run()` / `scoreOutputs()` entry before runner/output normalization and by adding an extensionless JSON `loadFile()` regression test.
+- Full local gate passed after the tenth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (216 tests, 460 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `eab389b` and generated three comments:
+  - the Artisan command description still only mentioned the system-under-test mode,
+  - the documented `--registrar + --outputs` workflow needed command regression coverage,
+  - the README saved-output example needed to match the quick-start golden expected output for `exact-match`.
+- Addressed the comments by widening the command description, adding a no-SUT registrar fixture plus command test for `--registrar + --outputs`, and aligning the saved-output example with the golden output.
+- Targeted validation passed after the eleventh PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php` => `OK (16 tests, 44 assertions)`
+  - `vendor/bin/pint --test src/Console/EvalCommand.php tests/Unit/Console/EvalCommandTest.php tests/Fixtures/SavedOutputsOnlyRegistrar.php`
+- Full local gate passed after the eleventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (217 tests, 467 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `8cdc98a` and generated two comments:
+  - list-shaped programmatic saved outputs should validate numeric sample-id membership without depending on dataset declaration order,
+  - top-level saved-output list diagnostics should not imply the wrapperless list shape is accepted.
+- Addressed the comments by validating list-shaped arrays against the dataset's numeric sample-id set, adding unordered numeric-id regression coverage, tightening the loader error text, and adding top-level-list diagnostic coverage.
+- Targeted validation passed after the twelfth PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php` => `OK (49 tests, 85 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php src/Outputs/SavedOutputsLoader.php tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php`
+- Full local gate passed after the twelfth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (219 tests, 472 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

@@ -9,6 +9,7 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 
 /**
  * Package service provider.
@@ -42,6 +43,10 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(YamlDatasetLoader::class, static function (): YamlDatasetLoader {
             return new YamlDatasetLoader;
+        });
+
+        $this->app->singleton(SavedOutputsLoader::class, static function (): SavedOutputsLoader {
+            return new SavedOutputsLoader;
         });
 
         $this->app->singleton(EvalEngine::class, static function (Container $app): EvalEngine {

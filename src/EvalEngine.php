@@ -14,6 +14,7 @@ use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
@@ -100,12 +101,8 @@ final class EvalEngine
      */
     public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
     {
-        $dataset = $this->getDataset($datasetName);
-
         $startedAt = microtime(true);
-
-        $sampleResults = [];
-        $failures = [];
+        $dataset = $this->getDataset($datasetName);
 
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
         $callableExpectsSampleInvocation = $sampleRunner === null
@@ -115,14 +112,56 @@ final class EvalEngine
             usesSampleInvocation: $sampleRunner instanceof SampleRunner || $callableExpectsSampleInvocation,
         );
 
-        foreach ($dataset->samples as $index => $sample) {
-            $actualOutput = $this->runSample(
+        return $this->scoreDataset(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            startedAt: $startedAt,
+            actualOutputForSample: fn (DatasetSample $sample, int $index): string => $this->runSample(
                 systemUnderTest: $systemUnderTest,
                 sample: $sample,
                 sampleInvocation: $sampleInvocations[$index] ?? null,
                 sampleRunner: $sampleRunner,
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
-            );
+            ),
+        );
+    }
+
+    /**
+     * Score precomputed sample outputs without invoking a system-under-test.
+     *
+     * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs  Map or loaded saved-output entries.
+     */
+    public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs): EvalReport
+    {
+        $startedAt = microtime(true);
+        $dataset = $this->getDataset($datasetName);
+        $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
+
+        return $this->scoreDataset(
+            datasetName: $datasetName,
+            dataset: $dataset,
+            startedAt: $startedAt,
+            actualOutputForSample: static fn (DatasetSample $sample): string => $outputs[$sample->id],
+        );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     */
+    private function scoreDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
+    {
+        $sampleResults = [];
+        $failures = [];
+
+        foreach ($dataset->samples as $index => $sample) {
+            $actualOutput = $actualOutputForSample($sample, $index);
+            if (! is_string($actualOutput)) {
+                throw new EvalRunException(sprintf(
+                    "Actual output for sample '%s' must be a string; got %s.",
+                    $sample->id,
+                    get_debug_type($actualOutput),
+                ));
+            }
 
             $metricScores = [];
             foreach ($dataset->metrics as $metric) {
@@ -152,6 +191,102 @@ final class EvalEngine
             finishedAt: microtime(true),
             datasetSchemaVersion: $dataset->schemaVersion,
         );
+    }
+
+    /**
+     * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs
+     * @return array<array-key, string>
+     */
+    private function savedOutputsForDataset(string $datasetName, GoldenDataset $dataset, array|SavedOutputs $actualOutputs): array
+    {
+        $savedOutputs = $actualOutputs instanceof SavedOutputs
+            ? $actualOutputs
+            : $this->savedOutputsFromArray($datasetName, $dataset, $actualOutputs);
+
+        $outputs = [];
+        foreach ($savedOutputs->entries() as $entry) {
+            $outputs[$entry['id']] = $entry['actual_output'];
+        }
+
+        $expectedSampleIds = [];
+        $missingSampleIds = [];
+        foreach ($dataset->samples as $sample) {
+            $expectedSampleIds[$sample->id] = true;
+            if (! array_key_exists($sample->id, $outputs)) {
+                $missingSampleIds[] = $sample->id;
+            }
+        }
+
+        if ($missingSampleIds !== []) {
+            throw new EvalRunException(sprintf(
+                "Saved outputs for dataset '%s' are missing sample ids: %s.",
+                $datasetName,
+                implode(', ', $missingSampleIds),
+            ));
+        }
+
+        $unknownSampleIds = [];
+        foreach ($outputs as $sampleId => $_output) {
+            if (! isset($expectedSampleIds[$sampleId])) {
+                $unknownSampleIds[] = (string) $sampleId;
+            }
+        }
+
+        if ($unknownSampleIds !== []) {
+            throw new EvalRunException(sprintf(
+                "Saved outputs for dataset '%s' contain unknown sample ids: %s.",
+                $datasetName,
+                implode(', ', $unknownSampleIds),
+            ));
+        }
+
+        return $outputs;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $actualOutputs
+     */
+    private function savedOutputsFromArray(string $datasetName, GoldenDataset $dataset, array $actualOutputs): SavedOutputs
+    {
+        if ($actualOutputs !== [] && array_is_list($actualOutputs)) {
+            $expectedIds = array_fill_keys(
+                array_map(
+                    static fn (DatasetSample $sample): string => $sample->id,
+                    $dataset->samples,
+                ),
+                true,
+            );
+            $listIds = array_map(
+                static fn (int $index): string => (string) $index,
+                array_keys($actualOutputs),
+            );
+            $listIdSet = array_fill_keys($listIds, true);
+
+            if (count($expectedIds) !== count($listIdSet) || array_diff_key($expectedIds, $listIdSet) !== []) {
+                throw new EvalRunException(sprintf(
+                    "Saved outputs for dataset '%s' must be a keyed map of sample id to output string.",
+                    $datasetName,
+                ));
+            }
+
+            $entries = [];
+            foreach ($actualOutputs as $index => $actualOutput) {
+                if (! is_string($actualOutput)) {
+                    throw new EvalRunException(sprintf(
+                        "Saved output for sample '%s' in dataset '%s' must be a string; got %s.",
+                        (string) $index,
+                        $datasetName,
+                        get_debug_type($actualOutput),
+                    ));
+                }
+
+                $entries[] = ['id' => (string) $index, 'actual_output' => $actualOutput];
+            }
+
+            return new SavedOutputs($entries);
+        }
+
+        return SavedOutputs::fromMap($actualOutputs, "dataset '{$datasetName}'");
     }
 
     /**

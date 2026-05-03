@@ -86,3 +86,22 @@
 - O(n*m) offline metrics need defensive input bounds. ROUGE-L should cap token counts before the LCS pass so large eval outputs cannot surprise CI with quadratic CPU work.
 - Metrics that calculate with floating-point arithmetic should clamp final scores into `[0.0, 1.0]` before constructing `MetricScore`, even when the formula is mathematically bounded.
 - `gh pr merge --delete-branch` can merge successfully but exit non-zero if deleting the remote head branch times out. Verify PR state before retrying only the branch cleanup.
+- Standalone output scoring should validate completeness before metric execution: missing and unknown sample ids are dataset-level run errors, not captured per-metric failures.
+- Preserve dataset sample IDs verbatim in saved-output workflows. The dataset contract only rejects the empty string, so trimming IDs creates false missing/unknown failures.
+- JSON/YAML duplicate keys in map form are collapsed by standard parsers before package code sees them. Duplicate saved-output detection is reliable for list form; do not over-claim duplicate-key validation for maps.
+- To distinguish saved-output maps from lists when sample IDs can be numeric strings, parse JSON/YAML maps as objects (`stdClass`) first. Decoding directly to associative arrays loses that shape information.
+- CLI options that accept paths should treat an explicit empty value as an operator error instead of falling back to another execution mode.
+- Extensionless saved-output files can be JSON or YAML. If both parsers fail, report both parse errors instead of guessing which format the operator intended.
+- PHP arrays coerce numeric-string keys to integers. Public loaders that must preserve sample IDs like `"0"` should return an entry-list DTO instead of a keyed array.
+- Do not add convenience `toMap()` APIs to ID-preserving DTOs when IDs can be numeric strings; the conversion itself reintroduces PHP key coercion.
+- Programmatic saved-output array input should reject list-shaped arrays unless the engine can prove their stringified numeric indexes exactly match the registered dataset sample IDs. Otherwise `['a', 'b']` can silently become sample ids `0`/`1`, while valid datasets that intentionally use `"0"`, `"1"`, ... remain scoreable.
+- Loader APIs that accept either a file path or inline source string should use "source" in parse diagnostics. Calling inline input a "file" makes `loadString()` failures misleading.
+- Public constructors that advertise list-shaped payloads should reject associative arrays before per-index validation. Otherwise `%d` index diagnostics can hide the caller's actual associative key.
+- Loader tests should cover `loadFile()` directly when file extension changes parser behavior. `loadString()` and CLI tests are not enough to protect path-based JSON/YAML/extensionless branches or missing-file diagnostics.
+- Eval report timing should start at the public entry point, before runner resolution, DTO construction, and saved-output normalization. Otherwise `duration_seconds` excludes real operator-visible work.
+- Extensionless artifact support needs both JSON and YAML `loadFile()` fixtures, because the fallback order itself is part of the contract.
+- Artisan command descriptions are operator-facing contract text. When adding a new execution mode such as saved-output scoring, update `artisan list/help` descriptions, not only README prose and docblocks.
+- Documented CLI flows that combine `--registrar` with `--outputs` need command-level regression tests. Unit coverage of pre-registered datasets does not protect the README path if registrar dispatch order changes.
+- README saved-output happy-path examples must exactly match the golden expected output when the metric is `exact-match`; otherwise the quick-start command documents a failing run.
+- Programmatic list-shaped saved outputs are only a numeric-ID escape hatch. Validate against the dataset's numeric ID set, not declaration order, because sample order and sample IDs are separate contracts.
+- Saved-output file diagnostics should describe only supported top-level shapes. If the required `outputs` wrapper is mandatory, error text must not imply that top-level lists are accepted.

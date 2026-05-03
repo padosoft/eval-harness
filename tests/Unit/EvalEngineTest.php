@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Facades\EvalFacade;
+use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalEngineTest extends TestCase
@@ -54,6 +55,188 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(0, $report->totalFailures());
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->meanScore('exact-match'), 1e-9);
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->macroF1('exact-match'), 1e-9);
+    }
+
+    public function test_score_outputs_scores_precomputed_outputs_without_sut(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.outputs')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '2+2'], expectedOutput: '4'),
+                new DatasetSample(id: 's2', input: ['q' => '3+3'], expectedOutput: '6'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.outputs', [
+            's1' => '4',
+            's2' => 'wrong',
+        ]);
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(0, $report->totalFailures());
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('wrong', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_score_outputs_requires_every_dataset_sample(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.missing')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'b'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('missing sample ids: s2');
+
+        $engine->scoreOutputs('rag.saved.missing', ['s1' => 'a']);
+    }
+
+    public function test_score_outputs_rejects_unknown_sample_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.unknown')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('unknown sample ids: ghost');
+
+        $engine->scoreOutputs('rag.saved.unknown', ['s1' => 'a', 'ghost' => 'x']);
+    }
+
+    public function test_score_outputs_rejects_non_string_outputs(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.non-string')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Saved output for sample 's1'");
+
+        $engine->scoreOutputs('rag.saved.non-string', ['s1' => ['not' => 'a string']]);
+    }
+
+    public function test_score_outputs_rejects_list_shaped_output_arrays(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.list-shaped')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'zero')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('keyed map');
+
+        $engine->scoreOutputs('rag.saved.list-shaped', ['zero']);
+    }
+
+    public function test_score_outputs_accepts_list_shaped_arrays_for_matching_numeric_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-list-shaped')
+            ->withSamples([
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-list-shaped', ['zero', 'wrong']);
+
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+    }
+
+    public function test_score_outputs_accepts_numeric_list_arrays_independent_of_dataset_order(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-list-shaped-unordered')
+            ->withSamples([
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-list-shaped-unordered', ['zero', 'one']);
+
+        $this->assertEqualsWithDelta(1.0, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('one', $report->sampleResults[0]->actualOutput);
+        $this->assertSame('zero', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_score_outputs_rejects_empty_sample_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.empty-id')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('contain an empty sample id');
+
+        $engine->scoreOutputs('rag.saved.empty-id', ['' => 'a']);
+    }
+
+    public function test_score_outputs_preserves_sample_ids_verbatim(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.verbatim-ids')
+            ->withSamples([new DatasetSample(id: ' s1 ', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.verbatim-ids', [' s1 ' => 'a']);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
+    public function test_score_outputs_accepts_saved_outputs_dto_with_numeric_string_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-ids')
+            ->withSamples([
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-ids', new SavedOutputs([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '1', 'actual_output' => 'wrong'],
+        ]));
+
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('0', $report->sampleResults[0]->sample->id);
     }
 
     public function test_run_accepts_sample_runner_contract(): void

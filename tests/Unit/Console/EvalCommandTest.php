@@ -9,6 +9,7 @@ use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
+use Padosoft\EvalHarness\Tests\Fixtures\SavedOutputsOnlyRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -42,6 +43,144 @@ final class EvalCommandTest extends TestCase
 
         $this->artisan('eval-harness:run', ['dataset' => 'preregistered'])
             ->assertExitCode(0);
+    }
+
+    public function test_outputs_option_runs_without_bound_sut(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli',
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
+            $this->assertEqualsWithDelta(1.0, $decoded['metrics']['exact-match']['mean'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_option_runs_after_registrar_registers_dataset_without_bound_sut(): void
+    {
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    's1' => 'hello',
+                    's2' => 'world',
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'cli.saved-output-registrar',
+                '--registrar' => SavedOutputsOnlyRegistrar::class,
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame('cli.saved-output-registrar', $decoded['dataset']);
+            $this->assertSame('hello', $decoded['samples'][0]['actual_output']);
+            $this->assertSame('world', $decoded['samples'][1]['actual_output']);
+            $this->assertEqualsWithDelta(1.0, $decoded['metrics']['exact-match']['mean'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_option_surfaces_missing_sample_errors(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-missing')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'bye'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $this->assertNotFalse($outputs);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli-missing',
+                '--outputs' => $outputs,
+            ])
+                ->expectsOutputToContain('missing sample ids: s2')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
+    public function test_outputs_option_surfaces_invalid_output_file_errors(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-invalid-file')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-outputs-'.uniqid('', true).'.json';
+
+        try {
+            file_put_contents($outputs, '{not-json');
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli-invalid-file',
+                '--outputs' => $outputs,
+            ])
+                ->expectsOutputToContain('contains invalid JSON')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
+    public function test_outputs_option_requires_non_empty_path(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-empty-path')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'saved-output-cli-empty-path',
+            '--outputs' => '',
+        ])
+            ->expectsOutputToContain('The --outputs option requires a non-empty file path.')
+            ->assertExitCode(1);
     }
 
     public function test_runs_with_pre_registered_dataset_and_bound_sample_runner(): void

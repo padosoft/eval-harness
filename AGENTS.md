@@ -73,4 +73,4 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 2 is active on `task/metrics-reporting`. Current subtask branch: `task/metrics-reporting-cohorts-histogram`, focused on cohort aggregation by `metadata.tags`, histogram-ready report data, and JSON/Markdown fields needed by the separate Web UI package.
+Macro Task 2 is active on `task/metrics-reporting`. Completed subtasks on this macro branch include cohort/histogram reporting, offline metrics, and standalone saved-output scoring. Unless `docs/PROGRESS.md` records a newer active branch, the next step is macro-task validation and a PR from `task/metrics-reporting` into `main`.
