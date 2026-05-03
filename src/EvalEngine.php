@@ -51,12 +51,16 @@ final class EvalEngine
     /** @var array<string, GoldenDataset> */
     private array $datasets = [];
 
+    private readonly SerialBatch $serialBatch;
+
     public function __construct(
         private readonly Container $container,
         private readonly MetricResolver $metricResolver,
         private readonly YamlDatasetLoader $yamlLoader,
-        private readonly SerialBatch $serialBatch,
-    ) {}
+        ?SerialBatch $serialBatch = null,
+    ) {
+        $this->serialBatch = $serialBatch ?? new SerialBatch;
+    }
 
     public function dataset(string $name): DatasetBuilder
     {

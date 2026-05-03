@@ -620,3 +620,15 @@
   - `vendor/bin/phpunit` => `OK (239 tests, 522 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `89989c4` and generated one comment:
+  - adding required `SerialBatch` constructor injection to public `EvalEngine` could break direct `new EvalEngine(...)` consumers.
+- Addressed the constructor compatibility comment by making `SerialBatch` optional with an internal serial fallback and adding direct-instantiation regression coverage.
+- Targeted validation passed after the constructor compatibility fix:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php` => `OK (31 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the constructor compatibility fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (240 tests, 523 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

@@ -115,3 +115,4 @@
 - Serial execution must also reject a positive `--timeout`; validating only invalid timeout values still lets operators pass a queue-only setting that the serial runner ignores.
 - Automated `chatgpt-codex-connector` reviews can appear while `copilot-pull-request-reviewer` is still pending. Do not treat Codex as the required Copilot review, but do fix real actionable defects it catches before the next review request.
 - Batch scoring treats sample outputs as positional. Normalize programmatic dataset samples to a zero-based list during builder registration and validate direct `GoldenDataset` construction so filtered/gapped PHP array keys cannot misalign sample outputs.
+- When adding constructor dependencies to public service objects such as `EvalEngine`, keep direct-instantiation compatibility with an optional fallback even if the Laravel container binding provides the new dependency.
