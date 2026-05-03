@@ -24,8 +24,12 @@ final class CitationGroundednessMetricTest extends TestCase
         );
 
         $this->assertSame(0.5, $score->score);
-        $this->assertSame(['[doc:1]'], $score->details['matched_citations']);
-        $this->assertSame(['[doc:2]'], $score->details['missing_citations']);
+        $this->assertSame(2, $score->details['required_citation_count']);
+        $this->assertSame(1, $score->details['matched_citation_count']);
+        $this->assertSame(1, $score->details['missing_citation_count']);
+        $this->assertArrayNotHasKey('required_citations', $score->details);
+        $this->assertArrayNotHasKey('matched_citations', $score->details);
+        $this->assertArrayNotHasKey('missing_citations', $score->details);
     }
 
     public function test_accepts_single_citation_string(): void

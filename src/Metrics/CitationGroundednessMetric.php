@@ -12,7 +12,8 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  *
  * Samples declare required citation strings in metadata.citations
  * (string or string list). The metric scores the fraction of required
- * citations present verbatim in the actual output.
+ * citations present verbatim in the actual output. Report details
+ * expose counts only, not the raw metadata citation strings.
  */
 final class CitationGroundednessMetric implements Metric
 {
@@ -38,9 +39,9 @@ final class CitationGroundednessMetric implements Metric
         return new MetricScore(
             score: count($matched) / count($citations),
             details: [
-                'required_citations' => $citations,
-                'matched_citations' => $matched,
-                'missing_citations' => $missing,
+                'required_citation_count' => count($citations),
+                'matched_citation_count' => count($matched),
+                'missing_citation_count' => count($missing),
             ],
         );
     }

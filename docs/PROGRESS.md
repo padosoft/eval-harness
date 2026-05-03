@@ -372,3 +372,11 @@
   - `vendor/bin/phpunit` => `OK (176 tests, 383 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `9769c7c` and generated one comment:
+  - `citation-groundedness` should not echo raw `metadata.citations` strings into `MetricScore.details`, because report JSON serializes details verbatim.
+- Addressed the comment by exposing citation counts only and adding assertions that raw citation-string detail keys are absent.
+- Full local gate passed after the fifth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 387 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
