@@ -100,3 +100,6 @@
 - Loader tests should cover `loadFile()` directly when file extension changes parser behavior. `loadString()` and CLI tests are not enough to protect path-based JSON/YAML/extensionless branches or missing-file diagnostics.
 - Eval report timing should start at the public entry point, before runner resolution, DTO construction, and saved-output normalization. Otherwise `duration_seconds` excludes real operator-visible work.
 - Extensionless artifact support needs both JSON and YAML `loadFile()` fixtures, because the fallback order itself is part of the contract.
+- Artisan command descriptions are operator-facing contract text. When adding a new execution mode such as saved-output scoring, update `artisan list/help` descriptions, not only README prose and docblocks.
+- Documented CLI flows that combine `--registrar` with `--outputs` need command-level regression tests. Unit coverage of pre-registered datasets does not protect the README path if registrar dispatch order changes.
+- README saved-output happy-path examples must exactly match the golden expected output when the metric is `exact-match`; otherwise the quick-start command documents a failing run.

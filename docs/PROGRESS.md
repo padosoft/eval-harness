@@ -508,3 +508,16 @@
   - `vendor/bin/phpunit` => `OK (216 tests, 460 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `eab389b` and generated three comments:
+  - the Artisan command description still only mentioned the system-under-test mode,
+  - the documented `--registrar + --outputs` workflow needed command regression coverage,
+  - the README saved-output example needed to match the quick-start golden expected output for `exact-match`.
+- Addressed the comments by widening the command description, adding a no-SUT registrar fixture plus command test for `--registrar + --outputs`, and aligning the saved-output example with the golden output.
+- Targeted validation passed after the eleventh PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php` => `OK (16 tests, 44 assertions)`
+  - `vendor/bin/pint --test src/Console/EvalCommand.php tests/Unit/Console/EvalCommandTest.php tests/Fixtures/SavedOutputsOnlyRegistrar.php`
+- Full local gate passed after the eleventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (217 tests, 467 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

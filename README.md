@@ -253,7 +253,7 @@ dataset and score those outputs directly:
 {
   "outputs": {
     "capital-france": "Paris",
-    "refund-policy": "Customers have 30 days from delivery."
+    "refund-policy": "30 days from delivery."
   }
 }
 ```

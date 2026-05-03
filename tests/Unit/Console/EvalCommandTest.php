@@ -9,6 +9,7 @@ use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Tests\Fixtures\InvalidUtf8Registrar;
+use Padosoft\EvalHarness\Tests\Fixtures\SavedOutputsOnlyRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -70,6 +71,40 @@ final class EvalCommandTest extends TestCase
 
             $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
             $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
+            $this->assertEqualsWithDelta(1.0, $decoded['metrics']['exact-match']['mean'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_option_runs_after_registrar_registers_dataset_without_bound_sut(): void
+    {
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    's1' => 'hello',
+                    's2' => 'world',
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'cli.saved-output-registrar',
+                '--registrar' => SavedOutputsOnlyRegistrar::class,
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($report), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame('cli.saved-output-registrar', $decoded['dataset']);
+            $this->assertSame('hello', $decoded['samples'][0]['actual_output']);
+            $this->assertSame('world', $decoded['samples'][1]['actual_output']);
             $this->assertEqualsWithDelta(1.0, $decoded['metrics']['exact-match']['mean'], 1e-9);
         } finally {
             @unlink($outputs);

@@ -63,7 +63,7 @@ final class EvalCommand extends Command
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
 
     /** @var string */
-    protected $description = 'Run an eval-harness golden-dataset evaluation against a system-under-test.';
+    protected $description = 'Run an eval-harness golden-dataset evaluation against a system-under-test or saved outputs.';
 
     public function handle(EvalEngine $engine): int
     {
