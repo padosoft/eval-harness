@@ -69,7 +69,7 @@ final class SavedOutputsLoader
         try {
             return json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $jsonException) {
-            if ($this->looksLikeJsonPath($source)) {
+            if ($this->looksLikeJsonPath($source) || $this->looksLikeJsonDocument($contents)) {
                 throw new EvalRunException(sprintf(
                     "Saved outputs file '%s' contains invalid JSON: %s.",
                     $source,
@@ -204,5 +204,12 @@ final class SavedOutputsLoader
     private function looksLikeJsonPath(string $source): bool
     {
         return (bool) preg_match('/\.json$/i', $source);
+    }
+
+    private function looksLikeJsonDocument(string $contents): bool
+    {
+        $trimmed = ltrim($contents);
+
+        return str_starts_with($trimmed, '{') || str_starts_with($trimmed, '[');
     }
 }

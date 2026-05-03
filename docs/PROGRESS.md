@@ -415,3 +415,14 @@
   - `vendor/bin/phpunit` => `OK (193 tests, 421 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `baa7b8f` and generated seven comments:
+  - README saved-output example should use `--raw-path` when showing a literal relative `--out` path,
+  - extensionless JSON-like files should report invalid JSON instead of falling through to invalid YAML,
+  - map-form duplicate keys are collapsed by JSON/YAML parsers before package validation,
+  - several trim/numeric-map comments were already addressed by the prior fix and covered by tests.
+- Addressed the real gaps by adding `--raw-path` to the README example, detecting JSON-like extensionless contents before YAML fallback, adding regression coverage, and recording the parser duplicate-key limitation in `LESSON.md`.
+- Full local gate passed after the second PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (194 tests, 423 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

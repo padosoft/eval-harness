@@ -99,4 +99,12 @@ final class SavedOutputsLoaderTest extends TestCase
 
         (new SavedOutputsLoader)->loadString('{not-json', 'outputs.json');
     }
+
+    public function test_rejects_json_like_extensionless_contents_without_yaml_fallback(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('contains invalid JSON');
+
+        (new SavedOutputsLoader)->loadString('{"outputs":', 'artifact');
+    }
 }

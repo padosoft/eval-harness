@@ -88,3 +88,4 @@
 - `gh pr merge --delete-branch` can merge successfully but exit non-zero if deleting the remote head branch times out. Verify PR state before retrying only the branch cleanup.
 - Standalone output scoring should validate completeness before metric execution: missing and unknown sample ids are dataset-level run errors, not captured per-metric failures.
 - Preserve dataset sample IDs verbatim in saved-output workflows. The dataset contract only rejects the empty string, so trimming IDs creates false missing/unknown failures.
+- JSON/YAML duplicate keys in map form are collapsed by standard parsers before package code sees them. Duplicate saved-output detection is reliable for list form; do not over-claim duplicate-key validation for maps.

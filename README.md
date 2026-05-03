@@ -262,13 +262,15 @@ dataset and score those outputs directly:
 php artisan eval-harness:run rag.factuality.fy2026 \
   --registrar="App\\Console\\EvalRegistrar" \
   --outputs=eval/outputs/factuality.json \
-  --json --out=storage/eval-results/factuality.json
+  --json --out=storage/eval-results/factuality.json --raw-path
 ```
 
 `--outputs` accepts JSON or YAML, map form (`outputs.sample_id`) or
-list form (`outputs[].id` + `outputs[].actual_output`). The registrar
-still registers the dataset; no `eval-harness.sut` binding is required
-for this mode.
+list form (`outputs[].id` + `outputs[].actual_output`). `--raw-path`
+makes the example write to the literal relative path shown; omit it
+to use the configured reports disk and prefix. The registrar still
+registers the dataset; no `eval-harness.sut` binding is required for
+this mode.
 
 ### 5. Read the report
 
