@@ -186,3 +186,4 @@
 - Resuming a manifest entry left in `running` state should reset `started_at` when the dataset is re-run. Otherwise completed duration includes downtime from the interrupted attempt.
 - Horizon guidance should distinguish package knobs from Horizon knobs: `--concurrency` is the eval-harness producer window, Horizon process counts are worker concurrency, job `--timeout` should be lower than Horizon supervisor timeout, and queue `retry_after` should be greater than the Horizon timeout.
 - Handoff docs should not name an in-flight subtask branch if the same text will be merged into the macro branch. Point future agents at `docs/PROGRESS.md` and `git status` so the branch state does not go stale immediately after merge.
+- Queue/Horizon command examples should stay internally consistent: include the same `--queue` that the Horizon supervisor listens on, and avoid reusing quick-start registrar names when those examples bind closure SUTs that lazy-parallel mode rejects.

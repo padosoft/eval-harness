@@ -1061,3 +1061,10 @@
   - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #16 again at head `570a976` and generated two actionable comments: the timeout-sizing command omitted `--queue=evals`, and the registrar name could steer readers toward the closure-based quick-start registrar that lazy-parallel rejects.
+- Addressed the second PR #16 Copilot round by using a queue-specific registrar name, adding a concrete `SampleRunner` binding snippet, noting the closure quick-start registrar is serial-only, and keeping `--queue=evals` in the timeout-sizing command.
+- Full local gate passed after the second PR #16 Copilot docs fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

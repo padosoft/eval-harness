@@ -31,7 +31,7 @@ EVAL_HARNESS_BATCH_WAIT_TIMEOUT=300
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
-  --registrar="App\\Console\\EvalRegistrar" \
+  --registrar="App\\Console\\EvalQueueRegistrar" \
   --batch=lazy-parallel \
   --concurrency=20 \
   --queue=evals \
@@ -44,6 +44,17 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 `--concurrency` is the producer window size: it controls how many sample jobs
 the command dispatches before waiting for that window. Actual worker
 concurrency is controlled by Horizon supervisor process counts.
+
+Use a queue-specific registrar, or update the host app's existing registrar, so
+it binds the SUT to a concrete `SampleRunner` class:
+
+```php
+use App\Eval\MyRagRunner;
+
+$this->app->bind('eval-harness.sut', MyRagRunner::class);
+```
+
+The closure-based quick-start registrar remains valid for serial mode only.
 
 ## Horizon Supervisor Example
 
@@ -102,6 +113,7 @@ Example sizing for `--timeout=60`:
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
   --batch=lazy-parallel \
+  --queue=evals \
   --timeout=60 \
   --batch-timeout=300
 ```
