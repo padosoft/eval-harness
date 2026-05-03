@@ -17,7 +17,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
+        $this->assertSame([
+            ['id' => 's1', 'actual_output' => 'answer one'],
+            ['id' => 's2', 'actual_output' => 'answer two'],
+        ], $outputs->entries());
     }
 
     public function test_loads_json_outputs_list(): void
@@ -27,7 +30,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
+        $this->assertSame([
+            ['id' => 's1', 'actual_output' => 'answer one'],
+            ['id' => 's2', 'actual_output' => 'answer two'],
+        ], $outputs->entries());
     }
 
     public function test_loads_json_numeric_key_outputs_map(): void
@@ -50,7 +56,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.yaml',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
+        $this->assertSame([
+            ['id' => 's1', 'actual_output' => 'answer one'],
+            ['id' => 's2', 'actual_output' => 'answer two'],
+        ], $outputs->entries());
     }
 
     public function test_loads_yaml_outputs_map(): void
@@ -60,7 +69,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.yaml',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
+        $this->assertSame([
+            ['id' => 's1', 'actual_output' => 'answer one'],
+            ['id' => 's2', 'actual_output' => 'answer two'],
+        ], $outputs->entries());
     }
 
     public function test_loads_yaml_numeric_key_outputs_map(): void
@@ -83,7 +95,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'artifact',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
+        $this->assertSame([
+            ['id' => 's1', 'actual_output' => 'answer one'],
+            ['id' => 's2', 'actual_output' => 'answer two'],
+        ], $outputs->entries());
     }
 
     public function test_preserves_sample_ids_verbatim(): void

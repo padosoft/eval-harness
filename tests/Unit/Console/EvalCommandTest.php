@@ -106,6 +106,31 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_outputs_option_surfaces_invalid_output_file_errors(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-cli-invalid-file')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-outputs-'.uniqid('', true).'.json';
+
+        try {
+            file_put_contents($outputs, '{not-json');
+
+            $this->artisan('eval-harness:run', [
+                'dataset' => 'saved-output-cli-invalid-file',
+                '--outputs' => $outputs,
+            ])
+                ->expectsOutputToContain('contains invalid JSON')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
     public function test_outputs_option_requires_non_empty_path(): void
     {
         /** @var EvalEngine $engine */

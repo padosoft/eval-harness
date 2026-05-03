@@ -21,11 +21,25 @@ final class SavedOutputs
      */
     public function __construct(array $entries)
     {
+        $normalizedEntries = [];
         $seen = [];
         foreach ($entries as $index => $entry) {
-            $id = $entry['id'];
+            $id = $entry['id'] ?? null;
+            if (! is_string($id)) {
+                throw new EvalRunException(sprintf('Saved output entry at index %d must contain a string id.', $index));
+            }
+
             if ($id === '') {
                 throw new EvalRunException(sprintf('Saved output entry at index %d contains an empty sample id.', $index));
+            }
+
+            $actualOutput = $entry['actual_output'] ?? null;
+            if (! is_string($actualOutput)) {
+                throw new EvalRunException(sprintf(
+                    "Saved output entry for sample '%s' at index %d must contain a string actual_output.",
+                    $id,
+                    $index,
+                ));
             }
 
             if (array_key_exists($id, $seen)) {
@@ -33,9 +47,10 @@ final class SavedOutputs
             }
 
             $seen[$id] = true;
+            $normalizedEntries[] = ['id' => $id, 'actual_output' => $actualOutput];
         }
 
-        $this->entries = $entries;
+        $this->entries = $normalizedEntries;
     }
 
     /**
@@ -71,18 +86,5 @@ final class SavedOutputs
     public function entries(): array
     {
         return $this->entries;
-    }
-
-    /**
-     * @return array<array-key, string>
-     */
-    public function toMap(): array
-    {
-        $map = [];
-        foreach ($this->entries as $entry) {
-            $map[$entry['id']] = $entry['actual_output'];
-        }
-
-        return $map;
     }
 }

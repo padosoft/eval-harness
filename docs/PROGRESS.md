@@ -459,3 +459,14 @@
   - `vendor/bin/phpunit` => `OK (203 tests, 439 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `fcc29cb` and generated four comments:
+  - `SavedOutputs::toMap()` reintroduced numeric-key coercion,
+  - the public `SavedOutputs` constructor needed runtime shape validation,
+  - `scoreOutputs()` needed an engine-level DTO regression for numeric-string ids,
+  - CLI `--outputs` needed coverage for invalid saved-output files.
+- Addressed the comments by removing `toMap()`, validating constructor entries, adding engine/DTO/CLI regression tests, and keeping direct loader assertions on `entries()`.
+- Full local gate passed after the sixth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (207 tests, 447 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

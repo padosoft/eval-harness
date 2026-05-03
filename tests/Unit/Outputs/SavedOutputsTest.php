@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\EvalHarness\Tests\Unit\Outputs;
+
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Outputs\SavedOutputs;
+use PHPUnit\Framework\TestCase;
+
+final class SavedOutputsTest extends TestCase
+{
+    public function test_constructor_rejects_missing_actual_output(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('actual_output');
+
+        new SavedOutputs([
+            ['id' => 's1'],
+        ]);
+    }
+
+    public function test_constructor_rejects_non_string_id(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('string id');
+
+        new SavedOutputs([
+            ['id' => 123, 'actual_output' => 'answer'],
+        ]);
+    }
+}

@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Facades\EvalFacade;
+use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalEngineTest extends TestCase
@@ -160,6 +161,28 @@ final class EvalEngineTest extends TestCase
         $report = $engine->scoreOutputs('rag.saved.verbatim-ids', [' s1 ' => 'a']);
 
         $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
+    public function test_score_outputs_accepts_saved_outputs_dto_with_numeric_string_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-ids')
+            ->withSamples([
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-ids', new SavedOutputs([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '1', 'actual_output' => 'wrong'],
+        ]));
+
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('0', $report->sampleResults[0]->sample->id);
     }
 
     public function test_run_accepts_sample_runner_contract(): void
