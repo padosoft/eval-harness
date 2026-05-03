@@ -807,3 +807,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding four lazy-parallel/cache/engine tests. README has no test-count claim; PR #14 body was updated from `278 tests, 597 assertions` to `282 tests, 605 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `73dcdff` and generated four comments:
+  - external collection should not abort a batch after caller-side validation errors such as a reordered sample list,
+  - `assertInvocationList()` should reject non-`SampleInvocation` entries before job construction can throw a `TypeError`,
+  - `EvalHarnessServiceProvider` should use `TimeoutNormalizer` instead of raw casts for lazy-parallel TTL and wait-timeout config,
+  - a Macro Task 3 roadmap sentence needed grammar cleanup.
+- Addressed the eighth PR #14 Copilot round by letting failed external collection reads leave the active batch retryable, validating invocation entry types with `EvalRunException`, normalizing lazy-parallel config timeouts in the service provider, and rewording the roadmap item.
+- Targeted validation passed after the eighth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php` => `OK (73 tests, 141 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/EvalHarnessServiceProvider.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/ServiceProviderTest.php docs/ROADMAP_IMPLEMENTATION_PLAN.md`
+- Full local gate passed after the eighth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (285 tests, 611 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-parallel/service-provider tests. README has no test-count claim; PR #14 body was updated from `282 tests, 605 assertions` to `285 tests, 611 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

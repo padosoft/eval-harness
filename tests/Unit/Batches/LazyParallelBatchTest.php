@@ -159,6 +159,31 @@ final class LazyParallelBatchTest extends TestCase
         $batch->collectOutputs('wrong-sample-batch', $samples);
     }
 
+    public function test_collect_outputs_validation_errors_do_not_close_batch_for_retry(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchResultStore $store */
+        $store = $this->app->make(BatchResultStore::class);
+        $samples = $this->samples();
+
+        $store->start('retryable-collect-batch', 2, 60);
+        $store->recordSuccess('retryable-collect-batch', 0, 's1', 'first output', 60);
+        $store->recordSuccess('retryable-collect-batch', 1, 's2', 'second output', 60);
+
+        try {
+            $batch->collectOutputs('retryable-collect-batch', [$samples[1], $samples[0]]);
+            $this->fail('Expected reordered sample collection to fail.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString("belongs to sample 's1'; expected 's2'", $e->getMessage());
+        }
+
+        $this->assertSame(
+            ['first output', 'second output'],
+            $batch->collectOutputs('retryable-collect-batch', $samples),
+        );
+    }
+
     public function test_run_honors_concurrency_windows_before_dispatching_more_jobs(): void
     {
         $samples = [
@@ -277,6 +302,26 @@ final class LazyParallelBatchTest extends TestCase
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: $runner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_rejects_non_sample_invocation_entries(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        /** @var list<SampleInvocation> $invalidInvocations */
+        $invalidInvocations = [(object) ['id' => 's1']];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be an instance of '.SampleInvocation::class);
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $invalidInvocations,
+            runner: new LazyParallelAnswerRunner,
             options: BatchOptions::lazyParallel(),
         );
     }

@@ -201,18 +201,12 @@ final class LazyParallelBatch
 
         $sampleCount = $storedSampleCount;
 
-        try {
-            $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
-            if ($outputsByIndex !== null) {
-                ksort($outputsByIndex);
-                $this->finishResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
+        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
+        if ($outputsByIndex !== null) {
+            ksort($outputsByIndex);
+            $this->finishResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
 
-                return array_values($outputsByIndex);
-            }
-        } catch (Throwable $e) {
-            $this->abortResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
-
-            throw $e;
+            return array_values($outputsByIndex);
         }
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
@@ -350,7 +344,7 @@ final class LazyParallelBatch
 
     /**
      * @param  list<DatasetSample>  $samples
-     * @param  list<SampleInvocation>  $sampleInvocations
+     * @param  list<mixed>  $sampleInvocations
      */
     private function assertInvocationList(array $samples, array $sampleInvocations): void
     {
@@ -368,6 +362,16 @@ final class LazyParallelBatch
             }
 
             $sampleInvocation = $sampleInvocations[$index];
+            if (! $sampleInvocation instanceof SampleInvocation) {
+                throw new EvalRunException(sprintf(
+                    "SampleInvocation for sample '%s' at index %d must be an instance of %s; got %s.",
+                    $sample->id,
+                    $index,
+                    SampleInvocation::class,
+                    get_debug_type($sampleInvocation),
+                ));
+            }
+
             if ($sampleInvocation->id !== $sample->id) {
                 throw new EvalRunException(sprintf(
                     "SampleInvocation at index %d must match dataset sample '%s'; got '%s'.",

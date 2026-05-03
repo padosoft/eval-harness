@@ -17,6 +17,7 @@ use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * Package service provider.
@@ -80,8 +81,14 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new LazyParallelBatch(
                 dispatcher: $app->make(Dispatcher::class),
                 resultStore: $app->make(BatchResultStore::class),
-                resultTtlSeconds: (int) $config->get('eval-harness.batches.lazy_parallel.result_ttl_seconds', 3600),
-                defaultWaitTimeoutSeconds: (int) $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds', 60),
+                resultTtlSeconds: TimeoutNormalizer::normalize(
+                    $config->get('eval-harness.batches.lazy_parallel.result_ttl_seconds'),
+                    3600,
+                ),
+                defaultWaitTimeoutSeconds: TimeoutNormalizer::normalize(
+                    $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
+                    60,
+                ),
             );
         });
 

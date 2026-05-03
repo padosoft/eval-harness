@@ -84,6 +84,23 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame(120, $wait->getValue($batch));
     }
 
+    public function test_lazy_parallel_batch_normalizes_invalid_ttl_and_wait_timeout_config(): void
+    {
+        config([
+            'eval-harness.batches.lazy_parallel.result_ttl_seconds' => '',
+            'eval-harness.batches.lazy_parallel.wait_timeout_seconds' => 'not-a-number',
+        ]);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+
+        $ttl = new \ReflectionProperty($batch, 'resultTtlSeconds');
+        $wait = new \ReflectionProperty($batch, 'defaultWaitTimeoutSeconds');
+
+        $this->assertSame(3600, $ttl->getValue($batch));
+        $this->assertSame(60, $wait->getValue($batch));
+    }
+
     public function test_batch_result_store_uses_configured_cache_store(): void
     {
         /** @var CacheFactory $cacheFactory */
