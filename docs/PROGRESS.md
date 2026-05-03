@@ -1075,3 +1075,10 @@
   - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened macro PR #17 (`task/parallel-batch-queues` -> `main`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 17 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
+- Copilot reviewed PR #17 at head `0765b71` and generated one actionable comment: README's lazy-parallel command still used the closure-oriented quick-start registrar name. Updated the README lazy-parallel example to use `App\\Console\\EvalQueueRegistrar`.
+- Full local gate passed after the PR #17 Copilot README fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

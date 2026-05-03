@@ -427,7 +427,7 @@ $this->app->bind('eval-harness.sut', MyRagRunner::class);
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
-  --registrar="App\\Console\\EvalRegistrar" \
+  --registrar="App\\Console\\EvalQueueRegistrar" \
   --batch=lazy-parallel \
   --concurrency=4 \
   --queue=evals \
