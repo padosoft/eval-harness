@@ -251,7 +251,7 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('did not produce outputs within 1 seconds');
+        $this->expectExceptionMessage('did not produce outputs within 1 second');
         $this->expectExceptionMessage('Increase the batch wait timeout');
 
         $batch->run(
@@ -364,6 +364,30 @@ final class LazyParallelBatchTest extends TestCase
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
             return $job->runnerClass === DependencyInjectedLazyParallelRunner::class;
+        });
+    }
+
+    public function test_allows_constructor_injected_dependencies_stored_under_different_property_names(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+        );
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new RenamedDependencyLazyParallelRunner(new LazyParallelRunnerDependency),
+            options: BatchOptions::lazyParallel(),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->runnerClass === RenamedDependencyLazyParallelRunner::class;
         });
     }
 
@@ -494,6 +518,21 @@ final class DependencyInjectedLazyParallelRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         return get_debug_type($this->dependency);
+    }
+}
+
+final class RenamedDependencyLazyParallelRunner implements SampleRunner
+{
+    private readonly LazyParallelRunnerDependency $service;
+
+    public function __construct(LazyParallelRunnerDependency $dependency)
+    {
+        $this->service = $dependency;
+    }
+
+    public function run(SampleInvocation $sample): string
+    {
+        return get_debug_type($this->service);
     }
 }
 

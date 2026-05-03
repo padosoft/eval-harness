@@ -258,9 +258,9 @@ final class LazyParallelBatch
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
 
         throw new EvalRunException(sprintf(
-            "Lazy parallel batch '%s' did not produce outputs within %d seconds for sample ids: %s. Increase the batch wait timeout, confirm queue workers are running, and confirm the batch result cache is shared with workers.",
+            "Lazy parallel batch '%s' did not produce outputs within %s for sample ids: %s. Increase the batch wait timeout, confirm queue workers are running, and confirm the batch result cache is shared with workers.",
             $batchId,
-            $timeoutSeconds,
+            $this->secondsLabel($timeoutSeconds),
             implode(', ', $missingSampleIds),
         ));
     }
@@ -441,7 +441,6 @@ final class LazyParallelBatch
         }
 
         $constructor = (new ReflectionClass($runnerClass))->getConstructor();
-        $containerDependencyProperties = [];
         if ($constructor !== null) {
             foreach ($constructor->getParameters() as $parameter) {
                 $type = $parameter->getType();
@@ -451,11 +450,9 @@ final class LazyParallelBatch
                     );
                 }
 
-                $containerDependencyProperties[] = $parameter->getName();
             }
         }
 
-        $containerDependencyProperties = array_flip($containerDependencyProperties);
         foreach ((new ReflectionClass($runnerClass))->getProperties() as $property) {
             if ($property->isStatic() || ! $property->isInitialized($runner)) {
                 continue;
@@ -463,7 +460,7 @@ final class LazyParallelBatch
 
             $property->setAccessible(true);
             $value = $property->getValue($runner);
-            if (! array_key_exists($property->getName(), $containerDependencyProperties) || ! is_object($value)) {
+            if (! is_object($value)) {
                 throw new EvalRunException(
                     'Lazy parallel batch mode requires a container-resolvable SampleRunner class; preconfigured runner instance state remains serial-only because queued workers resolve a fresh runner by class name.',
                 );
@@ -626,5 +623,10 @@ final class LazyParallelBatch
         } catch (RandomException $e) {
             throw new EvalRunException('Failed to generate a lazy parallel batch id.', previous: $e);
         }
+    }
+
+    private function secondsLabel(int $seconds): string
+    {
+        return sprintf('%d %s', $seconds, $seconds === 1 ? 'second' : 'seconds');
     }
 }

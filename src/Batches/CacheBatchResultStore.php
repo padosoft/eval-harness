@@ -43,15 +43,7 @@ final class CacheBatchResultStore implements BatchResultStore
             return null;
         }
 
-        $sampleCount = $payload['sample_count'] ?? null;
-        if (! is_int($sampleCount) || $sampleCount < 0) {
-            throw new EvalRunException(sprintf(
-                "Stored lazy parallel batch metadata for batch '%s' is invalid.",
-                $batchId,
-            ));
-        }
-
-        return $sampleCount;
+        return $payload['sample_count'];
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -241,13 +233,40 @@ final class CacheBatchResultStore implements BatchResultStore
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array{sample_count: int, status: string}|null
      */
     private function metaPayload(string $batchId): ?array
     {
         $payload = $this->cache->get($this->metaKey($batchId));
 
-        return is_array($payload) ? $payload : null;
+        if ($payload === null) {
+            return null;
+        }
+
+        if (! is_array($payload)) {
+            $this->throwInvalidMetadata($batchId);
+        }
+
+        $sampleCount = $payload['sample_count'] ?? null;
+        $status = $payload['status'] ?? null;
+        if (
+            ! is_int($sampleCount)
+            || $sampleCount < 0
+            || ! is_string($status)
+            || ! in_array($status, [self::STATUS_ACTIVE, self::STATUS_ABORTED, self::STATUS_FINISHED], true)
+        ) {
+            $this->throwInvalidMetadata($batchId);
+        }
+
+        return ['sample_count' => $sampleCount, 'status' => $status];
+    }
+
+    private function throwInvalidMetadata(string $batchId): never
+    {
+        throw new EvalRunException(sprintf(
+            "Stored lazy parallel batch metadata for batch '%s' is invalid.",
+            $batchId,
+        ));
     }
 
     /**

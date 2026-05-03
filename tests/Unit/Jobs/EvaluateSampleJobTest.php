@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Jobs;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Jobs\EvaluateSampleJob;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -40,6 +41,22 @@ final class EvaluateSampleJobTest extends TestCase
             0 => ['sample_id' => 's1', 'error' => 'worker timed out'],
         ], $store->failures('batch-1', 1));
         $this->assertTrue($job->failOnTimeout);
+    }
+
+    public function test_constructor_rejects_invalid_timeout_seconds(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Queued sample timeout must be null or greater than or equal to 1 second');
+
+        new EvaluateSampleJob(
+            batchId: 'batch-1',
+            index: 0,
+            sampleId: 's1',
+            sample: new SampleInvocation(id: 's1', input: ['answer' => 'ok']),
+            runnerClass: JobAnswerRunner::class,
+            resultTtlSeconds: 60,
+            timeoutSeconds: 0,
+        );
     }
 
     /**

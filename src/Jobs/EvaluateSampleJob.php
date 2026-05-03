@@ -47,6 +47,10 @@ final class EvaluateSampleJob implements ShouldQueue
             throw new EvalRunException('Batch result TTL must be greater than or equal to 1 second.');
         }
 
+        if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
+            throw new EvalRunException('Queued sample timeout must be null or greater than or equal to 1 second.');
+        }
+
         if (! is_a($runnerClass, SampleRunner::class, true)) {
             throw new EvalRunException(sprintf(
                 "Queued sample runner '%s' must implement %s.",

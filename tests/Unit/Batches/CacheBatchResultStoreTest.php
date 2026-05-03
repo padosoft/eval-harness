@@ -42,6 +42,20 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->successfulResults('invalid-output', 1, [0]);
     }
 
+    public function test_reads_report_invalid_cached_batch_metadata(): void
+    {
+        $store = $this->store();
+        $this->cache->put($this->metaKey('invalid-meta'), [
+            'sample_count' => 1,
+            'status' => 'unknown',
+        ], 60);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Stored lazy parallel batch metadata for batch 'invalid-meta' is invalid");
+
+        $store->successfulResults('invalid-meta', 1, [0]);
+    }
+
     public function test_failures_reports_invalid_cached_failure_payloads(): void
     {
         $store = $this->store();
@@ -144,6 +158,11 @@ final class CacheBatchResultStoreTest extends TestCase
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('eval-harness:batch-results:%s:result:%d', $batchId, $index);
+    }
+
+    private function metaKey(string $batchId): string
+    {
+        return sprintf('eval-harness:batch-results:%s:meta', $batchId);
     }
 }
 
