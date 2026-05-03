@@ -1254,3 +1254,15 @@
   - `vendor/bin/phpunit` => `OK (401 tests, 877 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #21 again at head `73b3bcb` after the non-finite usage fix; CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, and PR #21 merged into `task/advanced-metrics` at `13ac58b`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-runtime-options` from `task/advanced-metrics`.
+- Implemented runtime guardrails: normalized runtime config for `raise_exceptions` and provider retries, opt-in retry loops for OpenAI-compatible embedding/judge clients on transport errors/HTTP 429/5xx, and strict metric exception propagation when configured.
+- Updated README's comparison matrix with runtime retry/strict exception controls and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the runtime guardrail slice:
+  - `vendor/bin/phpunit tests/Unit/Support/RuntimeOptionsTest.php tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/EvalEngineTest.php tests/Unit/ServiceProviderTest.php` => `OK (67 tests, 149 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the runtime guardrail slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (412 tests, 918 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

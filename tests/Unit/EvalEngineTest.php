@@ -15,6 +15,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Facades\EvalFacade;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
@@ -738,6 +739,29 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1, $report->totalFailures());
         $this->assertSame('s1', $report->failures[0]->sampleId);
         $this->assertSame('llm-as-judge', $report->failures[0]->metricName);
+    }
+
+    public function test_metric_failure_can_be_raised_by_runtime_config(): void
+    {
+        config(['eval-harness.runtime.raise_exceptions' => 'true']);
+        Http::fake([
+            '*' => Http::response('boom', 500),
+        ]);
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.failing.judge.strict')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['question' => 'q'], expectedOutput: 'e'),
+            ])
+            ->withMetrics(['llm-as-judge'])
+            ->register();
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('LLM judge request failed');
+
+        $engine->run('rag.failing.judge.strict', fn () => 'a');
     }
 
     public function test_sut_must_return_string(): void

@@ -75,6 +75,9 @@ final class ServiceProviderTest extends TestCase
         $endpoint = config('eval-harness.metrics.cosine_embedding.endpoint');
         $this->assertIsString($endpoint);
         $this->assertNotEmpty($endpoint);
+        $this->assertFalse(config('eval-harness.runtime.raise_exceptions'));
+        $this->assertSame(0, config('eval-harness.runtime.provider_retry_attempts'));
+        $this->assertSame(100, config('eval-harness.runtime.provider_retry_sleep_milliseconds'));
         $this->assertSame(3600, config('eval-harness.batches.lazy_parallel.result_ttl_seconds'));
         $this->assertSame(60, config('eval-harness.batches.lazy_parallel.wait_timeout_seconds'));
     }

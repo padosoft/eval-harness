@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Embeddings;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Exceptions\MetricException;
@@ -67,6 +68,74 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $this->expectExceptionMessage('Embeddings request failed');
 
         $client->embedMany(['one']);
+    }
+
+    public function test_retryable_http_failures_are_retried(): void
+    {
+        config([
+            'eval-harness.metrics.cosine_embedding.endpoint' => 'https://embeddings.test/v1',
+            'eval-harness.runtime.provider_retry_attempts' => 1,
+            'eval-harness.runtime.provider_retry_sleep_milliseconds' => 0,
+        ]);
+
+        Http::fake([
+            'https://embeddings.test/v1' => Http::sequence()
+                ->push('try again', 500)
+                ->push(['data' => [['embedding' => [1, '2']]]], 200),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->assertSame([[1.0, 2.0]], $client->embedMany(['one']));
+        Http::assertSentCount(2);
+    }
+
+    public function test_non_retryable_http_failures_are_not_retried(): void
+    {
+        config([
+            'eval-harness.runtime.provider_retry_attempts' => 3,
+            'eval-harness.runtime.provider_retry_sleep_milliseconds' => 0,
+        ]);
+
+        Http::fake(['*' => Http::response('bad request', 400)]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        try {
+            $client->embedMany(['one']);
+            $this->fail('Expected non-retryable HTTP failure to throw.');
+        } catch (MetricException $e) {
+            $this->assertStringContainsString('Embeddings request failed', $e->getMessage());
+        }
+
+        Http::assertSentCount(1);
+    }
+
+    public function test_transport_errors_are_retried(): void
+    {
+        config([
+            'eval-harness.runtime.provider_retry_attempts' => 1,
+            'eval-harness.runtime.provider_retry_sleep_milliseconds' => 0,
+        ]);
+
+        $calls = 0;
+        Http::fake(function () use (&$calls) {
+            $calls++;
+
+            if ($calls === 1) {
+                throw new ConnectionException('network down');
+            }
+
+            return Http::response(['data' => [['embedding' => [0.5]]]], 200);
+        });
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->assertSame([[0.5]], $client->embedMany(['one']));
+        $this->assertSame(2, $calls);
     }
 
     public function test_malformed_vector_count_throws_metric_exception(): void

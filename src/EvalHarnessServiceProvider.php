@@ -118,6 +118,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 metricResolver: $app->make(MetricResolver::class),
                 yamlLoader: $app->make(YamlDatasetLoader::class),
                 serialBatch: $app->make(SerialBatch::class),
+                config: $app->make(ConfigRepository::class),
             );
         });
     }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 return [
@@ -57,6 +58,34 @@ return [
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Runtime guardrails
+    |--------------------------------------------------------------------------
+    |
+    | Metric failures are captured into reports by default. Enable
+    | `raise_exceptions` for strict CI lanes that should abort on the first
+    | metric/provider error instead. Provider retries are extra attempts after
+    | the initial request and only apply to transient transport errors, HTTP
+    | 429, and 5xx responses.
+    |
+    */
+
+    'runtime' => [
+        'raise_exceptions' => RuntimeOptions::normalizeBoolean(
+            env('EVAL_HARNESS_RAISE_EXCEPTIONS'),
+            false,
+        ),
+        'provider_retry_attempts' => RuntimeOptions::normalizeNonNegativeInt(
+            env('EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS'),
+            0,
+        ),
+        'provider_retry_sleep_milliseconds' => RuntimeOptions::normalizeNonNegativeInt(
+            env('EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS'),
+            100,
+        ),
     ],
 
     /*

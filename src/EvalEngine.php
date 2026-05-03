@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness;
 
 use Closure;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
@@ -25,6 +26,7 @@ use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
+use Padosoft\EvalHarness\Support\RuntimeOptions;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
@@ -64,6 +66,7 @@ final class EvalEngine
         private readonly YamlDatasetLoader $yamlLoader,
         ?SerialBatch $serialBatch = null,
         ?LazyParallelBatch $lazyParallelBatch = null,
+        private readonly ?ConfigRepository $config = null,
     ) {
         $this->serialBatch = $serialBatch ?? new SerialBatch;
         $this->lazyParallelBatch = $lazyParallelBatch;
@@ -318,6 +321,10 @@ final class EvalEngine
             try {
                 $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
             } catch (Throwable $e) {
+                if ($this->shouldRaiseMetricExceptions()) {
+                    throw $e;
+                }
+
                 $failures[] = new SampleFailure(
                     sampleId: $sample->id,
                     metricName: $metric->name(),
@@ -331,6 +338,15 @@ final class EvalEngine
             actualOutput: $actualOutput,
             metricScores: $metricScores,
         );
+    }
+
+    private function shouldRaiseMetricExceptions(): bool
+    {
+        if ($this->config === null) {
+            return false;
+        }
+
+        return RuntimeOptions::raiseMetricExceptions($this->config);
     }
 
     /**
