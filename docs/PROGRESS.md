@@ -316,3 +316,75 @@
   - `vendor/bin/phpunit` => `OK (153 tests, 339 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+
+## 2026-05-03
+
+- Started subtask branch `task/metrics-reporting-offline-metrics` from `task/metrics-reporting`.
+- Implemented offline metric aliases and classes:
+  - `contains`,
+  - `regex`,
+  - `rouge-l`,
+  - `citation-groundedness` baseline over `metadata.citations`.
+- Updated README feature/comparison/roadmap text to reflect seven built-in metrics and implemented ROUGE-L/citation baseline.
+- Full local gate passed before opening the offline metrics subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (170 tests, 372 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Codex reviewed PR #10 at head `dbf9815` and generated two comments:
+  - `contains` should reject empty `expected_output`,
+  - ROUGE-L should use Unicode-aware lowercasing.
+- Copilot reviewed PR #10 at head `dbf9815` and generated two comments:
+  - invalid regex errors should not append misleading `preg_last_error_msg()` text,
+  - ROUGE-L tokenization should handle invalid UTF-8 deterministically.
+- Addressed those comments with empty-needle validation, a clearer regex invalid-pattern error, UTF-8 validation, Unicode-aware lowercasing, and new regression tests.
+- Full local gate passed after the first PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (173 tests, 377 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `601f653` and generated two comments:
+  - `Metric` docs should point to the public `MetricResolver::aliases()` accessor instead of the private alias map,
+  - regex failures should not always blame an invalid pattern because `preg_match()` can also fail on subject/modifier execution errors.
+- Addressed those comments by fixing the docblock, generalizing the regex evaluation failure message, preserving PCRE error details when available, and adding coverage for `/u` plus invalid UTF-8 input.
+- Full local gate passed after the second PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `3d127c4` and generated one comment:
+  - ROUGE-L Unicode lowercasing should not depend on environment-specific `mb_strtolower()` availability.
+- Addressed the comment by adding `symfony/polyfill-mbstring` as a direct dependency and making ROUGE-L call `mb_strtolower()` unconditionally.
+- Full local gate passed after the third PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `82585fc` and generated five comments:
+  - reflow the `Metric` docblock sentence,
+  - add a dated `PROGRESS.md` section for the new work,
+  - keep the Composer `require` section sorted,
+  - remove stale `mb_strtolower()` conditional wording from `LESSON.md`,
+  - add a ROUGE-L input-size guard before the quadratic LCS pass.
+- Addressed those comments with documentation fixes, Composer ordering, a configurable ROUGE-L token cap, and regression coverage for cap enforcement.
+- Full local gate passed after the fourth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 383 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `9769c7c` and generated one comment:
+  - `citation-groundedness` should not echo raw `metadata.citations` strings into `MetricScore.details`, because report JSON serializes details verbatim.
+- Addressed the comment by exposing citation counts only and adding assertions that raw citation-string detail keys are absent.
+- Full local gate passed after the fifth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 387 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `50ae046` and generated one comment:
+  - ROUGE-L should clamp its floating-point F1 score before constructing `MetricScore`.
+- Addressed the comment by clamping the final score, exposing raw/clamped score diagnostics, and adding regression coverage for floating-point overshoot/undershoot.
+- Full local gate passed after the sixth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (177 tests, 390 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

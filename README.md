@@ -96,8 +96,10 @@ surface small and the offline path fast.
 
 ## Features
 
-- **Three metrics out of the box** — `exact-match`, `cosine-embedding`,
-  `llm-as-judge` — and a clean `Metric` interface for adding more.
+- **Seven metrics out of the box** — `exact-match`, `contains`,
+  `regex`, `rouge-l`, `citation-groundedness`,
+  `cosine-embedding`, `llm-as-judge` — and a clean `Metric`
+  interface for adding more.
 - **Strict-schema YAML loader** — versioned dataset contracts and
   actionable validation errors for malformed samples.
 - **Deterministic LLM-as-judge** — temperature 0, seed 42,
@@ -128,7 +130,7 @@ surface small and the offline path fast.
 | Language | Python | Python / TS | Python | TS / YAML | Python | **PHP / Laravel** |
 | Runs in your Laravel app | No | No | No | No | No | **Yes** |
 | Storage | OpenAI cloud | LangSmith cloud | Local | Local | Local | **Local YAML + JSON** |
-| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **3 + interface** |
+| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **7 + interface** |
 | LLM-as-judge | Yes | Yes | Yes | Yes | Yes | **Yes (deterministic)** |
 | Provider | OpenAI-only | Multi | Multi | Multi | Multi | **Any OpenAI-compatible** |
 | CI integration | Manual | API hook | Manual | CLI gate | CLI gate | **Artisan + CI matrix** |
@@ -531,9 +533,9 @@ accidentally and never burns API credits.
   queues (`SerialBatch`, `LazyParallelBatch`).
 - **Standalone output assertions** — score saved outputs without
   invoking an agent, closing the Promptfoo-style CI workflow gap.
-- **More built-in metrics**: ROUGE-L, BERTScore (via embeddings),
-  refusal-quality (LLM-as-judge specialised prompt), citation
-  groundedness.
+- **More built-in metrics**: ROUGE-L and citation-groundedness
+  baseline are implemented; BERTScore (via embeddings) and
+  refusal-quality (LLM-as-judge specialised prompt) remain planned.
 
 ### v0.3 (planned)
 

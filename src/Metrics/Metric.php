@@ -11,6 +11,10 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *
  * Implementations:
  *   - {@see ExactMatchMetric} — case-sensitive string equality.
+ *   - {@see ContainsMetric} — case-sensitive substring containment.
+ *   - {@see RegexMetric} — PHP regex pattern match.
+ *   - {@see RougeLMetric} — offline ROUGE-L F1.
+ *   - {@see CitationGroundednessMetric} — baseline citation presence.
  *   - {@see CosineEmbeddingMetric} — semantic similarity via
  *     embeddings (transport: raw Http:: against any OpenAI-compatible
  *     embeddings endpoint).
@@ -26,9 +30,8 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *      `'my-metric'` to `withMetrics([...])`.
  *
  * Note: the harness does NOT read a static `metrics.aliases` config
- * key. Built-in aliases ('exact-match', 'cosine-embedding',
- * 'llm-as-judge') live in {@see MetricResolver::ALIASES}; downstream
- * extension goes through container bindings, not config.
+ * key. Built-in aliases are exposed through {@see MetricResolver::aliases()};
+ * downstream extension goes through container bindings, not config.
  *
  * Per R23 (pluggable pipeline registry): every concrete class
  * resolved by {@see MetricResolver} is asserted to implement this
