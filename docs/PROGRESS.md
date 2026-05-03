@@ -448,3 +448,14 @@
   - `vendor/bin/phpunit` => `OK (201 tests, 435 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `51413e7` and generated comments about:
+  - requiring the documented top-level `outputs` field,
+  - preserving numeric-string IDs for direct loader users,
+  - aligning programmatic datasets with the non-empty sample-id contract,
+  - proving numeric-string IDs via entry-level assertions rather than PHP array literals.
+- Addressed the comments by adding a `SavedOutputs` entry-list DTO, making `SavedOutputsLoader` return it, allowing `EvalEngine::scoreOutputs()` to accept either maps or `SavedOutputs`, requiring the top-level `outputs` field, rejecting empty programmatic sample ids in `DatasetBuilder::withSamples()`, and updating tests accordingly.
+- Full local gate passed after the fifth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (203 tests, 439 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

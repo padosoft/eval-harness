@@ -83,6 +83,19 @@ final class DatasetBuilderTest extends TestCase
         ]);
     }
 
+    public function test_with_samples_rejects_empty_sample_id(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('non-empty sample id');
+
+        $engine->dataset('empty-id')->withSamples([
+            new DatasetSample(id: '', input: [], expectedOutput: 'a'),
+        ]);
+    }
+
     public function test_with_metrics_rejects_empty(): void
     {
         /** @var EvalEngine $engine */

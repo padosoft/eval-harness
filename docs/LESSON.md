@@ -92,3 +92,4 @@
 - To distinguish saved-output maps from lists when sample IDs can be numeric strings, parse JSON/YAML maps as objects (`stdClass`) first. Decoding directly to associative arrays loses that shape information.
 - CLI options that accept paths should treat an explicit empty value as an operator error instead of falling back to another execution mode.
 - Extensionless saved-output files can be JSON or YAML. If both parsers fail, report both parse errors instead of guessing which format the operator intended.
+- PHP arrays coerce numeric-string keys to integers. Public loaders that must preserve sample IDs like `"0"` should return an entry-list DTO instead of a keyed array.

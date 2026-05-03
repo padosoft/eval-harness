@@ -91,6 +91,11 @@ final class DatasetBuilder
                     ),
                 );
             }
+            if ($sample->id === '') {
+                throw new DatasetSchemaException(
+                    sprintf('withSamples() entry at index %d must have a non-empty sample id.', $index),
+                );
+            }
             if (isset($seen[$sample->id])) {
                 throw new DatasetSchemaException(
                     sprintf("Duplicate sample id '%s' in withSamples() input.", $sample->id),

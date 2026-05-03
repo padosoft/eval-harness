@@ -17,7 +17,7 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
     }
 
     public function test_loads_json_outputs_list(): void
@@ -27,7 +27,7 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
     }
 
     public function test_loads_json_numeric_key_outputs_map(): void
@@ -37,7 +37,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame(['0' => 'zero', '1' => 'one'], $outputs);
+        $this->assertSame([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '1', 'actual_output' => 'one'],
+        ], $outputs->entries());
     }
 
     public function test_loads_yaml_outputs_list(): void
@@ -47,7 +50,7 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.yaml',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
     }
 
     public function test_loads_yaml_outputs_map(): void
@@ -57,7 +60,7 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.yaml',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
     }
 
     public function test_loads_yaml_numeric_key_outputs_map(): void
@@ -67,7 +70,10 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.yaml',
         );
 
-        $this->assertSame(['0' => 'zero', '1' => 'one'], $outputs);
+        $this->assertSame([
+            ['id' => '0', 'actual_output' => 'zero'],
+            ['id' => '1', 'actual_output' => 'one'],
+        ], $outputs->entries());
     }
 
     public function test_loads_extensionless_yaml_flow_style_map(): void
@@ -77,7 +83,7 @@ final class SavedOutputsLoaderTest extends TestCase
             'artifact',
         );
 
-        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs);
+        $this->assertSame(['s1' => 'answer one', 's2' => 'answer two'], $outputs->toMap());
     }
 
     public function test_preserves_sample_ids_verbatim(): void
@@ -87,7 +93,15 @@ final class SavedOutputsLoaderTest extends TestCase
             'outputs.json',
         );
 
-        $this->assertSame([' s1 ' => 'answer'], $outputs);
+        $this->assertSame([['id' => ' s1 ', 'actual_output' => 'answer']], $outputs->entries());
+    }
+
+    public function test_rejects_documents_without_outputs_field(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must contain an outputs field');
+
+        (new SavedOutputsLoader)->loadString('{"output":{"s1":"answer"}}', 'outputs.json');
     }
 
     public function test_rejects_scalar_list_outputs(): void

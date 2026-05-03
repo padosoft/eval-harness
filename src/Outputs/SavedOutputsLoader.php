@@ -20,10 +20,7 @@ use Symfony\Component\Yaml\Yaml;
  */
 final class SavedOutputsLoader
 {
-    /**
-     * @return array<string, string>
-     */
-    public function loadFile(string $path): array
+    public function loadFile(string $path): SavedOutputs
     {
         if (! is_file($path) || ! is_readable($path)) {
             throw new EvalRunException(sprintf("Saved outputs file '%s' is not readable.", $path));
@@ -37,17 +34,14 @@ final class SavedOutputsLoader
         return $this->loadString($contents, $path);
     }
 
-    /**
-     * @return array<string, string>
-     */
-    public function loadString(string $contents, string $source = 'inline saved outputs'): array
+    public function loadString(string $contents, string $source = 'inline saved outputs'): SavedOutputs
     {
         $decoded = $this->decode($contents, $source);
         if (! $decoded instanceof stdClass && ! is_array($decoded)) {
             throw new EvalRunException(sprintf("Saved outputs in '%s' must be a JSON/YAML object or list.", $source));
         }
 
-        $rawOutputs = $this->rawOutputs($decoded);
+        $rawOutputs = $this->rawOutputs($decoded, $source);
         if (! $rawOutputs instanceof stdClass && ! is_array($rawOutputs)) {
             throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs object or list.", $source));
         }
@@ -66,15 +60,19 @@ final class SavedOutputsLoader
     /**
      * @param  stdClass|array<array-key, mixed>  $decoded
      */
-    private function rawOutputs(stdClass|array $decoded): mixed
+    private function rawOutputs(stdClass|array $decoded, string $source): mixed
     {
         if ($decoded instanceof stdClass) {
             $properties = get_object_vars($decoded);
 
-            return array_key_exists('outputs', $properties) ? $properties['outputs'] : $decoded;
+            if (! array_key_exists('outputs', $properties)) {
+                throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs field.", $source));
+            }
+
+            return $properties['outputs'];
         }
 
-        return $decoded;
+        throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs field.", $source));
     }
 
     private function decode(string $contents, string $source): mixed
@@ -126,11 +124,10 @@ final class SavedOutputsLoader
 
     /**
      * @param  array<mixed>  $rawOutputs
-     * @return array<string, string>
      */
-    private function normalizeList(array $rawOutputs, string $source): array
+    private function normalizeList(array $rawOutputs, string $source): SavedOutputs
     {
-        $outputs = [];
+        $entries = [];
         foreach ($rawOutputs as $index => $entry) {
             if ($entry instanceof stdClass) {
                 $entry = get_object_vars($entry);
@@ -162,19 +159,18 @@ final class SavedOutputsLoader
                 ));
             }
 
-            $this->putOutput($outputs, $id, $actualOutput, $source);
+            $entries[] = ['id' => $id, 'actual_output' => $actualOutput];
         }
 
-        return $outputs;
+        return $this->savedOutputs($entries, $source);
     }
 
     /**
      * @param  array<mixed>  $rawOutputs
-     * @return array<string, string>
      */
-    private function normalizeMap(array $rawOutputs, string $source): array
+    private function normalizeMap(array $rawOutputs, string $source): SavedOutputs
     {
-        $outputs = [];
+        $entries = [];
         foreach ($rawOutputs as $id => $actualOutput) {
             $sampleId = (string) $id;
             if ($sampleId === '') {
@@ -190,10 +186,10 @@ final class SavedOutputsLoader
                 ));
             }
 
-            $this->putOutput($outputs, $sampleId, $actualOutput, $source);
+            $entries[] = ['id' => $sampleId, 'actual_output' => $actualOutput];
         }
 
-        return $outputs;
+        return $this->savedOutputs($entries, $source);
     }
 
     /**
@@ -221,19 +217,15 @@ final class SavedOutputsLoader
     }
 
     /**
-     * @param  array<string, string>  $outputs
+     * @param  list<array{id: string, actual_output: string}>  $entries
      */
-    private function putOutput(array &$outputs, string $sampleId, string $actualOutput, string $source): void
+    private function savedOutputs(array $entries, string $source): SavedOutputs
     {
-        if (array_key_exists($sampleId, $outputs)) {
-            throw new EvalRunException(sprintf(
-                "Duplicate saved output for sample '%s' in '%s'.",
-                $sampleId,
-                $source,
-            ));
+        try {
+            return new SavedOutputs($entries);
+        } catch (EvalRunException $e) {
+            throw new EvalRunException(sprintf("%s Source: '%s'.", $e->getMessage(), $source), previous: $e);
         }
-
-        $outputs[$sampleId] = $actualOutput;
     }
 
     private function looksLikeYamlPath(string $source): bool

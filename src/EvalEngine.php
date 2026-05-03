@@ -14,6 +14,7 @@ use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
@@ -126,9 +127,9 @@ final class EvalEngine
     /**
      * Score precomputed sample outputs without invoking a system-under-test.
      *
-     * @param  array<array-key, mixed>  $actualOutputs  Map of sample id to actual output string.
+     * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs  Map or loaded saved-output entries.
      */
-    public function scoreOutputs(string $datasetName, array $actualOutputs): EvalReport
+    public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs): EvalReport
     {
         $dataset = $this->getDataset($datasetName);
         $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
@@ -191,39 +192,18 @@ final class EvalEngine
     }
 
     /**
-     * @param  array<array-key, mixed>  $actualOutputs
-     * @return array<string, string>
+     * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs
+     * @return array<array-key, string>
      */
-    private function savedOutputsForDataset(string $datasetName, GoldenDataset $dataset, array $actualOutputs): array
+    private function savedOutputsForDataset(string $datasetName, GoldenDataset $dataset, array|SavedOutputs $actualOutputs): array
     {
+        $savedOutputs = $actualOutputs instanceof SavedOutputs
+            ? $actualOutputs
+            : SavedOutputs::fromMap($actualOutputs, "dataset '{$datasetName}'");
+
         $outputs = [];
-        foreach ($actualOutputs as $sampleId => $actualOutput) {
-            $normalizedSampleId = (string) $sampleId;
-            if ($normalizedSampleId === '') {
-                throw new EvalRunException(sprintf(
-                    "Saved outputs for dataset '%s' contain an empty sample id.",
-                    $datasetName,
-                ));
-            }
-
-            if (! is_string($actualOutput)) {
-                throw new EvalRunException(sprintf(
-                    "Saved output for sample '%s' in dataset '%s' must be a string; got %s.",
-                    $normalizedSampleId,
-                    $datasetName,
-                    get_debug_type($actualOutput),
-                ));
-            }
-
-            if (array_key_exists($normalizedSampleId, $outputs)) {
-                throw new EvalRunException(sprintf(
-                    "Saved outputs for dataset '%s' contain duplicate sample id '%s'.",
-                    $datasetName,
-                    $normalizedSampleId,
-                ));
-            }
-
-            $outputs[$normalizedSampleId] = $actualOutput;
+        foreach ($savedOutputs->entries() as $entry) {
+            $outputs[$entry['id']] = $entry['actual_output'];
         }
 
         $expectedSampleIds = [];
