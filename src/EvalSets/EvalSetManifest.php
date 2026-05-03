@@ -19,6 +19,9 @@ final class EvalSetManifest
     /** @var list<EvalSetManifestEntry> */
     public readonly array $entries;
 
+    /** @var array<string, EvalSetManifestEntry> */
+    private array $entriesByDataset = [];
+
     /**
      * @param  array<array-key, mixed>  $entries
      */
@@ -86,6 +89,9 @@ final class EvalSetManifest
         }
 
         $this->entries = $normalizedEntries;
+        foreach ($normalizedEntries as $entry) {
+            $this->entriesByDataset[EvalSetDefinition::datasetNameKey($entry->datasetName)] = $entry;
+        }
     }
 
     public static function start(EvalSetDefinition $definition, ?float $now = null): self
@@ -212,14 +218,7 @@ final class EvalSetManifest
 
     public function entryFor(string $datasetName): ?EvalSetManifestEntry
     {
-        $key = EvalSetDefinition::datasetNameKey($datasetName);
-        foreach ($this->entries as $entry) {
-            if (EvalSetDefinition::datasetNameKey($entry->datasetName) === $key) {
-                return $entry;
-            }
-        }
-
-        return null;
+        return $this->entriesByDataset[EvalSetDefinition::datasetNameKey($datasetName)] ?? null;
     }
 
     public function statusFor(string $datasetName): ?string

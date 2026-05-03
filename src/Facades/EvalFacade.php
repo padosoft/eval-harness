@@ -38,7 +38,7 @@ use Padosoft\EvalHarness\Reports\EvalReport;
  *   use Padosoft\EvalHarness\Facades\EvalFacade;
  *
  * @method static DatasetBuilder dataset(string $name)
- * @method static EvalSetDefinition evalSet(string $name, array<array-key, mixed> $datasetNames)
+ * @method static EvalSetDefinition evalSet(string $name, list<string> $datasetNames)
  * @method static EvalReport run(string $datasetName, callable|\Padosoft\EvalHarness\Contracts\SampleRunner $systemUnderTest)
  * @method static EvalReport runBatch(string $datasetName, callable|\Padosoft\EvalHarness\Contracts\SampleRunner $systemUnderTest, ?\Padosoft\EvalHarness\Batches\BatchOptions $batchOptions = null)
  * @method static EvalSetRunResult runEvalSet(EvalSetDefinition $evalSet, callable|\Padosoft\EvalHarness\Contracts\SampleRunner $systemUnderTest, ?\Padosoft\EvalHarness\Batches\BatchOptions $batchOptions = null, ?\Padosoft\EvalHarness\EvalSets\EvalSetManifest $manifest = null)

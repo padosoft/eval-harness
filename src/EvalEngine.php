@@ -80,7 +80,7 @@ final class EvalEngine
     }
 
     /**
-     * @param  array<array-key, mixed>  $datasetNames
+     * @param  list<string>  $datasetNames
      */
     public function evalSet(string $name, array $datasetNames): EvalSetDefinition
     {

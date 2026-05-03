@@ -1013,3 +1013,20 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding five eval-set review regression tests. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `327 tests, 712 assertions` before requesting the next Copilot review.
+- Copilot reviewed PR #15 again at head `6a65573` and generated five actionable comments:
+  - `EvalEngine::evalSet()` PHPDoc should advertise `list<string>`,
+  - facade `evalSet()` PHPDoc should advertise `list<string>`,
+  - padded eval-set name diagnostics should mention the whitespace constraint,
+  - `EvalSetRunResult` PHPDoc should advertise `list<EvalReport>`,
+  - manifest status lookups should avoid repeated linear scans in the runner loop.
+- Addressed the second PR #15 Copilot round by tightening public PHPDoc, adding `EvalSetDefinition::fromJson()` list/string prevalidation, improving padded eval-set name diagnostics, and indexing manifest entries by exact dataset-name key for O(1) `entryFor()` / `statusFor()` lookups.
+- Targeted validation passed after the second PR #15 Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/EvalSets` => `OK (18 tests, 60 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/EvalSets/EvalSetDefinition.php src/EvalSets/EvalSetManifest.php src/EvalSets/EvalSetRunResult.php src/EvalEngine.php src/Facades/EvalFacade.php tests/Unit/EvalSets/EvalSetDefinitionTest.php tests/Unit/EvalSets/EvalSetManifestTest.php`
+- Full local gate passed after the second PR #15 Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (327 tests, 714 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two manifest lookup/list-validation assertions. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `327 tests, 714 assertions` before requesting the next Copilot review.

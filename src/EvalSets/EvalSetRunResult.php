@@ -19,7 +19,7 @@ final class EvalSetRunResult
     private array $reportsByDataset = [];
 
     /**
-     * @param  array<array-key, mixed>  $reports
+     * @param  list<EvalReport>  $reports
      */
     public function __construct(
         public readonly EvalSetDefinition $definition,

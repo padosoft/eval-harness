@@ -70,7 +70,7 @@ final class EvalSetDefinitionTest extends TestCase
     public function test_definition_rejects_padded_eval_set_name(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('non-empty string');
+        $this->expectExceptionMessage('without leading or trailing whitespace');
 
         new EvalSetDefinition(' nightly ', ['rag.first']);
     }

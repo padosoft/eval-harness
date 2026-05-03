@@ -181,3 +181,5 @@
 - Eval-set dataset names and manifest dataset names must be treated as exact identifiers. Do not trim them silently; reject leading/trailing whitespace so eval-set references cannot diverge from verbatim `EvalEngine` dataset registration.
 - Resumable manifest status helpers should reject terminal-state transitions and compute duration from the exact started/finished timestamps stored on the entry, not from a different report duration window.
 - README resume examples must show JSON rehydration into DTOs such as `EvalSetManifest::fromJson()`, not only the write path, otherwise callers will pass decoded arrays to typed APIs.
+- Public PHPDoc should describe the accepted caller contract, not only the broad shape accepted for defensive runtime validation. For eval-set APIs, document `list<string>` dataset names and `list<EvalReport>` reports, while runtime constructors can still reject malformed arrays with package exceptions.
+- Manifest lookup helpers used inside orchestration loops should keep an internal exact-name index; repeated linear scans across eval-set entries become visible on large multi-dataset runs.

@@ -19,7 +19,7 @@ final class EvalSetDefinition
     public readonly array $datasetNames;
 
     /**
-     * @param  array<array-key, mixed>  $datasetNames
+     * @param  list<string>  $datasetNames
      */
     public function __construct(
         string $name,
@@ -27,7 +27,7 @@ final class EvalSetDefinition
         public readonly string $schemaVersion = self::SCHEMA_VERSION,
     ) {
         if ($name === '' || $name !== trim($name)) {
-            throw new EvalRunException('Eval set name must be a non-empty string.');
+            throw new EvalRunException('Eval set name must be a non-empty string without leading or trailing whitespace.');
         }
         $this->name = $name;
 
@@ -111,7 +111,7 @@ final class EvalSetDefinition
 
         return new self(
             name: $name,
-            datasetNames: $datasets,
+            datasetNames: self::datasetNamesFromPayload($datasets),
             schemaVersion: $schemaVersion,
         );
     }
@@ -119,5 +119,30 @@ final class EvalSetDefinition
     public static function datasetNameKey(string $datasetName): string
     {
         return sprintf('dataset:%d:%s', strlen($datasetName), $datasetName);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $datasets
+     * @return list<string>
+     */
+    private static function datasetNamesFromPayload(array $datasets): array
+    {
+        if (! array_is_list($datasets)) {
+            throw new EvalRunException('Eval set definition datasets field must be a zero-based list.');
+        }
+
+        $datasetNames = [];
+        foreach ($datasets as $index => $datasetName) {
+            if (! is_string($datasetName)) {
+                throw new EvalRunException(sprintf(
+                    'Eval set definition dataset at index %d must be a string.',
+                    $index,
+                ));
+            }
+
+            $datasetNames[] = $datasetName;
+        }
+
+        return $datasetNames;
     }
 }

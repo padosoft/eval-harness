@@ -73,6 +73,8 @@ final class EvalSetManifestTest extends TestCase
             static fn (EvalSetManifestEntry $entry): string => $entry->datasetName,
             $manifest->entries,
         ));
+        $this->assertSame('01', $manifest->entryFor('01')?->datasetName);
+        $this->assertNull($manifest->entryFor('1 '));
     }
 
     public function test_manifest_rejects_completion_report_for_another_dataset(): void
