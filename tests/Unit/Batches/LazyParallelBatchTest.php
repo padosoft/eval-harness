@@ -167,6 +167,27 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_timeout_message_points_to_batch_wait_timeout(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new RecordingBatchResultStore,
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('did not produce outputs within 1 seconds');
+        $this->expectExceptionMessage('Increase the batch wait timeout');
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
     public function test_rejects_anonymous_runners_because_workers_cannot_autoload_them(): void
     {
         /** @var LazyParallelBatch $batch */
@@ -352,6 +373,54 @@ final class ThrowingDispatcher implements Dispatcher
     }
 }
 
+final class MissingOutputDispatcher implements Dispatcher
+{
+    public function dispatch($command): mixed
+    {
+        return null;
+    }
+
+    public function dispatchSync($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchNow($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchAfterResponse($command, $handler = null): void
+    {
+        $this->dispatch($command);
+    }
+
+    public function chain($jobs = null): mixed
+    {
+        return null;
+    }
+
+    public function hasCommandHandler($command): bool
+    {
+        return false;
+    }
+
+    public function getCommandHandler($command): mixed
+    {
+        return null;
+    }
+
+    public function pipeThrough(array $pipes): self
+    {
+        return $this;
+    }
+
+    public function map(array $map): self
+    {
+        return $this;
+    }
+}
+
 final class RecordingBatchResultStore implements BatchResultStore
 {
     /** @var list<string> */
@@ -414,10 +483,5 @@ final class RecordingBatchResultStore implements BatchResultStore
         }
 
         return array_intersect_key($this->failures, array_flip($indexes));
-    }
-
-    public function forget(string $batchId, int $sampleCount): void
-    {
-        $this->events[] = 'forget:'.$sampleCount;
     }
 }

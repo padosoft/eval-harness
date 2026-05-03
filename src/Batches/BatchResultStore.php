@@ -30,6 +30,4 @@ interface BatchResultStore
      * @return array<int, array{sample_id: string, error: string}>
      */
     public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array;
-
-    public function forget(string $batchId, int $sampleCount): void;
 }

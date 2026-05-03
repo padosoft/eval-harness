@@ -134,3 +134,7 @@
 - Horizon guidance needs host-app knobs for the shared batch cache store and result TTL. Do not force operators to change their global default cache driver just so eval workers and the command process can share results.
 - Keep optional queue services lazy for serial-only users. `EvalEngine` can resolve `LazyParallelBatch` on demand from the container instead of requiring queue/cache services during engine resolution.
 - CLI wording should distinguish producer fan-out (`--concurrency` dispatch window size) from actual worker concurrency, which belongs to Horizon/queue worker configuration.
+- Queue-result active checks must handle cross-process races both before and after the first-writer result write. If a close marker can appear between `isActive()` and `add()`, re-read state after the write and remove the result when the batch is no longer active.
+- PHPStan may remember private method return values across repeated calls. For cache-backed state that can change outside the current process, mark the read helper `@phpstan-impure` rather than changing production logic to satisfy a single-process assumption.
+- Validating `trim($queue) !== ''` is not enough for queue names. Retain the trimmed value so operators do not dispatch to whitespace-padded queues that workers are not listening on.
+- `AGENTS.md` current-priority sections should describe what to do after an in-flight PR merges, not only the branch that is active while editing the PR, otherwise the macro branch inherits stale handoff instructions.

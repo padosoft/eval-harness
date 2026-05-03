@@ -48,41 +48,29 @@ final class CacheBatchResultStore implements BatchResultStore
 
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
     {
-        $this->assertNonNegativeIndex($index);
-        $this->assertPositiveTtl($ttlSeconds);
-
-        if (! $this->isActive($batchId)) {
-            return;
-        }
-
-        $this->cache->add(
-            $this->resultKey($batchId, $index),
-            [
+        $this->recordTerminalResult(
+            batchId: $batchId,
+            index: $index,
+            payload: [
                 'status' => 'success',
                 'sample_id' => $sampleId,
                 'actual_output' => $actualOutput,
             ],
-            $ttlSeconds,
+            ttlSeconds: $ttlSeconds,
         );
     }
 
     public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
     {
-        $this->assertNonNegativeIndex($index);
-        $this->assertPositiveTtl($ttlSeconds);
-
-        if (! $this->isActive($batchId)) {
-            return;
-        }
-
-        $this->cache->add(
-            $this->resultKey($batchId, $index),
-            [
+        $this->recordTerminalResult(
+            batchId: $batchId,
+            index: $index,
+            payload: [
                 'status' => 'failure',
                 'sample_id' => $sampleId,
                 'error' => $error,
             ],
-            $ttlSeconds,
+            ttlSeconds: $ttlSeconds,
         );
     }
 
@@ -172,16 +160,6 @@ final class CacheBatchResultStore implements BatchResultStore
         return $failures;
     }
 
-    public function forget(string $batchId, int $sampleCount): void
-    {
-        $this->assertNonNegativeSampleCount($sampleCount);
-
-        $this->cache->forget($this->metaKey($batchId));
-        for ($index = 0; $index < $sampleCount; $index++) {
-            $this->cache->forget($this->resultKey($batchId, $index));
-        }
-    }
-
     private function close(string $batchId, int $sampleCount, int $ttlSeconds, string $status): void
     {
         $this->assertNonNegativeSampleCount($sampleCount);
@@ -198,6 +176,31 @@ final class CacheBatchResultStore implements BatchResultStore
         }
     }
 
+    /**
+     * @param  array{status: 'success', sample_id: string, actual_output: string}|array{status: 'failure', sample_id: string, error: string}  $payload
+     */
+    private function recordTerminalResult(string $batchId, int $index, array $payload, int $ttlSeconds): void
+    {
+        $this->assertNonNegativeIndex($index);
+        $this->assertPositiveTtl($ttlSeconds);
+
+        if (! $this->isActive($batchId)) {
+            return;
+        }
+
+        $resultKey = $this->resultKey($batchId, $index);
+        $added = $this->cache->add($resultKey, $payload, $ttlSeconds);
+
+        if ($added && ! $this->isActive($batchId)) {
+            $this->cache->forget($resultKey);
+        }
+    }
+
+    /**
+     * The cache can be closed by another process between result writes.
+     *
+     * @phpstan-impure
+     */
     private function isActive(string $batchId): bool
     {
         $payload = $this->cache->get($this->metaKey($batchId));

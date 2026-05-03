@@ -127,9 +127,4 @@ final class JobRecordingBatchResultStore implements BatchResultStore
 
         return array_intersect_key($this->failures, array_flip($indexes));
     }
-
-    public function forget(string $batchId, int $sampleCount): void
-    {
-        //
-    }
 }

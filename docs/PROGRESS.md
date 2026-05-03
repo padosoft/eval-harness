@@ -723,3 +723,22 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding cache store tests. README has no test-count claim; this progress file records the current `268 tests, 580 assertions` result.
+- Pushed PR #14 head `9cb74c2`, updated the PR body validation count, and requested a fresh official Copilot review through the GraphQL fallback after `gh pr edit 14 --add-reviewer copilot` was blocked by missing `read:project`.
+- PR #14 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `9cb74c2`.
+- Copilot reviewed PR #14 again at head `9cb74c2` and generated six comments:
+  - `CacheBatchResultStore::recordSuccess()` / `recordFailure()` had an active-check/write race if a worker wrote just as `finish()` / `abort()` closed the batch,
+  - the lazy-parallel wait-timeout message did not tell operators to adjust `--batch-timeout`,
+  - `AGENTS.md` would become stale after PR #14 merged because it named the in-flight subtask branch as current,
+  - queue names were validated with `trim()` but the untrimmed value was retained,
+  - `BatchResultStore::forget()` remained in the public interface even though the finish/abort contract replaced it.
+- Addressed the third PR #14 Copilot round by re-checking active batch state after first-writer cache writes and removing racing results, trimming retained queue names, updating the wait-timeout diagnostic, removing unused `forget()` from the result-store interface, and making `AGENTS.md` merge-safe for the next eval-set/resume subtask.
+- Targeted validation passed after the third official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (27 tests, 56 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php AGENTS.md`
+- Full local gate passed after the third official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (271 tests, 584 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding batch/cache tests. README has no test-count claim; PR #14 body needs updating from `268 tests, 580 assertions` to `271 tests, 584 assertions` before push/re-review.

@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Batches;
 
+use Closure;
+use Illuminate\Cache\Repository as IlluminateCacheRepository;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Contracts\Cache\Store;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -96,6 +99,27 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->failures('aborted-batch', 1));
     }
 
+    public function test_closing_batch_after_result_add_removes_racing_job_write(): void
+    {
+        $store = null;
+        $cache = new ClosingAfterAddCacheRepository(
+            store: $this->cache->getStore(),
+            onAdd: static function () use (&$store): void {
+                if (! $store instanceof CacheBatchResultStore) {
+                    self::fail('Expected result store to be initialized before cache add.');
+                }
+
+                $store->finish('racing-batch', 1, 60);
+            },
+        );
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('racing-batch', 1, 60);
+        $store->recordSuccess('racing-batch', 0, 's1', 'late output', 60);
+
+        $this->assertSame([], $store->successfulOutputs('racing-batch', 1));
+    }
+
     private function store(): CacheBatchResultStore
     {
         return new CacheBatchResultStore($this->cache);
@@ -104,5 +128,21 @@ final class CacheBatchResultStoreTest extends TestCase
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('eval-harness:batch-results:%s:result:%d', $batchId, $index);
+    }
+}
+
+final class ClosingAfterAddCacheRepository extends IlluminateCacheRepository
+{
+    public function __construct(Store $store, private readonly Closure $onAdd)
+    {
+        parent::__construct($store);
+    }
+
+    public function add($key, $value, $ttl = null)
+    {
+        $added = parent::add($key, $value, $ttl);
+        ($this->onAdd)();
+
+        return $added;
     }
 }

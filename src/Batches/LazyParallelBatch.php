@@ -227,8 +227,9 @@ final class LazyParallelBatch
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
 
         throw new EvalRunException(sprintf(
-            "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
+            "Lazy parallel batch '%s' did not produce outputs within %d seconds for sample ids: %s. Increase the batch wait timeout, confirm queue workers are running, and confirm the batch result cache is shared with workers.",
             $batchId,
+            $timeoutSeconds,
             implode(', ', $missingSampleIds),
         ));
     }

@@ -37,6 +37,13 @@ final class BatchOptionsTest extends TestCase
         $this->assertSame(300, $options->waitTimeoutSeconds);
     }
 
+    public function test_queue_name_is_trimmed(): void
+    {
+        $options = BatchOptions::lazyParallel(queue: ' evals ');
+
+        $this->assertSame('evals', $options->queue);
+    }
+
     public function test_rejects_unsupported_modes(): void
     {
         $this->expectException(EvalRunException::class);

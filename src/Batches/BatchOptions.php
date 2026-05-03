@@ -21,10 +21,12 @@ final class BatchOptions
         self::MODE_LAZY_PARALLEL,
     ];
 
+    public readonly ?string $queue;
+
     public function __construct(
         public readonly string $mode = self::MODE_SERIAL,
         public readonly int $concurrency = 1,
-        public readonly ?string $queue = null,
+        ?string $queue = null,
         public readonly ?int $timeoutSeconds = null,
         public readonly ?int $waitTimeoutSeconds = null,
     ) {
@@ -40,9 +42,12 @@ final class BatchOptions
             throw new EvalRunException('Batch concurrency must be greater than or equal to 1.');
         }
 
-        if ($queue !== null && trim($queue) === '') {
+        $normalizedQueue = $queue !== null ? trim($queue) : null;
+        if ($normalizedQueue === '') {
             throw new EvalRunException('Batch queue name must be null or a non-empty string.');
         }
+
+        $this->queue = $normalizedQueue;
 
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Batch timeout must be null or greater than or equal to 1 second.');
@@ -57,7 +62,7 @@ final class BatchOptions
                 throw new EvalRunException('Serial batch mode requires concurrency 1.');
             }
 
-            if ($queue !== null) {
+            if ($this->queue !== null) {
                 throw new EvalRunException('Serial batch mode does not use a queue name.');
             }
 
