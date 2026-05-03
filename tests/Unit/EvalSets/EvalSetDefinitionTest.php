@@ -10,9 +10,9 @@ use PHPUnit\Framework\TestCase;
 
 final class EvalSetDefinitionTest extends TestCase
 {
-    public function test_definition_normalizes_name_and_dataset_names(): void
+    public function test_definition_preserves_verbatim_dataset_names(): void
     {
-        $definition = new EvalSetDefinition(' nightly ', [' rag.first ', '01', '1']);
+        $definition = new EvalSetDefinition('nightly', ['rag.first', '01', '1']);
 
         $this->assertSame('nightly', $definition->name);
         $this->assertSame(['rag.first', '01', '1'], $definition->datasetNames);
@@ -43,12 +43,20 @@ final class EvalSetDefinitionTest extends TestCase
         new EvalSetDefinition('nightly', [1 => 'rag.first']);
     }
 
-    public function test_definition_rejects_duplicate_dataset_names_after_normalization(): void
+    public function test_definition_rejects_duplicate_dataset_names(): void
     {
         $this->expectException(EvalRunException::class);
         $this->expectExceptionMessage("duplicate dataset 'rag.first'");
 
-        new EvalSetDefinition('nightly', ['rag.first', ' rag.first ']);
+        new EvalSetDefinition('nightly', ['rag.first', 'rag.first']);
+    }
+
+    public function test_definition_rejects_padded_dataset_names_instead_of_trimming(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('without leading or trailing whitespace');
+
+        new EvalSetDefinition('nightly', ['rag.first', ' rag.second ']);
     }
 
     public function test_definition_rejects_non_string_dataset_names(): void
@@ -57,5 +65,13 @@ final class EvalSetDefinitionTest extends TestCase
         $this->expectExceptionMessage('must be a string');
 
         new EvalSetDefinition('nightly', ['rag.first', 42]);
+    }
+
+    public function test_definition_rejects_padded_eval_set_name(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('non-empty string');
+
+        new EvalSetDefinition(' nightly ', ['rag.first']);
     }
 }

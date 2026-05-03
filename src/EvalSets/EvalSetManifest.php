@@ -29,9 +29,8 @@ final class EvalSetManifest
         public readonly float $updatedAt,
         public readonly string $schemaVersion = self::SCHEMA_VERSION,
     ) {
-        $evalSetName = trim($evalSetName);
-        if ($evalSetName === '') {
-            throw new EvalRunException('Eval set manifest name must be a non-empty string.');
+        if ($evalSetName === '' || $evalSetName !== trim($evalSetName)) {
+            throw new EvalRunException('Eval set manifest name must be a non-empty string without leading or trailing whitespace.');
         }
         $this->evalSetName = $evalSetName;
 
@@ -213,7 +212,7 @@ final class EvalSetManifest
 
     public function entryFor(string $datasetName): ?EvalSetManifestEntry
     {
-        $key = EvalSetDefinition::datasetNameKey(trim($datasetName));
+        $key = EvalSetDefinition::datasetNameKey($datasetName);
         foreach ($this->entries as $entry) {
             if (EvalSetDefinition::datasetNameKey($entry->datasetName) === $key) {
                 return $entry;
@@ -260,7 +259,7 @@ final class EvalSetManifest
      */
     private function replaceEntry(string $datasetName, callable $replacement, float $updatedAt): self
     {
-        $key = EvalSetDefinition::datasetNameKey(trim($datasetName));
+        $key = EvalSetDefinition::datasetNameKey($datasetName);
         $found = false;
         $entries = [];
         foreach ($this->entries as $entry) {

@@ -26,8 +26,7 @@ final class EvalSetDefinition
         array $datasetNames,
         public readonly string $schemaVersion = self::SCHEMA_VERSION,
     ) {
-        $name = trim($name);
-        if ($name === '') {
+        if ($name === '' || $name !== trim($name)) {
             throw new EvalRunException('Eval set name must be a non-empty string.');
         }
         $this->name = $name;
@@ -61,26 +60,25 @@ final class EvalSetDefinition
                 ));
             }
 
-            $datasetName = trim($rawDatasetName);
-            if ($datasetName === '') {
+            if ($rawDatasetName === '' || $rawDatasetName !== trim($rawDatasetName)) {
                 throw new EvalRunException(sprintf(
-                    "Eval set '%s' dataset name at index %d must be a non-empty string.",
+                    "Eval set '%s' dataset name at index %d must be a non-empty string without leading or trailing whitespace.",
                     $name,
                     $index,
                 ));
             }
 
-            $key = self::datasetNameKey($datasetName);
+            $key = self::datasetNameKey($rawDatasetName);
             if (isset($seen[$key])) {
                 throw new EvalRunException(sprintf(
                     "Eval set '%s' contains duplicate dataset '%s'.",
                     $name,
-                    $datasetName,
+                    $rawDatasetName,
                 ));
             }
 
             $seen[$key] = true;
-            $normalizedDatasetNames[] = $datasetName;
+            $normalizedDatasetNames[] = $rawDatasetName;
         }
 
         $this->datasetNames = $normalizedDatasetNames;

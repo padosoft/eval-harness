@@ -94,6 +94,35 @@ final class EvalSetRunnerTest extends TestCase
         $this->assertCount(1, $result->reports);
     }
 
+    public function test_engine_stops_when_resuming_manifest_that_already_has_failed_dataset(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $this->registerDataset($engine, 'rag.first', 'first');
+        $this->registerDataset($engine, 'rag.second', 'second');
+
+        $definition = new EvalSetDefinition('nightly', ['rag.first', 'rag.second']);
+        $failedManifest = EvalSetManifest::start($definition, 1.0)
+            ->markRunning('rag.first', 1.0)
+            ->markFailed('rag.first', 'previous failure', 2.0);
+
+        $calls = 0;
+        $result = $engine->runEvalSet(
+            $definition,
+            static function (array $input) use (&$calls): string {
+                $calls++;
+
+                return (string) $input['answer'];
+            },
+            manifest: $failedManifest,
+        );
+
+        $this->assertSame(0, $calls);
+        $this->assertFalse($result->isComplete());
+        $this->assertSame(['rag.first'], $result->failedDatasetNames());
+        $this->assertSame('previous failure', $result->manifest->entryFor('rag.first')?->error);
+    }
+
     private function registerDataset(EvalEngine $engine, string $name, string $answer): void
     {
         $engine->dataset($name)

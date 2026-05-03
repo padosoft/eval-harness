@@ -41,9 +41,8 @@ final class EvalSetManifestEntry
         public readonly ?int $totalFailures = null,
         public readonly ?string $error = null,
     ) {
-        $datasetName = trim($datasetName);
-        if ($datasetName === '') {
-            throw new EvalRunException('Eval set manifest dataset name must be a non-empty string.');
+        if ($datasetName === '' || $datasetName !== trim($datasetName)) {
+            throw new EvalRunException('Eval set manifest dataset name must be a non-empty string without leading or trailing whitespace.');
         }
         $this->datasetName = $datasetName;
 
@@ -66,6 +65,8 @@ final class EvalSetManifestEntry
 
     public function running(float $now): self
     {
+        $this->assertCanTransitionTo(self::STATUS_RUNNING);
+
         return new self(
             datasetName: $this->datasetName,
             status: self::STATUS_RUNNING,
@@ -75,6 +76,8 @@ final class EvalSetManifestEntry
 
     public function completed(EvalReport $report): self
     {
+        $this->assertCanTransitionTo(self::STATUS_COMPLETED);
+
         if ($report->datasetName !== $this->datasetName) {
             throw new EvalRunException(sprintf(
                 "Eval set manifest dataset '%s' cannot be completed with report for dataset '%s'.",
@@ -83,12 +86,15 @@ final class EvalSetManifestEntry
             ));
         }
 
+        $startedAt = $this->startedAt ?? $report->startedAt;
+        $finishedAt = $report->finishedAt;
+
         return new self(
             datasetName: $this->datasetName,
             status: self::STATUS_COMPLETED,
-            startedAt: $this->startedAt ?? $report->startedAt,
-            finishedAt: $report->finishedAt,
-            durationSeconds: $report->durationSeconds(),
+            startedAt: $startedAt,
+            finishedAt: $finishedAt,
+            durationSeconds: max(0.0, $finishedAt - $startedAt),
             reportSchemaVersion: $report->schemaVersion,
             totalSamples: $report->totalSamples(),
             totalFailures: $report->totalFailures(),
@@ -97,6 +103,8 @@ final class EvalSetManifestEntry
 
     public function failed(string $error, float $now): self
     {
+        $this->assertCanTransitionTo(self::STATUS_FAILED);
+
         $error = trim($error);
         if ($error === '') {
             throw new EvalRunException(sprintf(
@@ -309,6 +317,26 @@ final class EvalSetManifestEntry
             throw new EvalRunException(sprintf(
                 "Eval set manifest dataset '%s' failed status cannot include report summary fields.",
                 $this->datasetName,
+            ));
+        }
+    }
+
+    private function assertCanTransitionTo(string $nextStatus): void
+    {
+        if (! in_array($nextStatus, self::STATUSES, true)) {
+            throw new EvalRunException(sprintf(
+                "Eval set manifest dataset '%s' cannot transition to unsupported status '%s'.",
+                $this->datasetName,
+                $nextStatus,
+            ));
+        }
+
+        if (in_array($this->status, [self::STATUS_COMPLETED, self::STATUS_FAILED], true)) {
+            throw new EvalRunException(sprintf(
+                "Eval set manifest dataset '%s' cannot transition from terminal status '%s' to '%s'.",
+                $this->datasetName,
+                $this->status,
+                $nextStatus,
             ));
         }
     }

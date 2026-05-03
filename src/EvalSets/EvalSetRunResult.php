@@ -75,7 +75,7 @@ final class EvalSetRunResult
 
     public function reportFor(string $datasetName): ?EvalReport
     {
-        return $this->reportsByDataset[EvalSetDefinition::datasetNameKey(trim($datasetName))] ?? null;
+        return $this->reportsByDataset[EvalSetDefinition::datasetNameKey($datasetName)] ?? null;
     }
 
     public function isComplete(): bool

@@ -458,6 +458,16 @@ datasets are skipped when the manifest is passed back in.
 ```php
 use Eval;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+
+$manifestPath = storage_path('eval/release.rag.manifest.json');
+$previousManifest = null;
+if (is_file($manifestPath)) {
+    $manifestPayload = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+    $previousManifest = is_array($manifestPayload)
+        ? EvalSetManifest::fromJson($manifestPayload)
+        : null;
+}
 
 $evalSet = Eval::evalSet('release.rag', [
     'rag.factuality.fy2026',
@@ -472,7 +482,7 @@ $result = Eval::runEvalSet(
 );
 
 file_put_contents(
-    storage_path('eval/release.rag.manifest.json'),
+    $manifestPath,
     json_encode($result->manifest->toJson(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
 );
 ```

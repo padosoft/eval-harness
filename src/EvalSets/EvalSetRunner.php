@@ -28,8 +28,17 @@ final class EvalSetRunner
 
         $reports = [];
         foreach ($definition->datasetNames as $datasetName) {
-            if ($manifest->statusFor($datasetName) === EvalSetManifestEntry::STATUS_COMPLETED) {
+            $status = $manifest->statusFor($datasetName);
+            if ($status === EvalSetManifestEntry::STATUS_COMPLETED) {
                 continue;
+            }
+
+            if ($status === EvalSetManifestEntry::STATUS_FAILED) {
+                return new EvalSetRunResult(
+                    definition: $definition,
+                    manifest: $manifest,
+                    reports: $reports,
+                );
             }
 
             $manifest = $manifest->markRunning($datasetName);

@@ -39,6 +39,7 @@ final class EvalSetManifestTest extends TestCase
         $this->assertSame(EvalSetManifest::SCHEMA_VERSION, $json['schema_version']);
         $this->assertSame('nightly', $json['eval_set']);
         $this->assertSame(12.5, $json['datasets'][0]['finished_at']);
+        $this->assertSame(2.0, $json['datasets'][0]['duration_seconds']);
         $this->assertSame(ReportSchema::VERSION, $json['datasets'][0]['report_schema_version']);
         $this->assertSame('boom', $json['datasets'][1]['error']);
 
@@ -97,5 +98,32 @@ final class EvalSetManifestTest extends TestCase
         $this->expectExceptionMessage('completed status requires report summary fields');
 
         new EvalSetManifestEntry(datasetName: 'rag.first', status: EvalSetManifestEntry::STATUS_COMPLETED);
+    }
+
+    public function test_manifest_rejects_terminal_status_transitions(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'rag.first',
+            sampleResults: [],
+            failures: [],
+            startedAt: 1.0,
+            finishedAt: 2.0,
+        );
+        $entry = EvalSetManifestEntry::pending('rag.first')
+            ->running(1.0)
+            ->completed($report);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('terminal status');
+
+        $entry->running(3.0);
+    }
+
+    public function test_manifest_rejects_padded_dataset_names_instead_of_trimming(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('without leading or trailing whitespace');
+
+        EvalSetManifestEntry::pending(' rag.first ');
     }
 }

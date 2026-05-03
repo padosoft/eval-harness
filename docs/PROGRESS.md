@@ -996,3 +996,20 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding 13 eval-set tests. README has no numeric PHPUnit test-count claim; use `322 tests, 699 assertions` in the subtask PR body validation line.
+- Opened PR #15 (`task/parallel-batch-queues-eval-set-manifests` -> `task/parallel-batch-queues`) at head `c62745e`. Standard `gh pr edit --add-reviewer copilot` was blocked by missing `read:project`, so requested the official Copilot reviewer via GraphQL fallback. CI passed on all PHP 8.3/8.4/8.5 x Laravel 12/13 jobs.
+- Copilot reviewed PR #15 at head `c62745e` and generated four actionable comments:
+  - eval-set dataset names were trimmed even though dataset registration/lookup is verbatim,
+  - manifest completion mixed entry `startedAt` with report `durationSeconds`,
+  - manifest mutation helpers allowed terminal entries to transition back to running/completed/failed,
+  - README showed saving a manifest but not rehydrating JSON through `EvalSetManifest::fromJson()`.
+- Addressed the first PR #15 Copilot round by rejecting padded eval-set/manifest identifiers instead of trimming, computing completed-entry duration from stored timestamps, blocking terminal status transitions, stopping resumed runs at existing failed entries, and showing README manifest rehydration.
+- Targeted validation passed after the first PR #15 Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/EvalSets` => `OK (18 tests, 58 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/EvalSets/EvalSetDefinition.php src/EvalSets/EvalSetManifestEntry.php src/EvalSets/EvalSetManifest.php src/EvalSets/EvalSetRunResult.php src/EvalSets/EvalSetRunner.php tests/Unit/EvalSets/EvalSetDefinitionTest.php tests/Unit/EvalSets/EvalSetManifestTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php`
+- Full local gate passed after the first PR #15 Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (327 tests, 712 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding five eval-set review regression tests. README has no numeric PHPUnit test-count claim; update PR #15 body validation line to `327 tests, 712 assertions` before requesting the next Copilot review.
