@@ -952,4 +952,20 @@
   - `vendor/bin/phpunit` => `OK (305 tests, 647 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding three lazy-batch/cache race tests. README has no test-count claim; update the PR body validation line to `305 tests, 647 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding three lazy-batch/cache race tests. README has no test-count claim; PR #14 body was updated to `305 tests, 647 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `1b45493` and generated four comments:
+  - `container->make($runnerClass)` can return the same singleton/instance-bound runner object, which is not a fresh worker-process proxy,
+  - malformed sample entries should fail with `EvalRunException` instead of raw property access errors,
+  - external `collectOutputs()` needed the same zero-based `DatasetSample` list validation as dispatch/run,
+  - the PR-body update note in `docs/PROGRESS.md` was stale after the previous PR body update.
+- Addressed the latest PR #14 Copilot round by rejecting singleton/instance-bound runner validation, adding `DatasetSample` runtime validation for run/dispatch/collect paths, adding collect sparse-list coverage, and fixing the stale progress entry.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (30 tests, 55 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch validation tests. README has no test-count claim; update the PR body validation line to `308 tests, 653 assertions` before requesting the next Copilot review.

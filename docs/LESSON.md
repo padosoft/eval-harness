@@ -174,3 +174,5 @@
 - Queue job `failed()` hooks should wrap result-store resolution/write failures with the original queue failure message. Otherwise a cache outage while recording the failure degrades into a later generic missing-output timeout.
 - Missing-output diagnostics should re-check completion before throwing. Both external `collectOutputs()` and timeout paths can observe the final success between the first read and the missing-id scan.
 - A success written just before a finished marker should remain readable for idempotent collection retries. The post-write race cleanup should remove writes after abort/expiry, not successes that raced with a normal `finish()`.
+- Lazy-parallel `collectOutputs()` needs the same runtime sample-list validation as `run()`/`dispatch()`. External collectors can pass sparse or malformed arrays even when PHPDoc says `list<DatasetSample>`.
+- Do not trust singleton/instance-bound runner validation as a fresh-worker proxy. If `container->make($runnerClass)` returns the same object the caller passed, reject it because another worker process will not share that mutated instance.

@@ -55,6 +55,7 @@ final class LazyParallelBatch
     public function run(array $samples, array $sampleInvocations, SampleRunner $runner, BatchOptions $options): array
     {
         $this->assertLazyParallelOptions($options);
+        $samples = $this->assertSampleList($samples);
         $this->assertInvocationList($samples, $sampleInvocations);
 
         $runnerClass = $this->runnerClassFor($runner);
@@ -136,6 +137,7 @@ final class LazyParallelBatch
     public function dispatch(array $samples, array $sampleInvocations, SampleRunner $runner, BatchOptions $options): string
     {
         $this->assertLazyParallelOptions($options);
+        $samples = $this->assertSampleList($samples);
         $this->assertInvocationList($samples, $sampleInvocations);
 
         $runnerClass = $this->runnerClassFor($runner);
@@ -184,6 +186,7 @@ final class LazyParallelBatch
      */
     public function collectOutputs(string $batchId, array $samples): array
     {
+        $samples = $this->assertSampleList($samples);
         $storedSampleCount = $this->storedSampleCount($batchId);
         if ($storedSampleCount === null) {
             throw new EvalRunException(sprintf(
@@ -372,10 +375,6 @@ final class LazyParallelBatch
      */
     private function assertInvocationList(array $samples, array $sampleInvocations): void
     {
-        if (! array_is_list($samples)) {
-            throw new EvalRunException('Lazy parallel batch samples must be a zero-based list.');
-        }
-
         if (! array_is_list($sampleInvocations)) {
             throw new EvalRunException('Lazy parallel batch SampleInvocations must be a zero-based list.');
         }
@@ -413,6 +412,33 @@ final class LazyParallelBatch
                 ));
             }
         }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $samples
+     * @return list<DatasetSample>
+     */
+    private function assertSampleList(array $samples): array
+    {
+        if (! array_is_list($samples)) {
+            throw new EvalRunException('Lazy parallel batch samples must be a zero-based list.');
+        }
+
+        $validated = [];
+        foreach ($samples as $index => $sample) {
+            if (! $sample instanceof DatasetSample) {
+                throw new EvalRunException(sprintf(
+                    'Lazy parallel batch sample at index %d must be an instance of %s; got %s.',
+                    $index,
+                    DatasetSample::class,
+                    get_debug_type($sample),
+                ));
+            }
+
+            $validated[] = $sample;
+        }
+
+        return $validated;
     }
 
     private function assertLazyParallelOptions(BatchOptions $options): void
@@ -539,6 +565,12 @@ final class LazyParallelBatch
                 SampleRunner::class,
                 get_debug_type($resolvedRunner),
             ));
+        }
+
+        if ($resolvedRunner === $runner) {
+            throw new EvalRunException(
+                'Lazy parallel batch mode requires the container to resolve a fresh SampleRunner instance; singleton or instance-bound runners can carry caller-specific state that workers in another process cannot preserve.',
+            );
         }
 
         foreach ($initializedProperties as $property) {

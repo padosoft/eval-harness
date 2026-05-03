@@ -460,6 +460,30 @@ final class LazyParallelBatchTest extends TestCase
         $this->assertSame([], $store->events);
     }
 
+    public function test_rejects_non_dataset_sample_entries_before_starting_batch(): void
+    {
+        $store = new RecordingBatchResultStore;
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: $store,
+        );
+
+        try {
+            $batch->dispatch(
+                samples: [(object) ['id' => 's1']],
+                sampleInvocations: [new SampleInvocation(id: 's1', input: ['answer' => 'x'])],
+                runner: new LazyParallelAnswerRunner,
+                options: BatchOptions::lazyParallel(),
+            );
+
+            $this->fail('Expected malformed sample rejection.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('sample at index 0 must be an instance of '.DatasetSample::class, $e->getMessage());
+        }
+
+        $this->assertSame([], $store->events);
+    }
+
     public function test_rejects_sparse_sample_invocations_before_starting_batch(): void
     {
         $store = new RecordingBatchResultStore;
@@ -487,6 +511,21 @@ final class LazyParallelBatchTest extends TestCase
         }
 
         $this->assertSame([], $store->events);
+    }
+
+    public function test_collect_outputs_rejects_sparse_sample_arrays(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var array<int, DatasetSample> $samples */
+        $samples = [
+            1 => new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x'),
+        ];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('samples must be a zero-based list');
+
+        $batch->collectOutputs('manual-batch', $samples);
     }
 
     public function test_rejects_scalar_constructor_state_because_workers_resolve_fresh_runner_instances(): void
@@ -586,6 +625,25 @@ final class LazyParallelBatchTest extends TestCase
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig),
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_rejects_singleton_runner_instances_because_workers_resolve_fresh_processes(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $runner = new DependencyInjectedLazyParallelRunner(new LazyParallelRunnerDependency);
+        $this->app->instance(DependencyInjectedLazyParallelRunner::class, $runner);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('requires the container to resolve a fresh SampleRunner instance');
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: $runner,
             options: BatchOptions::lazyParallel(),
         );
     }
