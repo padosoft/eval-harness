@@ -1082,3 +1082,14 @@
   - `vendor/bin/phpunit` => `OK (328 tests, 715 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #17 again at head `96f52ca` and generated one actionable code comment: lazy-parallel runner validation rejected container-resolvable dependency objects that contain scalar configuration internally, contradicting the documented support for constructor-injected object dependencies. Updated validation to compare caller runner object state against a fresh container-resolved runner instead of recursively rejecting scalar dependency properties, and added regression coverage for equivalent versus caller-specific dependency config.
+- Targeted validation passed after the PR #17 runner dependency fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (32 tests, 57 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the PR #17 runner dependency fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (329 tests, 716 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding the runner dependency regression. README has no numeric PHPUnit test-count claim; update PR #17 body validation line to `329 tests, 716 assertions` before requesting the next Copilot review.

@@ -648,7 +648,28 @@ final class LazyParallelBatchTest extends TestCase
         $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('caller-specific object configuration remains serial-only');
+        $this->expectExceptionMessage('initialized runner object state to match a fresh container-resolved runner');
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig('caller output')),
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_allows_container_resolvable_dependency_objects_with_scalar_internal_config(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            container: $this->app,
+        );
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
 
         $batch->dispatch(
             samples: $samples,
@@ -656,6 +677,10 @@ final class LazyParallelBatchTest extends TestCase
             runner: new ObjectConfiguredLazyParallelRunner(new LazyParallelRunnerConfig),
             options: BatchOptions::lazyParallel(),
         );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->runnerClass === ObjectConfiguredLazyParallelRunner::class;
+        });
     }
 
     public function test_rejects_singleton_runner_instances_because_workers_resolve_fresh_processes(): void

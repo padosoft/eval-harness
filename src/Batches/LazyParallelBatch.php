@@ -532,9 +532,6 @@ final class LazyParallelBatch
                 );
             }
 
-            $seenObjectIds = [];
-            $this->assertRunnerObjectStateIsContainerResolvable($value, $seenObjectIds);
-
             $initializedProperties[] = $property;
         }
 
@@ -603,37 +600,6 @@ final class LazyParallelBatch
         }
 
         return $runnerValue == $resolvedValue;
-    }
-
-    /**
-     * @param  array<int, true>  $seenObjectIds
-     */
-    private function assertRunnerObjectStateIsContainerResolvable(object $value, array &$seenObjectIds): void
-    {
-        $objectId = spl_object_id($value);
-        if (isset($seenObjectIds[$objectId])) {
-            return;
-        }
-
-        $seenObjectIds[$objectId] = true;
-
-        foreach ((new ReflectionClass($value))->getProperties() as $property) {
-            if ($property->isStatic() || ! $property->isInitialized($value)) {
-                continue;
-            }
-
-            $property->setAccessible(true);
-            $propertyValue = $property->getValue($value);
-            if (is_object($propertyValue)) {
-                $this->assertRunnerObjectStateIsContainerResolvable($propertyValue, $seenObjectIds);
-
-                continue;
-            }
-
-            throw new EvalRunException(
-                'Lazy parallel batch mode requires container-resolvable object dependencies; caller-specific object configuration remains serial-only because queued workers resolve a fresh runner by class name.',
-            );
-        }
     }
 
     /**
