@@ -77,7 +77,7 @@
 - Markdown inline code cannot safely escape backticks with backslashes inside a code span. Use HTML `<code>` with `htmlspecialchars()` for user-controlled identifiers.
 - Histogram bucket assignment is most stable when it compares normalized scores against the precomputed rounded bucket boundaries instead of multiplying and flooring the score again.
 - Keep offline metrics deterministic and side-effect free. `contains`, `regex`, `rouge-l`, and baseline `citation-groundedness` should rely only on sample data and actual output so they remain safe for unit tests and CI without HTTP fakes.
-- Citation groundedness baseline currently uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output; advanced span/evidence validation remains a later metric.
+- Citation groundedness baseline uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output. Advanced groundedness uses `metadata.citation_evidence` spans where each span needs both a citation marker and a normalized quote match; details must expose counts only, never raw citations or quotes.
 - Metric details are serialized verbatim into JSON reports; do not echo raw `DatasetSample::$metadata` values there unless a redaction or explicit opt-in mechanism exists.
 - Contains-style metrics must reject empty expected strings because `str_contains($actual, '')` always returns true and can silently inflate pass rates.
 - ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower`; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
@@ -208,3 +208,4 @@
 - Name the new token-overlap metric `bertscore-like`, not plain BERTScore. It embeds normalized expected/actual tokens and computes best-match cosine precision/recall/F1; it is useful and fakeable, but not a contextual Python BERTScore implementation.
 - Judge-backed metrics should share a fakeable `JudgeClient` boundary. Keep `llm-as-judge` and `refusal-quality` on the same OpenAI-compatible chat config, but validate each metric's own strict JSON shape after the shared transport returns message content.
 - `refusal-quality` datasets must mark `metadata.refusal_expected` as a boolean. Do not infer safety intent from expected text, because refusal behavior needs an explicit dataset contract.
+- Keep citation evidence matching offline and deterministic. Normalize quote text for case/whitespace tolerance, but keep citation markers exact so source identifiers do not accidentally match loose prose.

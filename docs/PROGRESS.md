@@ -1221,3 +1221,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding refusal-quality tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #19 (`task/advanced-metrics-refusal-quality` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 19 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #19 merged into `task/advanced-metrics` at `e4af70b`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-citation-spans` from `task/advanced-metrics`.
+- Implemented the advanced citation groundedness slice by extending `citation-groundedness` with `metadata.citation_evidence` spans. Evidence spans require an exact citation marker plus normalized quote match, expose count-only details, and preserve baseline `metadata.citations` behavior.
+- Updated README's comparison matrix with a citation evidence-spans row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the citation evidence slice:
+  - `vendor/bin/phpunit tests/Unit/Metrics/CitationGroundednessMetricTest.php` => `OK (10 tests, 31 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the citation evidence slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (397 tests, 863 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding citation evidence tests. README has no numeric PHPUnit test-count claim to update.
