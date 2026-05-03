@@ -209,3 +209,4 @@
 - Judge-backed metrics should share a fakeable `JudgeClient` boundary. Keep `llm-as-judge` and `refusal-quality` on the same OpenAI-compatible chat config, but validate each metric's own strict JSON shape after the shared transport returns message content.
 - `refusal-quality` datasets must mark `metadata.refusal_expected` as a boolean. Do not infer safety intent from expected text, because refusal behavior needs an explicit dataset contract.
 - Keep citation evidence matching offline and deterministic. Normalize quote text for case/whitespace tolerance, but keep citation markers exact so source identifiers do not accidentally match loose prose.
+- Report usage summaries should parse only structured `MetricScore.details['usage']` fields such as token counts, `cost_usd`, and `latency_ms`. Ignore malformed usage values instead of failing report rendering, and never serialize raw prompts or provider payloads as part of usage aggregation.

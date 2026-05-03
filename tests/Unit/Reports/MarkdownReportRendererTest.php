@@ -45,7 +45,41 @@ final class MarkdownReportRendererTest extends TestCase
         $this->assertStringContainsString('## Score histograms', $md);
         $this->assertStringContainsString('(untagged)', $md);
         $this->assertStringContainsString('| 0.0-0.1 |', $md);
+        $this->assertStringNotContainsString('## Usage summary', $md);
         $this->assertStringNotContainsString('## Failures', $md);
+    }
+
+    public function test_usage_summary_section_appears_when_usage_details_exist(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'e'),
+                    actualOutput: 'e',
+                    metricScores: [
+                        'llm-as-judge' => new MetricScore(1.0, [
+                            'usage' => [
+                                'prompt_tokens' => 7,
+                                'completion_tokens' => 3,
+                                'total_tokens' => 10,
+                                'cost_usd' => 0.001,
+                                'latency_ms' => 50,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('## Usage summary', $md);
+        $this->assertStringContainsString('| observations | prompt tokens | completion tokens | total tokens | cost USD | mean latency ms | max latency ms |', $md);
+        $this->assertStringContainsString('| 1 | 7 | 3 | 10 | 0.001000 | 50.00 | 50.00 |', $md);
     }
 
     public function test_failures_section_appears_when_failures_present(): void

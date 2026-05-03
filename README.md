@@ -118,6 +118,8 @@ surface small and the offline path fast.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
+- **Usage summaries** — JSON and Markdown reports aggregate structured
+  `usage` details for provider token counts, cost USD, and latency.
 - **Batch execution modes** — SUT runs flow through deterministic
   `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
   `--batch=lazy-parallel` for Laravel queue/Horizon workers.
@@ -148,6 +150,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
+| Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - JSON/Markdown usage summary from metric details** |
 | Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
 | CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
 | Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
@@ -579,6 +582,24 @@ Each evidence span scores only when the actual output contains both
 the citation marker and the quoted evidence text. Report details expose
 counts only, not raw citation or quote strings.
 
+Metrics that expose provider usage can add a structured `usage` detail:
+
+```php
+new MetricScore(1.0, [
+    'usage' => [
+        'prompt_tokens' => 120,
+        'completion_tokens' => 40,
+        'total_tokens' => 160,
+        'cost_usd' => 0.0024,
+        'latency_ms' => 850,
+    ],
+]);
+```
+
+The renderers aggregate those values into top-level JSON and Markdown
+usage summaries while leaving raw prompts/provider payloads out of the
+report contract.
+
 ---
 
 ## Architecture
@@ -714,8 +735,8 @@ accidentally and never burns API credits.
 - **More built-in metrics**: ROUGE-L, citation-groundedness baseline
   plus citation evidence spans, a fakeable embedding-backed BERTScore-like
   metric, and strict-schema refusal-quality judging are implemented.
-- **Usage summaries** — token, cost, and latency fields when metric
-  providers expose usage.
+- **Usage summaries** — token, cost, and latency totals are aggregated
+  from structured metric `usage` details in JSON and Markdown reports.
 
 ### v0.3 (planned)
 

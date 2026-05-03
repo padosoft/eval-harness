@@ -124,8 +124,8 @@ Implement:
 - Embedding-based BERTScore-like metric through an embedding client interface. Implemented in the first Macro Task 4 slice with `EmbeddingClient`, `OpenAiCompatibleEmbeddingClient`, and the `bertscore-like` metric alias.
 - LLM-as-judge refusal-quality metric with strict response schema. Implemented in the second Macro Task 4 slice with `JudgeClient`, `OpenAiCompatibleJudgeClient`, and the `refusal-quality` metric alias.
 - Advanced citation groundedness using evidence spans and quote matching. Implemented by extending `citation-groundedness` with `metadata.citation_evidence` marker+quote matching while preserving baseline `metadata.citations`.
-- Token/cost parser hook inspired by Ragas.
-- Cost, token, and latency summary fields in JSON/Markdown reports for metric providers that expose usage.
+- Token/cost parser hook inspired by Ragas. Implemented through structured metric `usage` details parsed by report aggregation.
+- Cost, token, and latency summary fields in JSON/Markdown reports for metric providers that expose usage. Implemented as top-level usage summaries in `EvalReport`, JSON reports, and Markdown reports.
 - Runtime config for retry/timeout/raise-exceptions behavior.
 
 Guardrails:

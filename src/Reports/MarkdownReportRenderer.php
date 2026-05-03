@@ -11,6 +11,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   - H1 with dataset name.
  *   - Summary table: total samples, total failures, duration.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
+ *   - Usage summary when metric providers expose token/cost/latency data.
  *   - Cohort table by metadata.tags.
  *   - Per-metric score histograms.
  *   - Failure list (if any).
@@ -66,6 +67,25 @@ final class MarkdownReportRenderer
         $lines[] = '';
         $lines[] = sprintf('## Macro-F1 (avg pass-rate across all metrics): %.4f', $report->macroF1());
         $lines[] = '';
+
+        $usage = $report->usageSummary();
+        if ($usage['observations'] > 0) {
+            $lines[] = '## Usage summary';
+            $lines[] = '';
+            $lines[] = '| observations | prompt tokens | completion tokens | total tokens | cost USD | mean latency ms | max latency ms |';
+            $lines[] = '| --- | --- | --- | --- | --- | --- | --- |';
+            $lines[] = sprintf(
+                '| %d | %d | %d | %d | %.6f | %.2f | %.2f |',
+                $usage['observations'],
+                $usage['prompt_tokens'],
+                $usage['completion_tokens'],
+                $usage['total_tokens'],
+                $usage['cost_usd'],
+                $usage['latency_ms']['mean'],
+                $usage['latency_ms']['max'],
+            );
+            $lines[] = '';
+        }
 
         $cohorts = $report->cohortSummaries();
         if ($cohorts !== []) {

@@ -1234,3 +1234,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding citation evidence tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #20 (`task/advanced-metrics-citation-spans` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 20 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #20 merged into `task/advanced-metrics` at `0265a6f`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-usage-summaries` from `task/advanced-metrics`.
+- Implemented usage/cost/latency report summaries by aggregating structured `MetricScore.details['usage']` values into `EvalReport::usageSummary()`, JSON report top-level `usage`, and a Markdown "Usage summary" section.
+- Updated README's comparison matrix with a cost/token/latency summaries row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the usage summary slice:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (34 tests, 124 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the usage summary slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (401 tests, 877 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding usage summary tests. README has no numeric PHPUnit test-count claim to update.
