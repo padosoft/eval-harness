@@ -8,6 +8,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Metrics\RougeLMetric;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 final class RougeLMetricTest extends TestCase
 {
@@ -31,6 +32,7 @@ final class RougeLMetricTest extends TestCase
 
         $this->assertEqualsWithDelta(2.0 / 3.0, $score->score, 1e-9);
         $this->assertSame(2, $score->details['lcs_tokens']);
+        $this->assertEqualsWithDelta(2.0 / 3.0, $score->details['clamped_score'], 1e-9);
     }
 
     public function test_tokenization_uses_unicode_aware_lowercasing(): void
@@ -92,5 +94,13 @@ final class RougeLMetricTest extends TestCase
         $this->expectExceptionMessage('max token count must be at least 1');
 
         new RougeLMetric(maxTokens: 0);
+    }
+
+    public function test_f1_score_is_clamped_to_metric_score_range(): void
+    {
+        $clampScore = new ReflectionMethod(RougeLMetric::class, 'clampScore');
+
+        $this->assertSame(1.0, $clampScore->invoke(null, 1.0000000000000002));
+        $this->assertSame(0.0, $clampScore->invoke(null, -0.0000000000000001));
     }
 }

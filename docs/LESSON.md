@@ -84,3 +84,4 @@
 - Regex metrics should report a general evaluation failure when `preg_match()` returns false, because failures can come from invalid patterns or from subject/modifier issues such as `/u` with invalid UTF-8.
 - For deterministic Unicode metric behavior, depend directly on `symfony/polyfill-mbstring` and call `mb_strtolower()` unconditionally instead of falling back to ASCII `strtolower()`.
 - O(n*m) offline metrics need defensive input bounds. ROUGE-L should cap token counts before the LCS pass so large eval outputs cannot surprise CI with quadratic CPU work.
+- Metrics that calculate with floating-point arithmetic should clamp final scores into `[0.0, 1.0]` before constructing `MetricScore`, even when the formula is mathematically bounded.

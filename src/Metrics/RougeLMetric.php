@@ -63,15 +63,23 @@ final class RougeLMetric implements Metric
         $score = ($precision + $recall) === 0.0
             ? 0.0
             : (2.0 * $precision * $recall) / ($precision + $recall);
+        $clampedScore = self::clampScore($score);
 
         return new MetricScore(
-            score: $score,
+            score: $clampedScore,
             details: [
                 'lcs_tokens' => $lcs,
                 'precision' => $precision,
                 'recall' => $recall,
+                'raw_score' => $score,
+                'clamped_score' => $clampedScore,
             ],
         );
+    }
+
+    private static function clampScore(float $score): float
+    {
+        return max(0.0, min(1.0, $score));
     }
 
     /**
