@@ -66,7 +66,7 @@ final class DatasetBuilder
      * Programmatic alternative to YAML loading. Useful for tests and
      * for callers building a dataset from a database query.
      *
-     * @param  list<DatasetSample>  $samples
+     * @param  array<array-key, DatasetSample>  $samples  Reindexed to a zero-based list before registration.
      */
     public function withSamples(array $samples): self
     {

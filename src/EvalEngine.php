@@ -176,11 +176,46 @@ final class EvalEngine
     ): EvalReport {
         $batchOptions ??= BatchOptions::serial();
 
+        if ($batchOptions->mode === BatchOptions::MODE_SERIAL) {
+            return $this->scoreSerialDataset(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: $startedAt,
+                actualOutputForSample: $actualOutputForSample,
+            );
+        }
+
         return $this->scoreDatasetOutputs(
             datasetName: $datasetName,
             dataset: $dataset,
             startedAt: $startedAt,
             actualOutputs: $this->sampleOutputsForBatch($dataset, $actualOutputForSample, $batchOptions),
+        );
+    }
+
+    /**
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     */
+    private function scoreSerialDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
+    {
+        $sampleResults = [];
+        $failures = [];
+
+        $this->serialBatch->runEach(
+            samples: $dataset->samples,
+            actualOutputForSample: $actualOutputForSample,
+            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, &$sampleResults, &$failures): void {
+                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
+            },
+        );
+
+        return new EvalReport(
+            datasetName: $datasetName,
+            sampleResults: $sampleResults,
+            failures: $failures,
+            startedAt: $startedAt,
+            finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
         );
     }
 
@@ -203,24 +238,7 @@ final class EvalEngine
 
             $actualOutput = $actualOutputs[$index];
 
-            $metricScores = [];
-            foreach ($dataset->metrics as $metric) {
-                try {
-                    $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
-                } catch (Throwable $e) {
-                    $failures[] = new SampleFailure(
-                        sampleId: $sample->id,
-                        metricName: $metric->name(),
-                        error: $e->getMessage(),
-                    );
-                }
-            }
-
-            $sampleResults[] = new SampleResult(
-                sample: $sample,
-                actualOutput: $actualOutput,
-                metricScores: $metricScores,
-            );
+            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
         }
 
         return new EvalReport(
@@ -230,6 +248,31 @@ final class EvalEngine
             startedAt: $startedAt,
             finishedAt: microtime(true),
             datasetSchemaVersion: $dataset->schemaVersion,
+        );
+    }
+
+    /**
+     * @param  list<SampleFailure>  $failures
+     */
+    private function scoreSampleResult(GoldenDataset $dataset, DatasetSample $sample, string $actualOutput, array &$failures): SampleResult
+    {
+        $metricScores = [];
+        foreach ($dataset->metrics as $metric) {
+            try {
+                $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
+            } catch (Throwable $e) {
+                $failures[] = new SampleFailure(
+                    sampleId: $sample->id,
+                    metricName: $metric->name(),
+                    error: $e->getMessage(),
+                );
+            }
+        }
+
+        return new SampleResult(
+            sample: $sample,
+            actualOutput: $actualOutput,
+            metricScores: $metricScores,
         );
     }
 

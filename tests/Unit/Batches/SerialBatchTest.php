@@ -40,7 +40,28 @@ final class SerialBatchTest extends TestCase
         (new SerialBatch)->run(
             [new DatasetSample(id: 's1', input: [], expectedOutput: 'x')],
             /** @phpstan-ignore-next-line deliberately wrong return type */
-            static fn (): int => 42,
+            static fn (DatasetSample $_sample, int $_index): int => 42,
         );
+    }
+
+    public function test_run_each_streams_outputs_in_dataset_order(): void
+    {
+        $seen = [];
+
+        (new SerialBatch)->runEach(
+            [
+                new DatasetSample(id: 'first', input: ['q' => 'a'], expectedOutput: 'A'),
+                new DatasetSample(id: 'second', input: ['q' => 'b'], expectedOutput: 'B'),
+            ],
+            static fn (DatasetSample $sample, int $_index): string => strtoupper((string) $sample->input['q']),
+            static function (DatasetSample $sample, int $index, string $actualOutput) use (&$seen): void {
+                $seen[] = [$sample->id, $index, $actualOutput];
+            },
+        );
+
+        $this->assertSame([
+            ['first', 0, 'A'],
+            ['second', 1, 'B'],
+        ], $seen);
     }
 }

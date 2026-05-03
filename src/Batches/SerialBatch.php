@@ -25,6 +25,24 @@ final class SerialBatch
     {
         $actualOutputs = [];
 
+        $this->runEach(
+            samples: $samples,
+            actualOutputForSample: $actualOutputForSample,
+            handleOutput: static function (DatasetSample $_sample, int $_index, string $actualOutput) use (&$actualOutputs): void {
+                $actualOutputs[] = $actualOutput;
+            },
+        );
+
+        return $actualOutputs;
+    }
+
+    /**
+     * @param  list<DatasetSample>  $samples
+     * @param  callable(DatasetSample, int): string  $actualOutputForSample
+     * @param  callable(DatasetSample, int, string): void  $handleOutput
+     */
+    public function runEach(array $samples, callable $actualOutputForSample, callable $handleOutput): void
+    {
         foreach ($samples as $index => $sample) {
             $actualOutput = $actualOutputForSample($sample, $index);
             if (! is_string($actualOutput)) {
@@ -35,9 +53,7 @@ final class SerialBatch
                 ));
             }
 
-            $actualOutputs[] = $actualOutput;
+            $handleOutput($sample, $index, $actualOutput);
         }
-
-        return $actualOutputs;
     }
 }

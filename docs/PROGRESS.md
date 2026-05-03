@@ -632,3 +632,17 @@
   - `vendor/bin/phpunit` => `OK (240 tests, 523 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `3cd2538` after the `@copilot review` fallback and generated three comments:
+  - `SerialBatchTest` used a zero-argument callback against a two-argument callable contract,
+  - serial scoring built a full output list and then looped the dataset again,
+  - `DatasetBuilder::withSamples()` docblock still claimed a list even though the method now accepts and reindexes non-zero-based arrays.
+- Addressed the comments by adding `SerialBatch::runEach()` for single-pass serial report scoring, updating the non-string test callback arity, and widening the `withSamples()` parameter docblock.
+- Targeted validation passed after the single-pass serial scoring/docblock fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/SerialBatchTest.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/EvalEngineTest.php` => `OK (52 tests, 111 assertions)`
+  - `vendor/bin/pint --test src/Batches/SerialBatch.php src/Datasets/DatasetBuilder.php src/EvalEngine.php tests/Unit/Batches/SerialBatchTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the single-pass serial scoring/docblock fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (241 tests, 524 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

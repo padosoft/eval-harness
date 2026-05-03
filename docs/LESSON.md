@@ -116,3 +116,5 @@
 - Automated `chatgpt-codex-connector` reviews can appear while `copilot-pull-request-reviewer` is still pending. Do not treat Codex as the required Copilot review, but do fix real actionable defects it catches before the next review request.
 - Batch scoring treats sample outputs as positional. Normalize programmatic dataset samples to a zero-based list during builder registration and validate direct `GoldenDataset` construction so filtered/gapped PHP array keys cannot misalign sample outputs.
 - When adding constructor dependencies to public service objects such as `EvalEngine`, keep direct-instantiation compatibility with an optional fallback even if the Laravel container binding provides the new dependency.
+- When a method intentionally accepts a wider shape and normalizes it internally, update PHPDoc from `list<T>` to the real accepted shape so static analysis and consumer expectations do not drift.
+- Serial batch traversal can expose a streaming/sink path for report assembly so serial mode keeps deterministic ordering without a temporary full output list.
