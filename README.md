@@ -417,13 +417,16 @@ php artisan eval-harness:run rag.factuality.fy2026 \
   --batch=lazy-parallel \
   --concurrency=4 \
   --queue=evals \
-  --timeout=60
+  --timeout=60 \
+  --batch-timeout=300
 ```
 
 Use Laravel's `sync` queue driver for unit tests. In production, run
 Horizon workers on the chosen queue and use a cache backend shared by
 the command process and workers so queued sample outputs can be
-collected for report assembly.
+collected for report assembly. `--timeout` is the per-sample job
+timeout; `--batch-timeout` is the maximum wait for each concurrency
+window to finish before the command reports missing queued outputs.
 
 ---
 

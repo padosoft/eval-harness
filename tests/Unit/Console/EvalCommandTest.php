@@ -101,6 +101,7 @@ final class EvalCommandTest extends TestCase
             '--concurrency' => '2',
             '--queue' => 'evals',
             '--timeout' => '5',
+            '--batch-timeout' => '30',
         ])->assertExitCode(0);
     }
 
@@ -155,6 +156,24 @@ final class EvalCommandTest extends TestCase
             '--timeout' => '30',
         ])
             ->expectsOutputToContain('Serial batch mode does not use a timeout')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_batch_rejects_batch_timeout(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-batch-wait-timeout')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-batch-wait-timeout',
+            '--batch-timeout' => '30',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a wait timeout')
             ->assertExitCode(1);
     }
 

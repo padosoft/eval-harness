@@ -47,21 +47,62 @@ final class LazyParallelBatch
      */
     public function run(array $samples, array $sampleInvocations, SampleRunner $runner, BatchOptions $options): array
     {
-        $batchId = $this->dispatch($samples, $sampleInvocations, $runner, $options);
+        $this->assertLazyParallelOptions($options);
+        $this->assertInvocationList($samples, $sampleInvocations);
+
+        $runnerClass = $this->runnerClassFor($runner);
+        $batchId = $this->newBatchId();
+        $sampleCount = count($samples);
+        $outputsByIndex = [];
+        $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+
+        $this->resultStore->start($batchId, $sampleCount, $this->resultTtlSeconds);
 
         try {
-            return $this->waitForOutputs(
-                batchId: $batchId,
-                samples: $samples,
-                timeoutSeconds: $options->timeoutSeconds ?? $this->defaultWaitTimeoutSeconds,
-            );
+            foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+                $this->dispatchSampleJobs(
+                    batchId: $batchId,
+                    samples: $sampleWindow,
+                    sampleInvocations: $sampleInvocations,
+                    runnerClass: $runnerClass,
+                    options: $options,
+                );
+
+                $outputsByIndex += $this->waitForIndexedOutputs(
+                    batchId: $batchId,
+                    samples: $sampleWindow,
+                    sampleCount: $sampleCount,
+                    timeoutSeconds: $waitTimeoutSeconds,
+                );
+            }
+
+            ksort($outputsByIndex);
+
+            $outputs = [];
+            foreach ($samples as $index => $sample) {
+                if (! array_key_exists($index, $outputsByIndex)) {
+                    throw new EvalRunException(sprintf(
+                        "Batch output for sample '%s' at index %d is missing.",
+                        $sample->id,
+                        $index,
+                    ));
+                }
+
+                $outputs[] = $outputsByIndex[$index];
+            }
+
+            return $outputs;
         } finally {
-            $this->resultStore->forget($batchId, count($samples));
+            $this->resultStore->forget($batchId, $sampleCount);
         }
     }
 
     /**
-     * Dispatch sample jobs and return the opaque batch id for later collection.
+     * Dispatch every sample job and return the opaque batch id for later collection.
+     *
+     * This method intentionally does not wait between concurrency windows; it is
+     * useful for Queue::fake() assertions and external schedulers. Engine runs
+     * should use run(), which applies the concurrency window before collecting.
      *
      * @param  list<DatasetSample>  $samples
      * @param  list<SampleInvocation>  $sampleInvocations
@@ -75,23 +116,14 @@ final class LazyParallelBatch
         $batchId = $this->newBatchId();
         $this->resultStore->start($batchId, count($samples), $this->resultTtlSeconds);
 
-        foreach ($samples as $index => $sample) {
-            $sampleInvocation = $sampleInvocations[$index];
-            $job = new EvaluateSampleJob(
+        foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+            $this->dispatchSampleJobs(
                 batchId: $batchId,
-                index: $index,
-                sampleId: $sample->id,
-                sample: $sampleInvocation,
+                samples: $sampleWindow,
+                sampleInvocations: $sampleInvocations,
                 runnerClass: $runnerClass,
-                resultTtlSeconds: $this->resultTtlSeconds,
-                timeoutSeconds: $options->timeoutSeconds,
+                options: $options,
             );
-
-            if ($options->queue !== null) {
-                $job->onQueue($options->queue);
-            }
-
-            $this->dispatcher->dispatch($job);
         }
 
         return $batchId;
@@ -103,12 +135,15 @@ final class LazyParallelBatch
      */
     public function collectOutputs(string $batchId, array $samples): array
     {
-        $outputs = $this->collectOutputsOrNull($batchId, $samples);
-        if ($outputs !== null) {
-            return $outputs;
+        $indexedSamples = $this->indexedSamples($samples);
+        $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $indexedSamples, count($samples));
+        if ($outputsByIndex !== null) {
+            ksort($outputsByIndex);
+
+            return array_values($outputsByIndex);
         }
 
-        $missingSampleIds = $this->missingSampleIds($batchId, $samples);
+        $missingSampleIds = $this->missingSampleIds($batchId, $indexedSamples, count($samples));
 
         throw new EvalRunException(sprintf(
             "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
@@ -118,15 +153,15 @@ final class LazyParallelBatch
     }
 
     /**
-     * @param  list<DatasetSample>  $samples
-     * @return list<string>
+     * @param  array<int, DatasetSample>  $samples
+     * @return array<int, string>
      */
-    private function waitForOutputs(string $batchId, array $samples, int $timeoutSeconds): array
+    private function waitForIndexedOutputs(string $batchId, array $samples, int $sampleCount, int $timeoutSeconds): array
     {
         $deadline = microtime(true) + $timeoutSeconds;
 
         do {
-            $outputs = $this->collectOutputsOrNull($batchId, $samples);
+            $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
             if ($outputs !== null) {
                 return $outputs;
             }
@@ -138,16 +173,21 @@ final class LazyParallelBatch
             usleep(self::POLL_INTERVAL_MICROSECONDS);
         } while (true);
 
-        return $this->collectOutputs($batchId, $samples);
+        $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
+
+        throw new EvalRunException(sprintf(
+            "Lazy parallel batch '%s' did not produce outputs for sample ids: %s. Confirm queue workers are running and the batch result cache is shared with workers.",
+            $batchId,
+            implode(', ', $missingSampleIds),
+        ));
     }
 
     /**
-     * @param  list<DatasetSample>  $samples
-     * @return list<string>|null
+     * @param  array<int, DatasetSample>  $samples
+     * @return array<int, string>|null
      */
-    private function collectOutputsOrNull(string $batchId, array $samples): ?array
+    private function collectIndexedOutputsOrNull(string $batchId, array $samples, int $sampleCount): ?array
     {
-        $sampleCount = count($samples);
         $failures = $this->resultStore->failures($batchId, $sampleCount);
         if ($failures !== []) {
             $firstFailure = $failures[array_key_first($failures)];
@@ -167,7 +207,7 @@ final class LazyParallelBatch
                 return null;
             }
 
-            $outputs[] = $storedOutputs[$index];
+            $outputs[$index] = $storedOutputs[$index];
         }
 
         return $outputs;
@@ -216,6 +256,38 @@ final class LazyParallelBatch
     }
 
     /**
+     * @param  array<int, DatasetSample>  $samples
+     * @param  list<SampleInvocation>  $sampleInvocations
+     * @param  class-string<SampleRunner>  $runnerClass
+     */
+    private function dispatchSampleJobs(
+        string $batchId,
+        array $samples,
+        array $sampleInvocations,
+        string $runnerClass,
+        BatchOptions $options,
+    ): void {
+        foreach ($samples as $index => $sample) {
+            $sampleInvocation = $sampleInvocations[$index];
+            $job = new EvaluateSampleJob(
+                batchId: $batchId,
+                index: $index,
+                sampleId: $sample->id,
+                sample: $sampleInvocation,
+                runnerClass: $runnerClass,
+                resultTtlSeconds: $this->resultTtlSeconds,
+                timeoutSeconds: $options->timeoutSeconds,
+            );
+
+            if ($options->queue !== null) {
+                $job->onQueue($options->queue);
+            }
+
+            $this->dispatcher->dispatch($job);
+        }
+    }
+
+    /**
      * @return class-string<SampleRunner>
      */
     private function runnerClassFor(SampleRunner $runner): string
@@ -232,12 +304,12 @@ final class LazyParallelBatch
     }
 
     /**
-     * @param  list<DatasetSample>  $samples
+     * @param  array<int, DatasetSample>  $samples
      * @return list<string>
      */
-    private function missingSampleIds(string $batchId, array $samples): array
+    private function missingSampleIds(string $batchId, array $samples, int $sampleCount): array
     {
-        $storedOutputs = $this->resultStore->successfulOutputs($batchId, count($samples));
+        $storedOutputs = $this->resultStore->successfulOutputs($batchId, $sampleCount);
         $missing = [];
 
         foreach ($samples as $index => $sample) {
@@ -247,6 +319,20 @@ final class LazyParallelBatch
         }
 
         return $missing;
+    }
+
+    /**
+     * @param  list<DatasetSample>  $samples
+     * @return array<int, DatasetSample>
+     */
+    private function indexedSamples(array $samples): array
+    {
+        $indexed = [];
+        foreach ($samples as $index => $sample) {
+            $indexed[$index] = $sample;
+        }
+
+        return $indexed;
     }
 
     private function newBatchId(): string

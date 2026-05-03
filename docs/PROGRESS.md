@@ -668,3 +668,18 @@
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding tests. README still has no test-count claim; this progress file records the current `255 tests, 550 assertions` result.
 - Opened subtask PR #14 from `task/parallel-batch-queues-lazy-parallel` into `task/parallel-batch-queues`; requested Copilot through the GraphQL fallback because `gh pr edit 14 --add-reviewer copilot` was blocked by the missing `read:project` scope.
+- PR #14 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `2a42dad`.
+- While the `copilot-pull-request-reviewer` request was still pending, `chatgpt-codex-connector` generated two actionable review comments:
+  - `--timeout` was used both as the per-sample job timeout and as the whole batch result collection deadline,
+  - lazy-parallel accepted `--concurrency` but dispatched all samples in one pass.
+- Addressed those comments by adding a separate `BatchOptions::$waitTimeoutSeconds` / `--batch-timeout` value and changing `LazyParallelBatch::run()` to dispatch and collect bounded concurrency windows before dispatching more jobs.
+- Targeted validation passed after the PR #14 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (84 tests, 178 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalEngine.php src/Console/EvalCommand.php src/EvalHarnessServiceProvider.php tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the PR #14 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (259 tests, 560 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search again. README still has no test-count claim; this progress file records the current `259 tests, 560 assertions` result.

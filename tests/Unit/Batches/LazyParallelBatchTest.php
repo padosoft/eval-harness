@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Batches;
 
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Queue;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
@@ -48,7 +49,7 @@ final class LazyParallelBatchTest extends TestCase
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: new LazyParallelAnswerRunner,
-            options: BatchOptions::lazyParallel(concurrency: 3, queue: 'evals', timeoutSeconds: 45),
+            options: BatchOptions::lazyParallel(concurrency: 3, queue: 'evals', timeoutSeconds: 45, waitTimeoutSeconds: 120),
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, 2);
@@ -76,6 +77,44 @@ final class LazyParallelBatchTest extends TestCase
             ['first output', 'second output'],
             $batch->collectOutputs('manual-batch', $samples),
         );
+    }
+
+    public function test_run_honors_concurrency_windows_before_dispatching_more_jobs(): void
+    {
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'first output'], expectedOutput: 'first output'),
+            new DatasetSample(id: 's2', input: ['answer' => 'second output'], expectedOutput: 'second output'),
+            new DatasetSample(id: 's3', input: ['answer' => 'third output'], expectedOutput: 'third output'),
+        ];
+        $store = new RecordingBatchResultStore;
+        $batch = new LazyParallelBatch(
+            dispatcher: new RecordingDispatcher($store),
+            resultStore: $store,
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $outputs = $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 2),
+        );
+
+        $this->assertSame(['first output', 'second output', 'third output'], $outputs);
+        $this->assertSame([
+            'start:3',
+            'dispatch:s1',
+            'success:s1',
+            'dispatch:s2',
+            'success:s2',
+            'failures:3',
+            'outputs:3',
+            'dispatch:s3',
+            'success:s3',
+            'failures:3',
+            'outputs:3',
+            'forget:3',
+        ], $store->events);
     }
 
     public function test_runner_failures_are_reported_by_sample_id(): void
@@ -158,5 +197,118 @@ final class LazyParallelFailingRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         throw new \RuntimeException('runner exploded');
+    }
+}
+
+final class RecordingDispatcher implements Dispatcher
+{
+    public function __construct(
+        private readonly RecordingBatchResultStore $store,
+    ) {}
+
+    public function dispatch($command): mixed
+    {
+        if (! $command instanceof EvaluateSampleJob) {
+            return null;
+        }
+
+        $this->store->events[] = 'dispatch:'.$command->sampleId;
+        $this->store->recordSuccess(
+            batchId: $command->batchId,
+            index: $command->index,
+            sampleId: $command->sampleId,
+            actualOutput: (string) $command->sample->input['answer'],
+            ttlSeconds: $command->resultTtlSeconds,
+        );
+
+        return null;
+    }
+
+    public function dispatchSync($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchNow($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchAfterResponse($command, $handler = null): void
+    {
+        $this->dispatch($command);
+    }
+
+    public function chain($jobs = null): mixed
+    {
+        return null;
+    }
+
+    public function hasCommandHandler($command): bool
+    {
+        return false;
+    }
+
+    public function getCommandHandler($command): mixed
+    {
+        return null;
+    }
+
+    public function pipeThrough(array $pipes): self
+    {
+        return $this;
+    }
+
+    public function map(array $map): self
+    {
+        return $this;
+    }
+}
+
+final class RecordingBatchResultStore implements BatchResultStore
+{
+    /** @var list<string> */
+    public array $events = [];
+
+    /** @var array<int, string> */
+    private array $outputs = [];
+
+    /** @var array<int, array{sample_id: string, error: string}> */
+    private array $failures = [];
+
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        $this->events[] = 'start:'.$sampleCount;
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        $this->events[] = 'success:'.$sampleId;
+        $this->outputs[$index] = $actualOutput;
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        $this->events[] = 'failure:'.$sampleId;
+        $this->failures[$index] = ['sample_id' => $sampleId, 'error' => $error];
+    }
+
+    public function successfulOutputs(string $batchId, int $sampleCount): array
+    {
+        $this->events[] = 'outputs:'.$sampleCount;
+
+        return $this->outputs;
+    }
+
+    public function failures(string $batchId, int $sampleCount): array
+    {
+        $this->events[] = 'failures:'.$sampleCount;
+
+        return $this->failures;
+    }
+
+    public function forget(string $batchId, int $sampleCount): void
+    {
+        $this->events[] = 'forget:'.$sampleCount;
     }
 }

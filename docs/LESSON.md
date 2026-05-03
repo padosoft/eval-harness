@@ -122,3 +122,5 @@
 - Horizon-ready queue result assembly needs a store shared by the command process and workers. A cache-backed result store keyed by batch id and sample index lets jobs finish out of order while the engine assembles outputs in dataset order.
 - Queue fake tests should assert dispatch shape through a dispatch-only path; full `run()` tests should use the `sync` queue so queued jobs execute and write results deterministically.
 - When package code starts importing queue/cache/bus contracts directly, add explicit `illuminate/bus`, `illuminate/cache`, and `illuminate/queue` Composer requirements instead of relying on transitive Testbench or `laravel/framework` replacements.
+- Do not reuse a per-sample queue job timeout as the whole lazy-batch collection deadline. Keep job timeout (`--timeout`) separate from queue result wait timeout (`--batch-timeout`) so healthy large batches do not fail early.
+- If a batch option exposes concurrency, the producer path must use it. `LazyParallelBatch::run()` should dispatch and collect in bounded windows so `--concurrency=N` limits in-flight queued samples instead of becoming a no-op.

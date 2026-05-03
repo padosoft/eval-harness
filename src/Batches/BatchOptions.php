@@ -26,6 +26,7 @@ final class BatchOptions
         public readonly int $concurrency = 1,
         public readonly ?string $queue = null,
         public readonly ?int $timeoutSeconds = null,
+        public readonly ?int $waitTimeoutSeconds = null,
     ) {
         if (! in_array($mode, self::SUPPORTED_MODES, true)) {
             throw new EvalRunException(sprintf(
@@ -47,6 +48,10 @@ final class BatchOptions
             throw new EvalRunException('Batch timeout must be null or greater than or equal to 1 second.');
         }
 
+        if ($waitTimeoutSeconds !== null && $waitTimeoutSeconds < 1) {
+            throw new EvalRunException('Batch wait timeout must be null or greater than or equal to 1 second.');
+        }
+
         if ($mode === self::MODE_SERIAL) {
             if ($concurrency !== 1) {
                 throw new EvalRunException('Serial batch mode requires concurrency 1.');
@@ -59,6 +64,10 @@ final class BatchOptions
             if ($timeoutSeconds !== null) {
                 throw new EvalRunException('Serial batch mode does not use a timeout.');
             }
+
+            if ($waitTimeoutSeconds !== null) {
+                throw new EvalRunException('Serial batch mode does not use a wait timeout.');
+            }
         }
     }
 
@@ -67,13 +76,18 @@ final class BatchOptions
         return new self;
     }
 
-    public static function lazyParallel(int $concurrency = 1, ?string $queue = null, ?int $timeoutSeconds = null): self
-    {
+    public static function lazyParallel(
+        int $concurrency = 1,
+        ?string $queue = null,
+        ?int $timeoutSeconds = null,
+        ?int $waitTimeoutSeconds = null,
+    ): self {
         return new self(
             mode: self::MODE_LAZY_PARALLEL,
             concurrency: $concurrency,
             queue: $queue,
             timeoutSeconds: $timeoutSeconds,
+            waitTimeoutSeconds: $waitTimeoutSeconds,
         );
     }
 }

@@ -67,6 +67,7 @@ final class EvalCommand extends Command
         {--concurrency=1 : Desired worker concurrency for queue-backed batch modes}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
+        {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
@@ -261,6 +262,7 @@ final class EvalCommand extends Command
             concurrency: $this->positiveIntegerOption('concurrency', 1),
             queue: is_string($queue) && $queue !== '' ? $queue : null,
             timeoutSeconds: $this->nullablePositiveIntegerOption('timeout'),
+            waitTimeoutSeconds: $this->nullablePositiveIntegerOption('batch-timeout'),
         );
     }
 
