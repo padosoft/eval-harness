@@ -1266,3 +1266,4 @@
   - `vendor/bin/phpunit` => `OK (412 tests, 918 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened PR #22 (`task/advanced-metrics-runtime-options` -> `task/advanced-metrics`) for the runtime guardrail slice with summary, guardrails, validation, and README comparison prefix check in the PR body.
