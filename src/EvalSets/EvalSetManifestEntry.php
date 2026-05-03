@@ -227,6 +227,23 @@ final class EvalSetManifestEntry
                 ));
             }
         }
+
+        if ($this->startedAt !== null && $this->finishedAt !== null && $this->finishedAt < $this->startedAt) {
+            throw new EvalRunException(sprintf(
+                "Eval set manifest dataset '%s' finished_at cannot be earlier than started_at.",
+                $this->datasetName,
+            ));
+        }
+
+        if ($this->startedAt !== null && $this->finishedAt !== null && $this->durationSeconds !== null) {
+            $expectedDuration = $this->finishedAt - $this->startedAt;
+            if (abs($this->durationSeconds - $expectedDuration) > 0.000001) {
+                throw new EvalRunException(sprintf(
+                    "Eval set manifest dataset '%s' duration_seconds must match finished_at minus started_at.",
+                    $this->datasetName,
+                ));
+            }
+        }
     }
 
     private function assertStatusFieldsAreConsistent(): void

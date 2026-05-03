@@ -43,6 +43,8 @@ final class SerialBatch
      */
     public function runEach(array $samples, callable $actualOutputForSample, callable $handleOutput): void
     {
+        $this->assertSampleList($samples);
+
         foreach ($samples as $index => $sample) {
             $actualOutput = $actualOutputForSample($sample, $index);
             if (! is_string($actualOutput)) {
@@ -54,6 +56,27 @@ final class SerialBatch
             }
 
             $handleOutput($sample, $index, $actualOutput);
+        }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $samples
+     */
+    private function assertSampleList(array $samples): void
+    {
+        if (! array_is_list($samples)) {
+            throw new EvalRunException('Serial batch samples must be a zero-based list.');
+        }
+
+        foreach ($samples as $index => $sample) {
+            if (! $sample instanceof DatasetSample) {
+                throw new EvalRunException(sprintf(
+                    'Serial batch sample at index %d must be an instance of %s; got %s.',
+                    $index,
+                    DatasetSample::class,
+                    get_debug_type($sample),
+                ));
+            }
         }
     }
 }

@@ -73,8 +73,8 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 3 is active on `task/parallel-batch-queues`.
+Do not assume the active branch from this file. Check `docs/PROGRESS.md` and `git status --short --branch` for the latest in-flight PR or branch.
 
-Do not assume the current subtask branch from this file. Check `docs/PROGRESS.md` and `git status --short --branch` for the latest in-flight PR or branch.
+The latest roadmap work added deterministic serial batches, queue-backed `LazyParallelBatch`, eval-set/resume manifests, Horizon-ready deployment guidance, and the README comparison/status matrix updates. If `task/parallel-batch-queues` is still open, finish the macro PR loop into `main` before starting new roadmap work.
 
-The latest Macro Task 3 slices added deterministic serial batches, queue-backed `LazyParallelBatch`, eval-set/resume manifests, and Horizon-ready deployment guidance. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch. After the active subtask PR merges, reassess Macro Task 3 for remaining code gaps before preparing the macro PR to `main`.
+After Macro Task 3 merges to `main`, continue with Macro Task 4 on `task/advanced-metrics` from updated `main` unless `docs/PROGRESS.md` records a newer priority.

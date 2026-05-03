@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\EvalSets;
 
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
@@ -61,6 +64,28 @@ final class EvalSetRunnerTest extends TestCase
         $this->assertTrue($result->isComplete());
         $this->assertCount(1, $result->reports);
         $this->assertNull($result->reportFor('rag.first'));
+        $this->assertSame(1.0, $result->reportFor('rag.second')?->meanScore('exact-match'));
+    }
+
+    public function test_engine_runs_eval_set_through_lazy_parallel_sync_queue(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $this->registerDataset($engine, 'rag.first', 'first');
+        $this->registerDataset($engine, 'rag.second', 'second');
+
+        $result = $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.first', 'rag.second']),
+            new EvalSetAnswerRunner,
+            BatchOptions::lazyParallel(concurrency: 2, queue: 'evals', timeoutSeconds: 5, waitTimeoutSeconds: 5),
+        );
+
+        $this->assertTrue($result->isComplete());
+        $this->assertCount(2, $result->reports);
+        $this->assertSame(1.0, $result->reportFor('rag.first')?->meanScore('exact-match'));
         $this->assertSame(1.0, $result->reportFor('rag.second')?->meanScore('exact-match'));
     }
 
@@ -129,5 +154,13 @@ final class EvalSetRunnerTest extends TestCase
             ->withSamples([new DatasetSample(id: $answer, input: ['answer' => $answer], expectedOutput: $answer)])
             ->withMetrics(['exact-match'])
             ->register();
+    }
+}
+
+final class EvalSetAnswerRunner implements SampleRunner
+{
+    public function run(SampleInvocation $sample): string
+    {
+        return (string) $sample->input['answer'];
     }
 }

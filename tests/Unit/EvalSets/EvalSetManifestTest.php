@@ -102,6 +102,63 @@ final class EvalSetManifestTest extends TestCase
         new EvalSetManifestEntry(datasetName: 'rag.first', status: EvalSetManifestEntry::STATUS_COMPLETED);
     }
 
+    public function test_manifest_rejects_completed_dataset_after_pending_dataset(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'rag.second',
+            sampleResults: [],
+            failures: [],
+            startedAt: 2.0,
+            finishedAt: 3.0,
+        );
+        $completedSecond = EvalSetManifestEntry::pending('rag.second')
+            ->running(2.0)
+            ->completed($report);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("cannot mark dataset 'rag.second' as 'completed' after dataset 'rag.first' is 'pending'");
+
+        new EvalSetManifest(
+            evalSetName: 'nightly',
+            entries: [
+                EvalSetManifestEntry::pending('rag.first'),
+                $completedSecond,
+            ],
+            startedAt: 1.0,
+            updatedAt: 3.0,
+        );
+    }
+
+    public function test_manifest_rejects_finished_at_before_started_at(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('finished_at cannot be earlier than started_at');
+
+        new EvalSetManifestEntry(
+            datasetName: 'rag.first',
+            status: EvalSetManifestEntry::STATUS_FAILED,
+            startedAt: 5.0,
+            finishedAt: 4.0,
+            durationSeconds: 0.0,
+            error: 'boom',
+        );
+    }
+
+    public function test_manifest_rejects_duration_that_does_not_match_timestamps(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('duration_seconds must match finished_at minus started_at');
+
+        new EvalSetManifestEntry(
+            datasetName: 'rag.first',
+            status: EvalSetManifestEntry::STATUS_FAILED,
+            startedAt: 4.0,
+            finishedAt: 6.0,
+            durationSeconds: 3.0,
+            error: 'boom',
+        );
+    }
+
     public function test_manifest_rejects_terminal_status_transitions(): void
     {
         $report = new EvalReport(

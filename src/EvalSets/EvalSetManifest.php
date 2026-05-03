@@ -88,6 +88,8 @@ final class EvalSetManifest
             $normalizedEntries[] = $entry;
         }
 
+        $this->assertProgressOrderIsConsistent($normalizedEntries);
+
         $this->entries = $normalizedEntries;
         foreach ($normalizedEntries as $entry) {
             $this->entriesByDataset[EvalSetDefinition::datasetNameKey($entry->datasetName)] = $entry;
@@ -302,6 +304,39 @@ final class EvalSetManifest
         }
 
         return $datasetNames;
+    }
+
+    /**
+     * @param  list<EvalSetManifestEntry>  $entries
+     */
+    private function assertProgressOrderIsConsistent(array $entries): void
+    {
+        $firstNonCompletedIndex = null;
+        foreach ($entries as $index => $entry) {
+            if ($entry->status !== EvalSetManifestEntry::STATUS_COMPLETED) {
+                $firstNonCompletedIndex = $index;
+
+                break;
+            }
+        }
+
+        if ($firstNonCompletedIndex === null) {
+            return;
+        }
+
+        $firstNonCompleted = $entries[$firstNonCompletedIndex];
+        foreach (array_slice($entries, $firstNonCompletedIndex + 1) as $laterEntry) {
+            if ($laterEntry->status !== EvalSetManifestEntry::STATUS_PENDING) {
+                throw new EvalRunException(sprintf(
+                    "Eval set manifest '%s' cannot mark dataset '%s' as '%s' after dataset '%s' is '%s'.",
+                    $this->evalSetName,
+                    $laterEntry->datasetName,
+                    $laterEntry->status,
+                    $firstNonCompleted->datasetName,
+                    $firstNonCompleted->status,
+                ));
+            }
+        }
     }
 
     /**

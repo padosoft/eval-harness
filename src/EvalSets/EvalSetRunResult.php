@@ -50,9 +50,18 @@ final class EvalSetRunResult
             }
 
             $key = EvalSetDefinition::datasetNameKey($report->datasetName);
+            $manifestEntry = $manifest->entryFor($report->datasetName);
             if (! isset($definitionDatasetKeys[$key])) {
                 throw new EvalRunException(sprintf(
                     "Eval set result '%s' contains report for unknown dataset '%s'.",
+                    $definition->name,
+                    $report->datasetName,
+                ));
+            }
+
+            if ($manifestEntry?->status !== EvalSetManifestEntry::STATUS_COMPLETED) {
+                throw new EvalRunException(sprintf(
+                    "Eval set result '%s' contains report for dataset '%s' but the manifest entry is not completed.",
                     $definition->name,
                     $report->datasetName,
                 ));

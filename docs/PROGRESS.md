@@ -1092,4 +1092,24 @@
   - `vendor/bin/phpunit` => `OK (329 tests, 716 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding the runner dependency regression. README has no numeric PHPUnit test-count claim; update PR #17 body validation line to `329 tests, 716 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding the runner dependency regression. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `329 tests, 716 assertions` before requesting the next Copilot review.
+- Requested a fresh official Copilot review for PR #17 through the GraphQL fallback after `gh pr edit 17 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `4078853`.
+- Copilot reviewed PR #17 again at head `4078853` and generated eight actionable comments:
+  - `EvalSetRunResult` needed direct failure-path coverage and `reportFor()` resume semantics coverage,
+  - result reports should be accepted only when their manifest entry is completed,
+  - eval-set manifests should reject impossible ordered-progress shapes such as a later completed dataset after an earlier pending/running/failed dataset,
+  - eval-set manifest entry timing should reject `finished_at < started_at` and duration/timestamp mismatches,
+  - `runEvalSet()` needed lazy-parallel/sync-queue regression coverage,
+  - public `SerialBatch` APIs should reject sparse sample arrays at runtime,
+  - `AGENTS.md` current-priority guidance would go stale after the macro PR merges.
+- Addressed the PR #17 eval-set/batch/docs comments by adding ordered manifest progress validation, timing consistency checks, completed-manifest checks for result reports, direct `EvalSetRunResult` failure/resume tests, lazy-parallel eval-set sync-queue coverage, runtime `SerialBatch` list validation, and merge-safe `AGENTS.md` priority guidance.
+- Targeted validation passed after the PR #17 eval-set/batch/docs fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/SerialBatchTest.php tests/Unit/EvalSets` => `OK (33 tests, 90 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/SerialBatch.php src/EvalSets/EvalSetManifest.php src/EvalSets/EvalSetManifestEntry.php src/EvalSets/EvalSetRunResult.php tests/Unit/Batches/SerialBatchTest.php tests/Unit/EvalSets/EvalSetManifestTest.php tests/Unit/EvalSets/EvalSetRunResultTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php`
+- Full local gate passed after the PR #17 eval-set/batch/docs fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (340 tests, 740 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding eval-set/batch tests. README has no numeric PHPUnit test-count claim; update PR #17 body validation line to `340 tests, 740 assertions` before requesting the next Copilot review.

@@ -64,4 +64,17 @@ final class SerialBatchTest extends TestCase
             ['second', 1, 'B'],
         ], $seen);
     }
+
+    public function test_rejects_sparse_sample_arrays(): void
+    {
+        /** @var array<int, DatasetSample> $samples */
+        $samples = [
+            2 => new DatasetSample(id: 's1', input: [], expectedOutput: 'x'),
+        ];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('samples must be a zero-based list');
+
+        (new SerialBatch)->run($samples, static fn (DatasetSample $_sample, int $_index): string => 'x');
+    }
 }
