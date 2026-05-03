@@ -400,6 +400,67 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_rejects_sparse_sample_arrays_before_starting_batch(): void
+    {
+        $store = new RecordingBatchResultStore;
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: $store,
+        );
+        /** @var array<int, DatasetSample> $samples */
+        $samples = [
+            1 => new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x'),
+        ];
+        /** @var array<int, SampleInvocation> $sampleInvocations */
+        $sampleInvocations = [
+            1 => SampleInvocation::fromDatasetSample($samples[1]),
+        ];
+
+        try {
+            $batch->dispatch(
+                samples: $samples,
+                sampleInvocations: $sampleInvocations,
+                runner: new LazyParallelAnswerRunner,
+                options: BatchOptions::lazyParallel(),
+            );
+
+            $this->fail('Expected sparse sample array rejection.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('samples must be a zero-based list', $e->getMessage());
+        }
+
+        $this->assertSame([], $store->events);
+    }
+
+    public function test_rejects_sparse_sample_invocations_before_starting_batch(): void
+    {
+        $store = new RecordingBatchResultStore;
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: $store,
+        );
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        /** @var array<int, SampleInvocation> $sampleInvocations */
+        $sampleInvocations = [
+            1 => SampleInvocation::fromDatasetSample($samples[0]),
+        ];
+
+        try {
+            $batch->dispatch(
+                samples: $samples,
+                sampleInvocations: $sampleInvocations,
+                runner: new LazyParallelAnswerRunner,
+                options: BatchOptions::lazyParallel(),
+            );
+
+            $this->fail('Expected sparse SampleInvocation array rejection.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('SampleInvocations must be a zero-based list', $e->getMessage());
+        }
+
+        $this->assertSame([], $store->events);
+    }
+
     public function test_rejects_scalar_constructor_state_because_workers_resolve_fresh_runner_instances(): void
     {
         /** @var LazyParallelBatch $batch */

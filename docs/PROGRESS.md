@@ -905,4 +905,21 @@
   - `vendor/bin/phpunit` => `OK (298 tests, 636 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding six batch/cache tests. README has no test-count claim; update the PR body validation line to `298 tests, 636 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding six batch/cache tests. README has no test-count claim; PR #14 body was updated to `298 tests, 636 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `bf28766` and generated five comments:
+  - sparse or 1-based sample arrays should be rejected before dispatch/polling can hit result-store index errors,
+  - `dispatch()` could leave an active batch marker if index validation threw after metadata creation,
+  - a stale `CacheBatchResultStore::finish()` comment still flagged full success-key rereads/rewrites, so the O(1) close invariant needed clearer contract/test coverage,
+  - `BatchResultStore` needed lifecycle invariant documentation for first-writer-wins, late-write ignores, and idempotent finished reads,
+  - `EvaluateSampleJob::handle()` needed direct coverage for container misbindings that resolve a runner class to a non-`SampleRunner`.
+- Addressed the latest PR #14 Copilot round by requiring zero-based list inputs before writing batch metadata, documenting result-store lifecycle invariants on the public interface, keeping the metadata-only finish regression, and adding worker-side misbound-runner coverage.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (41 tests, 77 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Batches/BatchResultStore.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (301 tests, 642 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch/job tests. README has no test-count claim; update the PR body validation line to `301 tests, 642 assertions` before requesting the next Copilot review.

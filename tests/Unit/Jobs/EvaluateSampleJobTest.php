@@ -43,6 +43,23 @@ final class EvaluateSampleJobTest extends TestCase
         $this->assertTrue($job->failOnTimeout);
     }
 
+    public function test_handle_rejects_container_misbound_runner_class(): void
+    {
+        $store = new JobRecordingBatchResultStore;
+        $this->app->bind(JobAnswerRunner::class, static fn (): object => new \stdClass);
+        $job = $this->job(JobAnswerRunner::class);
+
+        try {
+            $job->handle($this->app, $store);
+
+            $this->fail('Expected misbound runner rejection.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString("Queued sample runner '".JobAnswerRunner::class."' must resolve to", $e->getMessage());
+        }
+
+        $this->assertSame([], $store->successfulResults('batch-1', 1));
+    }
+
     public function test_constructor_rejects_invalid_timeout_seconds(): void
     {
         $this->expectException(EvalRunException::class);

@@ -360,6 +360,14 @@ final class LazyParallelBatch
      */
     private function assertInvocationList(array $samples, array $sampleInvocations): void
     {
+        if (! array_is_list($samples)) {
+            throw new EvalRunException('Lazy parallel batch samples must be a zero-based list.');
+        }
+
+        if (! array_is_list($sampleInvocations)) {
+            throw new EvalRunException('Lazy parallel batch SampleInvocations must be a zero-based list.');
+        }
+
         if (count($samples) !== count($sampleInvocations)) {
             throw new EvalRunException('Lazy parallel batch requires one SampleInvocation for every dataset sample.');
         }
