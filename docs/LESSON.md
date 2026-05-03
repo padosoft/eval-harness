@@ -141,3 +141,6 @@
 - Lazy-parallel jobs only carry scalar job payload plus a runner class name. Reject stateful `SampleRunner` instances for lazy-parallel mode so caller-instance configuration is not silently lost when workers resolve the class.
 - README config snippets should mirror published config normalization. If config uses `TimeoutNormalizer`, do not document `(int) env(...)` casts, because invalid or blank env vars would become `0` instead of falling back to defaults.
 - Wrap cache/result-store infrastructure failures in package exceptions before they reach Artisan commands. `EvalCommand` catches `EvalHarnessException`, not arbitrary Redis/cache driver exceptions.
+- Queue result cleanup should be best-effort after a result has already been produced or an earlier dispatch/timeout failure is being reported. Do not let `finish()` / `abort()` cleanup errors mask the primary eval outcome.
+- Store sample ids with successful queued outputs and validate them during external collection. Positional indexes alone are not enough when a caller can pass a rebuilt or reordered sample list to `collectOutputs()`.
+- Config hooks such as lazy-parallel `cache_store` need direct service-provider tests that observe the configured value reaching the Laravel factory, not only config merge tests.

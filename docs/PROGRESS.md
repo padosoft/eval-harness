@@ -759,3 +759,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding two lazy-parallel tests. README has no test-count claim; PR #14 body was updated to `273 tests, 588 assertions` and reformatted with preserved Markdown newlines before push/re-review.
+- Copilot reviewed PR #14 again at head `826da9f` and generated four comments:
+  - best-effort `finish()` / `abort()` cleanup failures could mask a successful run or the original dispatch/timeout error,
+  - successful cache result payloads carried `sample_id` but the reader returned only output strings, allowing external `collectOutputs()` callers to pass a reordered sample list,
+  - the configured `cache_store` hook needed direct service-provider coverage.
+- Addressed the fifth PR #14 Copilot round by making finish/abort cleanup best-effort, changing successful batch reads to return `sample_id` plus `actual_output`, validating stored sample ids during collection, and adding service-provider coverage that the configured cache store name is passed to the cache factory.
+- Targeted validation passed after the fifth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php` => `OK (30 tests, 52 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the fifth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (276 tests, 594 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three queue/batch service tests. README has no test-count claim; PR #14 body was updated from `273 tests, 588 assertions` to `276 tests, 594 assertions` before push/re-review.

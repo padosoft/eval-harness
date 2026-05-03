@@ -77,7 +77,7 @@ final class JobFailingRunner implements SampleRunner
 
 final class JobRecordingBatchResultStore implements BatchResultStore
 {
-    /** @var array<int, string> */
+    /** @var array<int, array{sample_id: string, actual_output: string}> */
     private array $outputs = [];
 
     /** @var array<int, array{sample_id: string, error: string}> */
@@ -102,7 +102,7 @@ final class JobRecordingBatchResultStore implements BatchResultStore
 
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
     {
-        $this->outputs[$index] = $actualOutput;
+        $this->outputs[$index] = ['sample_id' => $sampleId, 'actual_output' => $actualOutput];
     }
 
     public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
@@ -110,7 +110,7 @@ final class JobRecordingBatchResultStore implements BatchResultStore
         $this->failures[$index] = ['sample_id' => $sampleId, 'error' => $error];
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         if ($indexes === null) {
             return $this->outputs;

@@ -74,9 +74,9 @@ final class CacheBatchResultStore implements BatchResultStore
         );
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
-        $outputs = [];
+        $results = [];
         foreach ($this->indexesToScan($sampleCount, $indexes) as $index) {
             $payload = $this->cache->get($this->resultKey($batchId, $index));
             if ($payload === null) {
@@ -98,19 +98,27 @@ final class CacheBatchResultStore implements BatchResultStore
                 ));
             }
 
-            if (! array_key_exists('actual_output', $payload) || ! is_string($payload['actual_output'])) {
+            if (
+                ! array_key_exists('sample_id', $payload)
+                || ! is_string($payload['sample_id'])
+                || ! array_key_exists('actual_output', $payload)
+                || ! is_string($payload['actual_output'])
+            ) {
                 throw new EvalRunException(sprintf(
                     'Stored lazy parallel batch output for index %d is invalid.',
                     $index,
                 ));
             }
 
-            $outputs[$index] = $payload['actual_output'];
+            $results[$index] = [
+                'sample_id' => $payload['sample_id'],
+                'actual_output' => $payload['actual_output'],
+            ];
         }
 
-        ksort($outputs);
+        ksort($results);
 
-        return $outputs;
+        return $results;
     }
 
     public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array

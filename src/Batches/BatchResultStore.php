@@ -21,9 +21,9 @@ interface BatchResultStore
 
     /**
      * @param  list<int>|null  $indexes
-     * @return array<int, string>
+     * @return array<int, array{sample_id: string, actual_output: string}>
      */
-    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array;
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array;
 
     /**
      * @param  list<int>|null  $indexes

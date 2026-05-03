@@ -110,6 +110,23 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_collect_outputs_rejects_results_for_the_wrong_sample_id(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchResultStore $store */
+        $store = $this->app->make(BatchResultStore::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $store->start('wrong-sample-batch', 1, 60);
+        $store->recordSuccess('wrong-sample-batch', 0, 'other-sample', 'output', 60);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("belongs to sample 'other-sample'; expected 's1'");
+
+        $batch->collectOutputs('wrong-sample-batch', $samples);
+    }
+
     public function test_run_honors_concurrency_windows_before_dispatching_more_jobs(): void
     {
         $samples = [
@@ -247,6 +264,30 @@ final class LazyParallelBatchTest extends TestCase
             runner: new LazyParallelAnswerRunner,
             options: BatchOptions::lazyParallel(),
         );
+    }
+
+    public function test_cleanup_failures_do_not_mask_dispatch_errors(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new AlwaysThrowingDispatcher,
+            resultStore: new ThrowingAbortBatchResultStore,
+        );
+
+        try {
+            $batch->dispatch(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelAnswerRunner,
+                options: BatchOptions::lazyParallel(),
+            );
+
+            $this->fail('Expected dispatch error.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('Failed to dispatch lazy parallel batch', $e->getMessage());
+            $this->assertStringContainsString('queue unavailable', $e->getMessage());
+            $this->assertStringNotContainsString('cleanup down', $e->getMessage());
+        }
     }
 
     /**
@@ -470,12 +511,60 @@ final class MissingOutputDispatcher implements Dispatcher
     }
 }
 
+final class AlwaysThrowingDispatcher implements Dispatcher
+{
+    public function dispatch($command): mixed
+    {
+        throw new \RuntimeException('queue unavailable');
+    }
+
+    public function dispatchSync($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchNow($command, $handler = null): mixed
+    {
+        return $this->dispatch($command);
+    }
+
+    public function dispatchAfterResponse($command, $handler = null): void
+    {
+        $this->dispatch($command);
+    }
+
+    public function chain($jobs = null): mixed
+    {
+        return null;
+    }
+
+    public function hasCommandHandler($command): bool
+    {
+        return false;
+    }
+
+    public function getCommandHandler($command): mixed
+    {
+        return null;
+    }
+
+    public function pipeThrough(array $pipes): self
+    {
+        return $this;
+    }
+
+    public function map(array $map): self
+    {
+        return $this;
+    }
+}
+
 final class RecordingBatchResultStore implements BatchResultStore
 {
     /** @var list<string> */
     public array $events = [];
 
-    /** @var array<int, string> */
+    /** @var array<int, array{sample_id: string, actual_output: string}> */
     private array $outputs = [];
 
     /** @var array<int, array{sample_id: string, error: string}> */
@@ -503,7 +592,7 @@ final class RecordingBatchResultStore implements BatchResultStore
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
     {
         $this->events[] = 'success:'.$sampleId;
-        $this->outputs[$index] = $actualOutput;
+        $this->outputs[$index] = ['sample_id' => $sampleId, 'actual_output' => $actualOutput];
     }
 
     public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
@@ -512,7 +601,7 @@ final class RecordingBatchResultStore implements BatchResultStore
         $this->failures[$index] = ['sample_id' => $sampleId, 'error' => $error];
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         $this->events[] = 'outputs:'.$sampleCount;
 
@@ -562,7 +651,45 @@ final class ThrowingStartBatchResultStore implements BatchResultStore
         //
     }
 
-    public function successfulOutputs(string $batchId, int $sampleCount, ?array $indexes = null): array
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+}
+
+final class ThrowingAbortBatchResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        throw new \RuntimeException('cleanup down');
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         return [];
     }

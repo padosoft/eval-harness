@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit;
 
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
@@ -80,5 +82,36 @@ final class ServiceProviderTest extends TestCase
 
         $this->assertSame(7200, $ttl->getValue($batch));
         $this->assertSame(120, $wait->getValue($batch));
+    }
+
+    public function test_batch_result_store_uses_configured_cache_store(): void
+    {
+        /** @var CacheFactory $cacheFactory */
+        $cacheFactory = $this->app->make(CacheFactory::class);
+        $recordingFactory = new RecordingCacheFactory($cacheFactory);
+        $this->app->instance(CacheFactory::class, $recordingFactory);
+        config(['eval-harness.batches.lazy_parallel.cache_store' => 'eval-results']);
+        $this->app->forgetInstance(BatchResultStore::class);
+
+        $this->app->make(BatchResultStore::class);
+
+        $this->assertSame(['eval-results'], $recordingFactory->requestedStores);
+    }
+}
+
+final class RecordingCacheFactory implements CacheFactory
+{
+    /** @var list<string|null> */
+    public array $requestedStores = [];
+
+    public function __construct(
+        private readonly CacheFactory $cache,
+    ) {}
+
+    public function store($name = null): CacheRepository
+    {
+        $this->requestedStores[] = is_string($name) ? $name : null;
+
+        return $this->cache->store();
     }
 }

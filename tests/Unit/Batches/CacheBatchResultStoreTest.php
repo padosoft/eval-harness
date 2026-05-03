@@ -39,7 +39,7 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->expectException(EvalRunException::class);
         $this->expectExceptionMessage('Stored lazy parallel batch output for index 0 is invalid');
 
-        $store->successfulOutputs('invalid-output', 1, [0]);
+        $store->successfulResults('invalid-output', 1, [0]);
     }
 
     public function test_failures_reports_invalid_cached_failure_payloads(): void
@@ -68,7 +68,9 @@ final class CacheBatchResultStoreTest extends TestCase
             'actual_output' => ['corrupt'],
         ], 60);
 
-        $this->assertSame([0 => 'first output'], $store->successfulOutputs('indexed-read', 2, [0]));
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ], $store->successfulResults('indexed-read', 2, [0]));
     }
 
     public function test_first_terminal_result_wins_for_duplicate_queue_delivery(): void
@@ -79,7 +81,9 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->recordSuccess('duplicate-delivery', 0, 's1', 'first output', 60);
         $store->recordFailure('duplicate-delivery', 0, 's1', 'later failure', 60);
 
-        $this->assertSame([0 => 'first output'], $store->successfulOutputs('duplicate-delivery', 1));
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ], $store->successfulResults('duplicate-delivery', 1));
         $this->assertSame([], $store->failures('duplicate-delivery', 1));
     }
 
@@ -95,7 +99,7 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->abort('aborted-batch', 1, 60);
         $store->recordFailure('aborted-batch', 0, 's1', 'late failure', 60);
 
-        $this->assertSame([], $store->successfulOutputs('finished-batch', 1));
+        $this->assertSame([], $store->successfulResults('finished-batch', 1));
         $this->assertSame([], $store->failures('aborted-batch', 1));
     }
 
@@ -117,7 +121,7 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->start('racing-batch', 1, 60);
         $store->recordSuccess('racing-batch', 0, 's1', 'late output', 60);
 
-        $this->assertSame([], $store->successfulOutputs('racing-batch', 1));
+        $this->assertSame([], $store->successfulResults('racing-batch', 1));
     }
 
     private function store(): CacheBatchResultStore

@@ -106,14 +106,15 @@ final class LazyParallelBatch
             }
 
             $completed = true;
+            $this->finishResultsSafely($batchId, $sampleCount);
 
             return $outputs;
-        } finally {
-            if ($completed) {
-                $this->finishResults($batchId, $sampleCount);
-            } else {
-                $this->abortResults($batchId, $sampleCount);
+        } catch (Throwable $e) {
+            if (! $completed) {
+                $this->abortResultsSafely($batchId, $sampleCount);
             }
+
+            throw $e;
         }
     }
 
@@ -158,8 +159,10 @@ final class LazyParallelBatch
                     indexes: $currentIndexes,
                     previous: $e,
                 );
-            } finally {
-                $this->abortResults($batchId, $sampleCount);
+            } catch (Throwable $primary) {
+                $this->abortResultsSafely($batchId, $sampleCount);
+
+                throw $primary;
             }
         }
 
@@ -178,12 +181,12 @@ final class LazyParallelBatch
             $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
             if ($outputsByIndex !== null) {
                 ksort($outputsByIndex);
-                $this->finishResults($batchId, $sampleCount);
+                $this->finishResultsSafely($batchId, $sampleCount);
 
                 return array_values($outputsByIndex);
             }
         } catch (Throwable $e) {
-            $this->abortResults($batchId, $sampleCount);
+            $this->abortResultsSafely($batchId, $sampleCount);
 
             throw $e;
         }
@@ -288,15 +291,25 @@ final class LazyParallelBatch
             ));
         }
 
-        $storedOutputs = $this->storedSuccessfulOutputs($batchId, $sampleCount, $indexes);
+        $storedResults = $this->storedSuccessfulResults($batchId, $sampleCount, $indexes);
         $outputs = [];
 
-        foreach ($samples as $index => $_sample) {
-            if (! array_key_exists($index, $storedOutputs)) {
+        foreach ($samples as $index => $sample) {
+            if (! array_key_exists($index, $storedResults)) {
                 return null;
             }
 
-            $outputs[$index] = $storedOutputs[$index];
+            $result = $storedResults[$index];
+            if ($result['sample_id'] !== $sample->id) {
+                throw new EvalRunException(sprintf(
+                    "Stored lazy parallel batch output at index %d belongs to sample '%s'; expected '%s'.",
+                    $index,
+                    $result['sample_id'],
+                    $sample->id,
+                ));
+            }
+
+            $outputs[$index] = $result['actual_output'];
         }
 
         return $outputs;
@@ -407,11 +420,11 @@ final class LazyParallelBatch
      */
     private function missingSampleIds(string $batchId, array $samples, int $sampleCount): array
     {
-        $storedOutputs = $this->storedSuccessfulOutputs($batchId, $sampleCount, $this->sampleIndexes($samples));
+        $storedResults = $this->storedSuccessfulResults($batchId, $sampleCount, $this->sampleIndexes($samples));
         $missing = [];
 
         foreach ($samples as $index => $sample) {
-            if (! array_key_exists($index, $storedOutputs)) {
+            if (! array_key_exists($index, $storedResults) || $storedResults[$index]['sample_id'] !== $sample->id) {
                 $missing[] = $sample->id;
             }
         }
@@ -453,30 +466,14 @@ final class LazyParallelBatch
         );
     }
 
-    private function finishResults(string $batchId, int $sampleCount): void
+    private function finishResultsSafely(string $batchId, int $sampleCount): void
     {
-        $this->withResultStore(
-            action: 'finish',
-            batchId: $batchId,
-            callback: function () use ($batchId, $sampleCount): bool {
-                $this->resultStore->finish($batchId, $sampleCount, $this->resultTtlSeconds);
-
-                return true;
-            },
-        );
+        $this->cleanupResultsSafely('finish', $batchId, $sampleCount);
     }
 
-    private function abortResults(string $batchId, int $sampleCount): void
+    private function abortResultsSafely(string $batchId, int $sampleCount): void
     {
-        $this->withResultStore(
-            action: 'abort',
-            batchId: $batchId,
-            callback: function () use ($batchId, $sampleCount): bool {
-                $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
-
-                return true;
-            },
-        );
+        $this->cleanupResultsSafely('abort', $batchId, $sampleCount);
     }
 
     /**
@@ -494,15 +491,30 @@ final class LazyParallelBatch
 
     /**
      * @param  list<int>  $indexes
-     * @return array<int, string>
+     * @return array<int, array{sample_id: string, actual_output: string}>
      */
-    private function storedSuccessfulOutputs(string $batchId, int $sampleCount, array $indexes): array
+    private function storedSuccessfulResults(string $batchId, int $sampleCount, array $indexes): array
     {
         return $this->withResultStore(
             action: 'read outputs from',
             batchId: $batchId,
-            callback: fn (): array => $this->resultStore->successfulOutputs($batchId, $sampleCount, $indexes),
+            callback: fn (): array => $this->resultStore->successfulResults($batchId, $sampleCount, $indexes),
         );
+    }
+
+    private function cleanupResultsSafely(string $action, string $batchId, int $sampleCount): void
+    {
+        try {
+            if ($action === 'finish') {
+                $this->resultStore->finish($batchId, $sampleCount, $this->resultTtlSeconds);
+
+                return;
+            }
+
+            $this->resultStore->abort($batchId, $sampleCount, $this->resultTtlSeconds);
+        } catch (Throwable) {
+            // Cleanup is best-effort; it must not mask the run, dispatch, or timeout outcome.
+        }
     }
 
     /**
