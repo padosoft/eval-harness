@@ -547,3 +547,17 @@
   - `vendor/bin/phpunit` => `OK (219 tests, 472 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened Macro Task 2 PR #12 from `task/metrics-reporting` into `main`, requested Copilot through the GraphQL fallback, and verified CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix.
+- Copilot reviewed PR #12 at head `98c9466` and generated two comments:
+  - Markdown report escaping protected table syntax but still allowed raw HTML in dataset names, tag labels, metric names, and failure text,
+  - `EvalEngine::scoreOutputs()` passed a one-argument callback into the shared two-argument scoring helper.
+- Addressed the comments by HTML-escaping Markdown report text before Markdown-specific escaping, adding malicious HTML regression coverage, and aligning the saved-output callback signature with `scoreDataset()`.
+- Targeted validation passed after the first PR #12 review fix round:
+  - `vendor/bin/phpunit tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/EvalEngineTest.php` => `OK (33 tests, 84 assertions)`
+  - `vendor/bin/pint --test src/Reports/MarkdownReportRenderer.php src/EvalEngine.php tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the first PR #12 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (220 tests, 481 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

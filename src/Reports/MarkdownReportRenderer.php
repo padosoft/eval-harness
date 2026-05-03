@@ -24,7 +24,7 @@ final class MarkdownReportRenderer
     public function render(EvalReport $report): string
     {
         $lines = [];
-        $lines[] = sprintf('# Eval report — %s', $report->datasetName);
+        $lines[] = sprintf('# Eval report — %s', $this->headingText($report->datasetName));
         $lines[] = '';
         $lines[] = sprintf(
             '_Run completed in %.2fs over %d samples (%d failures captured)._',
@@ -136,7 +136,7 @@ final class MarkdownReportRenderer
 
     private function tableCell(string $value): string
     {
-        $value = $this->singleLine($value);
+        $value = $this->htmlText($this->singleLine($value));
 
         return str_replace(
             ['\\', '|', '`'],
@@ -157,7 +157,7 @@ final class MarkdownReportRenderer
 
     private function markdownText(string $value): string
     {
-        $value = $this->singleLine($value);
+        $value = $this->htmlText($this->singleLine($value));
 
         return str_replace(
             ['\\', '`'],
@@ -169,5 +169,10 @@ final class MarkdownReportRenderer
     private function singleLine(string $value): string
     {
         return trim((string) preg_replace('/\s+/', ' ', $value));
+    }
+
+    private function htmlText(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

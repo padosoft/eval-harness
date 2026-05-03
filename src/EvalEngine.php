@@ -141,7 +141,7 @@ final class EvalEngine
             datasetName: $datasetName,
             dataset: $dataset,
             startedAt: $startedAt,
-            actualOutputForSample: static fn (DatasetSample $sample): string => $outputs[$sample->id],
+            actualOutputForSample: static fn (DatasetSample $sample, int $_index): string => $outputs[$sample->id],
         );
     }
 
