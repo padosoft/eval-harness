@@ -986,4 +986,13 @@
   - `vendor/bin/phpunit` => `OK (309 tests, 654 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the test-count README sync search after adding one TTL regression. README has no test-count claim; update the PR body validation line to `309 tests, 654 assertions` before requesting the next Copilot review.
+- Ran the test-count README sync search after adding one TTL regression. README has no test-count claim; PR #14 body was updated to `309 tests, 654 assertions`, Copilot generated no new comments on head `bb5dc3a`, CI was green, and PR #14 merged into `task/parallel-batch-queues` at merge commit `cd08aae`.
+- Started the next Macro Task 3 subtask branch `task/parallel-batch-queues-eval-set-manifests` from `task/parallel-batch-queues`. Scope: headless eval-set definitions, resumable manifest summaries, and `EvalEngine::runEvalSet()`; keep the subtask PR targeted into `task/parallel-batch-queues`.
+- Began the eval-set/resume manifest slice with `EvalSetDefinition`, `EvalSetManifestEntry`, `EvalSetManifest`, `EvalSetRunResult`, `EvalSetRunner`, and `EvalEngine::runEvalSet()`. Also expanded README's "Comparison with alternatives" matrix with `✅ YES` / `⚠️ PARTIAL` / `❌ NO` status prefixes per user request, added a short programmatic eval-set/resume example, and recorded the release-sync rule in `docs/LESSON.md`.
+- Updated `docs/ROADMAP_IMPLEMENTATION_PLAN.md` so Macro Task 3 no longer describes eval-set/resume manifests as only a future slice; it now records the programmatic `EvalEngine::runEvalSet()` contract and leaves CLI/persistence ergonomics for later slices if needed.
+- Full local gate passed for the eval-set/resume manifest slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (322 tests, 699 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding 13 eval-set tests. README has no numeric PHPUnit test-count claim; use `322 tests, 699 assertions` in the subtask PR body validation line.

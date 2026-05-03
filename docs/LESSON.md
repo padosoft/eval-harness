@@ -177,3 +177,4 @@
 - Lazy-parallel `collectOutputs()` needs the same runtime sample-list validation as `run()`/`dispatch()`. External collectors can pass sparse or malformed arrays even when PHPDoc says `list<DatasetSample>`.
 - Do not trust singleton/instance-bound runner validation as a fresh-worker proxy. If `container->make($runnerClass)` returns the same object the caller passed, reject it because another worker process will not share that mutated instance.
 - Queue-drain TTL derivation should multiply the number of producer windows by the larger of batch wait timeout and per-job timeout. Later jobs can sit behind earlier windows and then still consume their full per-job timeout.
+- Keep README's "Comparison with alternatives" section in sync with each release. Use explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` status prefixes next to the descriptive text so new queue, eval-set, reporting, and API features are visible without removing nuance.

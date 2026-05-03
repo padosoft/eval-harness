@@ -15,6 +15,10 @@ use Padosoft\EvalHarness\Datasets\DatasetBuilder;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\GoldenDataset;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
+use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
+use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+use Padosoft\EvalHarness\EvalSets\EvalSetRunner;
+use Padosoft\EvalHarness\EvalSets\EvalSetRunResult;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
@@ -73,6 +77,14 @@ final class EvalEngine
             yamlLoader: $this->yamlLoader,
             name: $name,
         );
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $datasetNames
+     */
+    public function evalSet(string $name, array $datasetNames): EvalSetDefinition
+    {
+        return new EvalSetDefinition($name, $datasetNames);
     }
 
     public function registerDataset(GoldenDataset $dataset): void
@@ -170,6 +182,23 @@ final class EvalEngine
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
             ),
             batchOptions: $batchOptions,
+        );
+    }
+
+    /**
+     * Run a named group of registered datasets and return a resumable manifest.
+     */
+    public function runEvalSet(
+        EvalSetDefinition $evalSet,
+        callable|SampleRunner $systemUnderTest,
+        ?BatchOptions $batchOptions = null,
+        ?EvalSetManifest $manifest = null,
+    ): EvalSetRunResult {
+        return (new EvalSetRunner($this))->run(
+            definition: $evalSet,
+            systemUnderTest: $systemUnderTest,
+            batchOptions: $batchOptions,
+            manifest: $manifest,
         );
     }
 
