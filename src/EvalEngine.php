@@ -199,7 +199,7 @@ final class EvalEngine
     {
         $savedOutputs = $actualOutputs instanceof SavedOutputs
             ? $actualOutputs
-            : SavedOutputs::fromMap($actualOutputs, "dataset '{$datasetName}'");
+            : $this->savedOutputsFromArray($datasetName, $dataset, $actualOutputs);
 
         $outputs = [];
         foreach ($savedOutputs->entries() as $entry) {
@@ -239,6 +239,48 @@ final class EvalEngine
         }
 
         return $outputs;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $actualOutputs
+     */
+    private function savedOutputsFromArray(string $datasetName, GoldenDataset $dataset, array $actualOutputs): SavedOutputs
+    {
+        if ($actualOutputs !== [] && array_is_list($actualOutputs)) {
+            $expectedIds = array_map(
+                static fn (DatasetSample $sample): string => $sample->id,
+                $dataset->samples,
+            );
+            $listIds = array_map(
+                static fn (int $index): string => (string) $index,
+                array_keys($actualOutputs),
+            );
+
+            if ($expectedIds !== $listIds) {
+                throw new EvalRunException(sprintf(
+                    "Saved outputs for dataset '%s' must be a keyed map of sample id to output string.",
+                    $datasetName,
+                ));
+            }
+
+            $entries = [];
+            foreach ($actualOutputs as $index => $actualOutput) {
+                if (! is_string($actualOutput)) {
+                    throw new EvalRunException(sprintf(
+                        "Saved output for sample '%s' in dataset '%s' must be a string; got %s.",
+                        (string) $index,
+                        $datasetName,
+                        get_debug_type($actualOutput),
+                    ));
+                }
+
+                $entries[] = ['id' => (string) $index, 'actual_output' => $actualOutput];
+            }
+
+            return new SavedOutputs($entries);
+        }
+
+        return SavedOutputs::fromMap($actualOutputs, "dataset '{$datasetName}'");
     }
 
     /**

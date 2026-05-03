@@ -95,3 +95,5 @@
 - PHP arrays coerce numeric-string keys to integers. Public loaders that must preserve sample IDs like `"0"` should return an entry-list DTO instead of a keyed array.
 - Do not add convenience `toMap()` APIs to ID-preserving DTOs when IDs can be numeric strings; the conversion itself reintroduces PHP key coercion.
 - Programmatic saved-output array input should reject list-shaped arrays. Otherwise `['a', 'b']` can silently become sample ids `0`/`1`.
+- The exception is a programmatic saved-output list whose stringified numeric indexes exactly match the registered dataset sample IDs. Accepting that case preserves valid datasets that intentionally use `"0"`, `"1"`, ... while still rejecting accidental anonymous lists.
+- Loader APIs that accept either a file path or inline source string should use "source" in parse diagnostics. Calling inline input a "file" makes `loadString()` failures misleading.

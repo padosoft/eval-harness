@@ -479,3 +479,13 @@
   - `vendor/bin/phpunit` => `OK (209 tests, 451 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `5fd7ba3` and generated three comments:
+  - valid datasets with sample ids `"0"`, `"1"`, ... should still be scoreable through programmatic array input,
+  - `loadString()` parse diagnostics should not describe inline contents as a file,
+  - list-shaped array handling needed to preserve the new safety guard while supporting matching numeric ids.
+- Addressed the comments by moving list-shaped array handling into `EvalEngine`, accepting only lists whose stringified indexes exactly match the registered dataset sample ids, preserving `SavedOutputs::fromMap()` as a keyed-map guard, and changing saved-output parse errors from "file" to "source".
+- Full local gate passed after the eighth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (210 tests, 452 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

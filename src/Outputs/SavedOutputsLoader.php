@@ -90,7 +90,7 @@ final class SavedOutputsLoader
         } catch (JsonException $jsonException) {
             if ($this->looksLikeJsonPath($source)) {
                 throw new EvalRunException(sprintf(
-                    "Saved outputs file '%s' contains invalid JSON: %s.",
+                    "Saved outputs source '%s' contains invalid JSON: %s.",
                     $source,
                     $jsonException->getMessage(),
                 ), previous: $jsonException);
@@ -100,7 +100,7 @@ final class SavedOutputsLoader
                 return $this->decodeYaml($contents, $source);
             } catch (EvalRunException $yamlException) {
                 throw new EvalRunException(sprintf(
-                    "Saved outputs file '%s' could not be parsed as JSON or YAML. JSON error: %s. YAML error: %s.",
+                    "Saved outputs source '%s' could not be parsed as JSON or YAML. JSON error: %s. YAML error: %s.",
                     $source,
                     $jsonException->getMessage(),
                     $yamlException->getMessage(),
@@ -115,7 +115,7 @@ final class SavedOutputsLoader
             return Yaml::parse($contents, Yaml::PARSE_OBJECT_FOR_MAP);
         } catch (ParseException $e) {
             throw new EvalRunException(sprintf(
-                "Saved outputs file '%s' contains invalid YAML: %s.",
+                "Saved outputs source '%s' contains invalid YAML: %s.",
                 $source,
                 $e->getMessage(),
             ), previous: $e);

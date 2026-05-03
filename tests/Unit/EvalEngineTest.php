@@ -138,7 +138,7 @@ final class EvalEngineTest extends TestCase
         $engine = $this->app->make(EvalEngine::class);
 
         $engine->dataset('rag.saved.list-shaped')
-            ->withSamples([new DatasetSample(id: '0', input: [], expectedOutput: 'zero')])
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'zero')])
             ->withMetrics(['exact-match'])
             ->register();
 
@@ -146,6 +146,24 @@ final class EvalEngineTest extends TestCase
         $this->expectExceptionMessage('keyed map');
 
         $engine->scoreOutputs('rag.saved.list-shaped', ['zero']);
+    }
+
+    public function test_score_outputs_accepts_list_shaped_arrays_for_matching_numeric_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-list-shaped')
+            ->withSamples([
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-list-shaped', ['zero', 'wrong']);
+
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
     }
 
     public function test_score_outputs_rejects_empty_sample_ids(): void
