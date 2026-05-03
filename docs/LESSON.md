@@ -87,3 +87,4 @@
 - Metrics that calculate with floating-point arithmetic should clamp final scores into `[0.0, 1.0]` before constructing `MetricScore`, even when the formula is mathematically bounded.
 - `gh pr merge --delete-branch` can merge successfully but exit non-zero if deleting the remote head branch times out. Verify PR state before retrying only the branch cleanup.
 - Standalone output scoring should validate completeness before metric execution: missing and unknown sample ids are dataset-level run errors, not captured per-metric failures.
+- Preserve dataset sample IDs verbatim in saved-output workflows. The dataset contract only rejects the empty string, so trimming IDs creates false missing/unknown failures.

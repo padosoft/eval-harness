@@ -244,7 +244,7 @@ Exit code is `0` if every metric scored cleanly, non-zero otherwise.
 Wire that into the same `tests.yml` workflow that runs your PHPUnit
 suite and you've got a regression gate.
 
-### Score saved outputs
+### 4. Score saved outputs
 
 When another job already generated model responses, keep the same
 dataset and score those outputs directly:
@@ -270,7 +270,7 @@ list form (`outputs[].id` + `outputs[].actual_output`). The registrar
 still registers the dataset; no `eval-harness.sut` binding is required
 for this mode.
 
-### 4. Read the report
+### 5. Read the report
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \

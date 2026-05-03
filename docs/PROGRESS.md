@@ -404,3 +404,14 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Opened subtask PR #11 from `task/metrics-reporting-standalone-assertions` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
+- Codex/Copilot reviewed PR #11 and generated six actionable comments:
+  - numeric-key JSON output maps should not be misclassified as list form,
+  - saved-output sample ids must be preserved verbatim and not trimmed in list form, map form, or `scoreOutputs()`,
+  - all advertised JSON/YAML x map/list shapes need test coverage,
+  - the README quick-start numbering should remain sequential.
+- Addressed the comments by detecting list shape from entry structure, preserving ids exactly except for empty-string rejection, adding JSON-list/YAML-map/numeric-key/verbatim-id coverage, and renumbering the README section.
+- Full local gate passed after the first PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (193 tests, 421 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

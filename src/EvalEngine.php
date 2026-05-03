@@ -198,7 +198,7 @@ final class EvalEngine
     {
         $outputs = [];
         foreach ($actualOutputs as $sampleId => $actualOutput) {
-            $normalizedSampleId = trim((string) $sampleId);
+            $normalizedSampleId = (string) $sampleId;
             if ($normalizedSampleId === '') {
                 throw new EvalRunException(sprintf(
                     "Saved outputs for dataset '%s' contain an empty sample id.",

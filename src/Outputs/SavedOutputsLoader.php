@@ -51,7 +51,7 @@ final class SavedOutputsLoader
             throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs object or list.", $source));
         }
 
-        return array_is_list($rawOutputs)
+        return $this->isListShape($rawOutputs)
             ? $this->normalizeList($rawOutputs, $source)
             : $this->normalizeMap($rawOutputs, $source);
     }
@@ -111,7 +111,7 @@ final class SavedOutputsLoader
             }
 
             $id = $entry['id'] ?? null;
-            if (! is_string($id) || trim($id) === '') {
+            if (! is_string($id) || $id === '') {
                 throw new EvalRunException(sprintf(
                     "Saved outputs entry at index %d in '%s' must contain a non-empty string id.",
                     $index,
@@ -123,12 +123,12 @@ final class SavedOutputsLoader
             if (! is_string($actualOutput)) {
                 throw new EvalRunException(sprintf(
                     "Saved output for sample '%s' in '%s' must contain a string actual_output.",
-                    trim($id),
+                    $id,
                     $source,
                 ));
             }
 
-            $this->putOutput($outputs, trim($id), $actualOutput, $source);
+            $this->putOutput($outputs, $id, $actualOutput, $source);
         }
 
         return $outputs;
@@ -142,7 +142,7 @@ final class SavedOutputsLoader
     {
         $outputs = [];
         foreach ($rawOutputs as $id => $actualOutput) {
-            $sampleId = trim((string) $id);
+            $sampleId = (string) $id;
             if ($sampleId === '') {
                 throw new EvalRunException(sprintf("Saved outputs in '%s' contain an empty sample id.", $source));
             }
@@ -160,6 +160,24 @@ final class SavedOutputsLoader
         }
 
         return $outputs;
+    }
+
+    /**
+     * @param  array<mixed>  $rawOutputs
+     */
+    private function isListShape(array $rawOutputs): bool
+    {
+        if (! array_is_list($rawOutputs)) {
+            return false;
+        }
+
+        foreach ($rawOutputs as $entry) {
+            if (! is_array($entry)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -131,6 +131,21 @@ final class EvalEngineTest extends TestCase
         $engine->scoreOutputs('rag.saved.non-string', ['s1' => ['not' => 'a string']]);
     }
 
+    public function test_score_outputs_preserves_sample_ids_verbatim(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.verbatim-ids')
+            ->withSamples([new DatasetSample(id: ' s1 ', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.verbatim-ids', [' s1 ' => 'a']);
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+    }
+
     public function test_run_accepts_sample_runner_contract(): void
     {
         /** @var EvalEngine $engine */
