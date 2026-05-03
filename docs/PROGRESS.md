@@ -667,3 +667,4 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding tests. README still has no test-count claim; this progress file records the current `255 tests, 550 assertions` result.
+- Opened subtask PR #14 from `task/parallel-batch-queues-lazy-parallel` into `task/parallel-batch-queues`; requested Copilot through the GraphQL fallback because `gh pr edit 14 --add-reviewer copilot` was blocked by the missing `read:project` scope.
