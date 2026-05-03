@@ -16,7 +16,7 @@ use Symfony\Component\Yaml\Yaml;
  * Accepted shapes:
  *   - {"outputs": {"sample-id": "actual output"}}
  *   - {"outputs": [{"id": "sample-id", "actual_output": "..."}]}
- *   - The same shapes as a YAML document.
+ *   - The same wrapped object shapes as a YAML document.
  */
 final class SavedOutputsLoader
 {
@@ -42,7 +42,7 @@ final class SavedOutputsLoader
     {
         $decoded = $this->decode($contents, $source);
         if (! $decoded instanceof stdClass && ! is_array($decoded)) {
-            throw new EvalRunException(sprintf("Saved outputs in '%s' must be a JSON/YAML object or list.", $source));
+            throw new EvalRunException(sprintf("Saved outputs in '%s' must be a JSON/YAML object and must contain an outputs field.", $source));
         }
 
         $rawOutputs = $this->rawOutputs($decoded, $source);
@@ -76,7 +76,7 @@ final class SavedOutputsLoader
             return $properties['outputs'];
         }
 
-        throw new EvalRunException(sprintf("Saved outputs in '%s' must contain an outputs field.", $source));
+        throw new EvalRunException(sprintf("Saved outputs in '%s' must be a JSON/YAML object and must contain an outputs field.", $source));
     }
 
     private function decode(string $contents, string $source): mixed

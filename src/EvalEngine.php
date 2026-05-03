@@ -249,16 +249,20 @@ final class EvalEngine
     private function savedOutputsFromArray(string $datasetName, GoldenDataset $dataset, array $actualOutputs): SavedOutputs
     {
         if ($actualOutputs !== [] && array_is_list($actualOutputs)) {
-            $expectedIds = array_map(
-                static fn (DatasetSample $sample): string => $sample->id,
-                $dataset->samples,
+            $expectedIds = array_fill_keys(
+                array_map(
+                    static fn (DatasetSample $sample): string => $sample->id,
+                    $dataset->samples,
+                ),
+                true,
             );
             $listIds = array_map(
                 static fn (int $index): string => (string) $index,
                 array_keys($actualOutputs),
             );
+            $listIdSet = array_fill_keys($listIds, true);
 
-            if ($expectedIds !== $listIds) {
+            if (count($expectedIds) !== count($listIdSet) || array_diff_key($expectedIds, $listIdSet) !== []) {
                 throw new EvalRunException(sprintf(
                     "Saved outputs for dataset '%s' must be a keyed map of sample id to output string.",
                     $datasetName,

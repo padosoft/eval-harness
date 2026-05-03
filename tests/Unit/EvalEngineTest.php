@@ -166,6 +166,26 @@ final class EvalEngineTest extends TestCase
         $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
     }
 
+    public function test_score_outputs_accepts_numeric_list_arrays_independent_of_dataset_order(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.numeric-list-shaped-unordered')
+            ->withSamples([
+                new DatasetSample(id: '1', input: [], expectedOutput: 'one'),
+                new DatasetSample(id: '0', input: [], expectedOutput: 'zero'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->scoreOutputs('rag.saved.numeric-list-shaped-unordered', ['zero', 'one']);
+
+        $this->assertEqualsWithDelta(1.0, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('one', $report->sampleResults[0]->actualOutput);
+        $this->assertSame('zero', $report->sampleResults[1]->actualOutput);
+    }
+
     public function test_score_outputs_rejects_empty_sample_ids(): void
     {
         /** @var EvalEngine $engine */

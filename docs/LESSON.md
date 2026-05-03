@@ -103,3 +103,5 @@
 - Artisan command descriptions are operator-facing contract text. When adding a new execution mode such as saved-output scoring, update `artisan list/help` descriptions, not only README prose and docblocks.
 - Documented CLI flows that combine `--registrar` with `--outputs` need command-level regression tests. Unit coverage of pre-registered datasets does not protect the README path if registrar dispatch order changes.
 - README saved-output happy-path examples must exactly match the golden expected output when the metric is `exact-match`; otherwise the quick-start command documents a failing run.
+- Programmatic list-shaped saved outputs are only a numeric-ID escape hatch. Validate against the dataset's numeric ID set, not declaration order, because sample order and sample IDs are separate contracts.
+- Saved-output file diagnostics should describe only supported top-level shapes. If the required `outputs` wrapper is mandatory, error text must not imply that top-level lists are accepted.

@@ -181,6 +181,14 @@ final class SavedOutputsLoaderTest extends TestCase
         (new SavedOutputsLoader)->loadString('{"output":{"s1":"answer"}}', 'outputs.json');
     }
 
+    public function test_rejects_top_level_list_documents_with_wrapper_object_message(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be a JSON/YAML object and must contain an outputs field');
+
+        (new SavedOutputsLoader)->loadString('[{"id":"s1","actual_output":"answer"}]', 'outputs.json');
+    }
+
     public function test_rejects_scalar_list_outputs(): void
     {
         $this->expectException(EvalRunException::class);

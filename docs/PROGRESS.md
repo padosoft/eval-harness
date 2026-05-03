@@ -521,3 +521,15 @@
   - `vendor/bin/phpunit` => `OK (217 tests, 467 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `8cdc98a` and generated two comments:
+  - list-shaped programmatic saved outputs should validate numeric sample-id membership without depending on dataset declaration order,
+  - top-level saved-output list diagnostics should not imply the wrapperless list shape is accepted.
+- Addressed the comments by validating list-shaped arrays against the dataset's numeric sample-id set, adding unordered numeric-id regression coverage, tightening the loader error text, and adding top-level-list diagnostic coverage.
+- Targeted validation passed after the twelfth PR #11 review fix round:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php` => `OK (49 tests, 85 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php src/Outputs/SavedOutputsLoader.php tests/Unit/EvalEngineTest.php tests/Unit/Outputs/SavedOutputsLoaderTest.php`
+- Full local gate passed after the twelfth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (219 tests, 472 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
