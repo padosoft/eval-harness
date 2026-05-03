@@ -316,6 +316,9 @@
   - `vendor/bin/phpunit` => `OK (153 tests, 339 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+
+## 2026-05-03
+
 - Started subtask branch `task/metrics-reporting-offline-metrics` from `task/metrics-reporting`.
 - Implemented offline metric aliases and classes:
   - `contains`,
@@ -355,5 +358,17 @@
 - Full local gate passed after the third PR #10 review fix round:
   - `composer validate --strict --no-check-publish`
   - `vendor/bin/phpunit` => `OK (174 tests, 379 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #10 again at head `82585fc` and generated five comments:
+  - reflow the `Metric` docblock sentence,
+  - add a dated `PROGRESS.md` section for the new work,
+  - keep the Composer `require` section sorted,
+  - remove stale `mb_strtolower()` conditional wording from `LESSON.md`,
+  - add a ROUGE-L input-size guard before the quadratic LCS pass.
+- Addressed those comments with documentation fixes, Composer ordering, a configurable ROUGE-L token cap, and regression coverage for cap enforcement.
+- Full local gate passed after the fourth PR #10 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (176 tests, 383 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`

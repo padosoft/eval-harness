@@ -74,4 +74,23 @@ final class RougeLMetricTest extends TestCase
             "\xB1\x31",
         );
     }
+
+    public function test_rejects_inputs_that_exceed_token_cap(): void
+    {
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('supports at most 2 tokens per field');
+
+        (new RougeLMetric(maxTokens: 2))->score(
+            new DatasetSample(id: 's1', input: [], expectedOutput: 'one two three'),
+            'one two',
+        );
+    }
+
+    public function test_token_cap_must_be_positive(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('max token count must be at least 1');
+
+        new RougeLMetric(maxTokens: 0);
+    }
 }

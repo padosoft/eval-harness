@@ -79,6 +79,7 @@
 - Keep offline metrics deterministic and side-effect free. `contains`, `regex`, `rouge-l`, and baseline `citation-groundedness` should rely only on sample data and actual output so they remain safe for unit tests and CI without HTTP fakes.
 - Citation groundedness baseline currently uses `metadata.citations` as a string or string list and scores citation-string presence in the actual output; advanced span/evidence validation remains a later metric.
 - Contains-style metrics must reject empty expected strings because `str_contains($actual, '')` always returns true and can silently inflate pass rates.
-- ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower` when available; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
+- ROUGE-L tokenization should validate UTF-8 and use Unicode-aware lowercasing via `mb_strtolower`; invalid strings should throw `MetricException`, not surface PHP runtime warnings.
 - Regex metrics should report a general evaluation failure when `preg_match()` returns false, because failures can come from invalid patterns or from subject/modifier issues such as `/u` with invalid UTF-8.
 - For deterministic Unicode metric behavior, depend directly on `symfony/polyfill-mbstring` and call `mb_strtolower()` unconditionally instead of falling back to ASCII `strtolower()`.
+- O(n*m) offline metrics need defensive input bounds. ROUGE-L should cap token counts before the LCS pass so large eval outputs cannot surprise CI with quadratic CPU work.

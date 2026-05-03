@@ -31,8 +31,7 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *
  * Note: the harness does NOT read a static `metrics.aliases` config
  * key. Built-in aliases are exposed through {@see MetricResolver::aliases()};
- * downstream
- * extension goes through container bindings, not config.
+ * downstream extension goes through container bindings, not config.
  *
  * Per R23 (pluggable pipeline registry): every concrete class
  * resolved by {@see MetricResolver} is asserted to implement this

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Metrics;
 
+use InvalidArgumentException;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 
@@ -13,9 +14,21 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  * This is a deterministic baseline, not a replacement for
  * embedding/LLM semantic grading. It is useful for CI checks where
  * word-order overlap matters and network calls are not allowed.
+ *
+ * ROUGE-L uses an O(n*m) LCS pass, so each field is capped at 1024
+ * tokens by default. Inject a larger cap only for trusted datasets.
  */
 final class RougeLMetric implements Metric
 {
+    private const int DEFAULT_MAX_TOKENS = 1024;
+
+    public function __construct(private readonly int $maxTokens = self::DEFAULT_MAX_TOKENS)
+    {
+        if ($maxTokens < 1) {
+            throw new InvalidArgumentException('ROUGE-L max token count must be at least 1.');
+        }
+    }
+
     public function name(): string
     {
         return 'rouge-l';
@@ -83,6 +96,17 @@ final class RougeLMetric implements Metric
 
         /** @var list<string> $tokens */
         $tokens = $matches[0];
+
+        $tokenCount = count($tokens);
+        if ($tokenCount > $this->maxTokens) {
+            throw new MetricException(sprintf(
+                "Sample '%s' %s has %d tokens; rouge-l metric supports at most %d tokens per field.",
+                $sampleId,
+                $field,
+                $tokenCount,
+                $this->maxTokens,
+            ));
+        }
 
         return $tokens;
     }
