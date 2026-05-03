@@ -75,4 +75,6 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 Macro Task 3 is active on `task/parallel-batch-queues`.
 
-Next slice: create a fresh subtask branch from `task/parallel-batch-queues` for eval-set/resume manifests, then update `AGENTS.md` / `docs/PROGRESS.md` with that branch. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch.
+Current subtask branch: `task/parallel-batch-queues-eval-set-manifests`.
+
+This slice adds headless eval-set definitions, resumable progress manifests, and `EvalEngine::runEvalSet()` for multi-dataset runs. Keep subtask PRs targeted into `task/parallel-batch-queues` unless `docs/PROGRESS.md` records a newer macro branch.

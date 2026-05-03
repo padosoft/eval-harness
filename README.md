@@ -131,18 +131,26 @@ surface small and the offline path fast.
 
 ## Comparison with alternatives
 
+Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means supported with limits or outside the Laravel-native path, and `❌ NO` means not a primary fit.
+
 | Concern | OpenAI Evals | LangSmith | Ragas | Promptfoo | DeepEval | **eval-harness** |
 | --- | --- | --- | --- | --- | --- | --- |
-| Language | Python | Python / TS | Python | TS / YAML | Python | **PHP / Laravel** |
-| Runs in your Laravel app | No | No | No | No | No | **Yes** |
-| Storage | OpenAI cloud | LangSmith cloud | Local | Local | Local | **Local YAML + JSON** |
-| Metrics | Custom Python | Built-in + custom | RAG-specific | Built-in + custom | Built-in + custom | **7 + interface** |
-| LLM-as-judge | Yes | Yes | Yes | Yes | Yes | **Yes (deterministic)** |
-| Provider | OpenAI-only | Multi | Multi | Multi | Multi | **Any OpenAI-compatible** |
-| CI integration | Manual | API hook | Manual | CLI gate | CLI gate | **Artisan + CI matrix** |
-| Vendor lock-in | High | High | Low | Low | Low | **None** |
-| Cost to evaluate 200 samples | Cloud bill | Cloud bill | Free | Free | Free | **Free (offline tests via Http::fake)** |
-| Auditable in PR diff | Cloud-only | Cloud-only | Yes | Yes | Yes | **Yes (YAML + report)** |
+| Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
+| Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
+| Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
+| Built-in offline metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - exact, contains, regex, ROUGE-L, citation, cosine, judge** |
+| Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
+| LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge** |
+| Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
+| CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
+| Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
+| Eval sets / multi-dataset runs | ✅ YES - `oaievalset` | ✅ YES - dataset experiments | ⚠️ PARTIAL - run multiple datasets in code | ✅ YES - suites/configs | ✅ YES - metric collections/test suites | **✅ YES - EvalSetDefinition + resumable manifests** |
+| Resume interrupted multi-dataset progress | ❌ NO - no mid-eval resume | ⚠️ PARTIAL - platform run history | ⚠️ PARTIAL - custom code | ⚠️ PARTIAL - rerun/filter workflows | ⚠️ PARTIAL - platform/regression workflows | **✅ YES - explicit per-dataset resume manifest** |
+| Cohorts / tags / facets | ⚠️ PARTIAL - custom eval/reporting | ✅ YES - dataset filtering/metadata | ⚠️ PARTIAL - custom analysis | ✅ YES - metadata/config-driven views | ⚠️ PARTIAL - test metadata | **✅ YES - tag cohorts in JSON/Markdown** |
+| Saved-output assertions | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - compare uploaded runs | ⚠️ PARTIAL - build dataset/results manually | ✅ YES - assertion-first workflow | ✅ YES - test-case assertions | **✅ YES - `--outputs` and `Eval::scoreOutputs()`** |
+| Auditable in PR diff | ⚠️ PARTIAL - local YAML/code possible | ❌ NO - cloud-first | ✅ YES - code/data files | ✅ YES - YAML config | ✅ YES - Python test files | **✅ YES - YAML datasets + stable JSON/Markdown artifacts** |
+| Vendor lock-in | ⚠️ PARTIAL - OpenAI-oriented defaults | ❌ NO - LangSmith workspace | ✅ YES - OSS library | ✅ YES - OSS CLI | ⚠️ PARTIAL - OSS plus Confident AI option | **✅ YES - headless, local-first, provider-agnostic** |
+| Cost to evaluate 200 offline samples | ⚠️ PARTIAL - depends on model calls | ❌ NO - cloud/API usage | ⚠️ PARTIAL - free only for non-LLM metrics | ⚠️ PARTIAL - free only for local assertions | ⚠️ PARTIAL - free only for local/non-LLM metrics | **✅ YES - free for offline metrics and faked providers** |
 
 The Python-stack tools are excellent if your stack is Python. If your
 RAG pipeline lives in a Laravel monolith, `eval-harness` is the
@@ -439,6 +447,45 @@ window to finish before the command reports missing queued outputs.
 Programmatic external `dispatch()` / `collectOutputs()` flows can set
 `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
 metadata and sample outputs alive long enough for delayed collection.
+
+### Eval sets and resume manifests
+
+Group registered datasets into an eval set when one CI or release gate
+needs to run several datasets in order. The returned manifest is stable
+JSON and can be stored by the host app between attempts; completed
+datasets are skipped when the manifest is passed back in.
+
+```php
+use Eval;
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+
+$manifestPath = storage_path('eval/release.rag.manifest.json');
+$previousManifest = null;
+if (is_file($manifestPath)) {
+    $manifestPayload = json_decode((string) file_get_contents($manifestPath), true, flags: JSON_THROW_ON_ERROR);
+    $previousManifest = is_array($manifestPayload)
+        ? EvalSetManifest::fromJson($manifestPayload)
+        : null;
+}
+
+$evalSet = Eval::evalSet('release.rag', [
+    'rag.factuality.fy2026',
+    'rag.refusals.fy2026',
+]);
+
+$result = Eval::runEvalSet(
+    $evalSet,
+    app(App\Eval\MyRagRunner::class),
+    BatchOptions::serial(),
+    $previousManifest ?? null,
+);
+
+file_put_contents(
+    $manifestPath,
+    json_encode($result->manifest->toJson(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+);
+```
 
 ---
 
