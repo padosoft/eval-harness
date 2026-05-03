@@ -1112,4 +1112,13 @@
   - `vendor/bin/phpunit` => `OK (340 tests, 740 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Ran the README test-count sync search after adding eval-set/batch tests. README has no numeric PHPUnit test-count claim; update PR #17 body validation line to `340 tests, 740 assertions` before requesting the next Copilot review.
+- Ran the README test-count sync search after adding eval-set/batch tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `340 tests, 740 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #17 again at head `a0fa8ce` and generated two actionable docs comments:
+  - README's comparison row overstated provider-backed `cosine-embedding` and `llm-as-judge` as offline metrics,
+  - the latest progress note still phrased the PR body update as a pending next step even though the PR body already showed `340 tests, 740 assertions`.
+- Addressed the PR #17 docs comments by changing the README row to "Built-in metrics" with offline/fakeable nuance, correcting the stale progress note, and recording the provider-backed metric wording lesson.
+- Full local gate passed after the PR #17 docs-only comparison/progress fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (340 tests, 740 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

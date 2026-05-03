@@ -192,3 +192,4 @@
 - Manifest timing loaded from JSON is untrusted. Validate `finished_at >= started_at` and require `duration_seconds` to match the stored timestamp delta for terminal entries.
 - Public batch APIs must validate `list<T>` contracts at runtime. PHPDoc does not protect direct callers from sparse arrays, and positional batch indexes are part of the report-ordering contract.
 - Current-priority handoff text in `AGENTS.md` must describe the post-merge transition too. Macro PR branches inherit that file into `main`, so branch-specific wording should point to `docs/PROGRESS.md` and `git status` plus the next roadmap branch.
+- README comparison rows should not label provider-backed metrics as offline. `cosine-embedding` and `llm-as-judge` can be deterministic in tests when faked, but real runs call configured providers.
