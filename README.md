@@ -237,7 +237,7 @@ class EvalRegistrar
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
   --registrar="App\\Console\\EvalRegistrar" \
-  --json --out=storage/eval-results/factuality.json
+  --json --out=factuality.json
 ```
 
 Exit code is `0` if every metric scored cleanly, non-zero otherwise.
@@ -262,15 +262,16 @@ dataset and score those outputs directly:
 php artisan eval-harness:run rag.factuality.fy2026 \
   --registrar="App\\Console\\EvalRegistrar" \
   --outputs=eval/outputs/factuality.json \
-  --json --out=storage/eval-results/factuality.json --raw-path
+  --json --out=factuality.json
 ```
 
 `--outputs` accepts JSON or YAML, map form (`outputs.sample_id`) or
-list form (`outputs[].id` + `outputs[].actual_output`). `--raw-path`
-makes the example write to the literal relative path shown; omit it
-to use the configured reports disk and prefix. The registrar still
-registers the dataset; no `eval-harness.sut` binding is required for
-this mode.
+list form (`outputs[].id` + `outputs[].actual_output`). Relative
+`--out` paths use the configured reports disk and path prefix
+(`eval-harness/reports` by default). Add `--raw-path` only when you
+want a literal filesystem path and its parent directory already
+exists. The registrar still registers the dataset; no
+`eval-harness.sut` binding is required for this mode.
 
 ### 5. Read the report
 

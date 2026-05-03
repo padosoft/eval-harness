@@ -131,6 +131,22 @@ final class EvalEngineTest extends TestCase
         $engine->scoreOutputs('rag.saved.non-string', ['s1' => ['not' => 'a string']]);
     }
 
+    public function test_score_outputs_rejects_empty_sample_ids(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.empty-id')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'a')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('contain an empty sample id');
+
+        $engine->scoreOutputs('rag.saved.empty-id', ['' => 'a']);
+    }
+
     public function test_score_outputs_preserves_sample_ids_verbatim(): void
     {
         /** @var EvalEngine $engine */

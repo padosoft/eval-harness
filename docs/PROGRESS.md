@@ -438,3 +438,13 @@
   - `vendor/bin/phpunit` => `OK (198 tests, 429 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `15a2fe1` and generated four comments:
+  - extensionless JSON/YAML parse errors should not guess the operator's intended format,
+  - empty saved-output sample ids need engine and loader regression tests,
+  - README `--out` examples should not depend on non-existent raw parent directories.
+- Addressed the comments by reporting combined JSON/YAML errors for ambiguous extensionless files, adding empty-id tests for engine/list/map paths, and using configured reports-disk paths in README examples.
+- Full local gate passed after the fourth PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (201 tests, 435 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

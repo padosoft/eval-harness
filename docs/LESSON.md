@@ -91,3 +91,4 @@
 - JSON/YAML duplicate keys in map form are collapsed by standard parsers before package code sees them. Duplicate saved-output detection is reliable for list form; do not over-claim duplicate-key validation for maps.
 - To distinguish saved-output maps from lists when sample IDs can be numeric strings, parse JSON/YAML maps as objects (`stdClass`) first. Decoding directly to associative arrays loses that shape information.
 - CLI options that accept paths should treat an explicit empty value as an operator error instead of falling back to another execution mode.
+- Extensionless saved-output files can be JSON or YAML. If both parsers fail, report both parse errors instead of guessing which format the operator intended.

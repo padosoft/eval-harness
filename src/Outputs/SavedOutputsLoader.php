@@ -101,15 +101,12 @@ final class SavedOutputsLoader
             try {
                 return $this->decodeYaml($contents, $source);
             } catch (EvalRunException $yamlException) {
-                if ($this->looksLikeJsonDocument($contents)) {
-                    throw new EvalRunException(sprintf(
-                        "Saved outputs file '%s' contains invalid JSON: %s.",
-                        $source,
-                        $jsonException->getMessage(),
-                    ), previous: $jsonException);
-                }
-
-                throw $yamlException;
+                throw new EvalRunException(sprintf(
+                    "Saved outputs file '%s' could not be parsed as JSON or YAML. JSON error: %s. YAML error: %s.",
+                    $source,
+                    $jsonException->getMessage(),
+                    $yamlException->getMessage(),
+                ), previous: $yamlException);
             }
         }
     }
@@ -247,12 +244,5 @@ final class SavedOutputsLoader
     private function looksLikeJsonPath(string $source): bool
     {
         return (bool) preg_match('/\.json$/i', $source);
-    }
-
-    private function looksLikeJsonDocument(string $contents): bool
-    {
-        $trimmed = ltrim($contents);
-
-        return str_starts_with($trimmed, '{') || str_starts_with($trimmed, '[');
     }
 }

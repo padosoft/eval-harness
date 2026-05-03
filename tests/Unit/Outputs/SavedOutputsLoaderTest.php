@@ -120,6 +120,28 @@ final class SavedOutputsLoaderTest extends TestCase
         );
     }
 
+    public function test_rejects_empty_map_sample_id(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('contain an empty sample id');
+
+        (new SavedOutputsLoader)->loadString(
+            '{"outputs":{"":"answer"}}',
+            'outputs.json',
+        );
+    }
+
+    public function test_rejects_empty_list_sample_id(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must contain a non-empty string id');
+
+        (new SavedOutputsLoader)->loadString(
+            '{"outputs":[{"id":"","actual_output":"answer"}]}',
+            'outputs.json',
+        );
+    }
+
     public function test_rejects_invalid_json_files_without_yaml_fallback(): void
     {
         $this->expectException(EvalRunException::class);
@@ -128,10 +150,10 @@ final class SavedOutputsLoaderTest extends TestCase
         (new SavedOutputsLoader)->loadString('{not-json', 'outputs.json');
     }
 
-    public function test_rejects_json_like_extensionless_contents_without_yaml_fallback(): void
+    public function test_rejects_json_like_extensionless_contents_with_combined_parse_error(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('contains invalid JSON');
+        $this->expectExceptionMessage('could not be parsed as JSON or YAML');
 
         (new SavedOutputsLoader)->loadString('{"outputs":', 'artifact');
     }
