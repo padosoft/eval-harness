@@ -1278,3 +1278,9 @@
   - `vendor/bin/pint --test`
 - Copilot reviewed PR #22 again at head `6940d86` and generated no new comments. CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, all PR #22 review threads were resolved, and PR #22 merged into `task/advanced-metrics` at `d3b5b45`.
 - Macro Task 4 implementation scope is now complete on the macro branch: fakeable embedding/judge provider contracts, BERTScore-like/refusal-quality metrics, citation evidence spans, usage summaries, and runtime retry/strict exception guardrails.
+- Macro Task 4 macro branch gate passed before opening the PR to `main`:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (414 tests, 923 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Verified `origin/main` had not advanced relative to the Macro Task 4 branch before opening the macro PR (`git rev-list --left-right --count origin/main...HEAD` => `0 14`).
