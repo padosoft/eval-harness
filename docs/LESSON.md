@@ -94,3 +94,4 @@
 - Extensionless saved-output files can be JSON or YAML. If both parsers fail, report both parse errors instead of guessing which format the operator intended.
 - PHP arrays coerce numeric-string keys to integers. Public loaders that must preserve sample IDs like `"0"` should return an entry-list DTO instead of a keyed array.
 - Do not add convenience `toMap()` APIs to ID-preserving DTOs when IDs can be numeric strings; the conversion itself reintroduces PHP key coercion.
+- Programmatic saved-output array input should reject list-shaped arrays. Otherwise `['a', 'b']` can silently become sample ids `0`/`1`.

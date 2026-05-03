@@ -470,3 +470,12 @@
   - `vendor/bin/phpunit` => `OK (207 tests, 447 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #11 again at head `4531d17` and generated two comments:
+  - `SavedOutputs` constructor should reject non-array entries with `EvalRunException`,
+  - programmatic array input to `scoreOutputs()` should reject list-shaped arrays instead of interpreting them as numeric sample ids.
+- Addressed the comments with runtime validation in `SavedOutputs`, list-shaped map rejection in `SavedOutputs::fromMap()`, and regression coverage for both paths.
+- Full local gate passed after the seventh PR #11 review fix round:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (209 tests, 451 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

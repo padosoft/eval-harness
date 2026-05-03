@@ -17,13 +17,17 @@ final class SavedOutputs
     private array $entries;
 
     /**
-     * @param  list<array{id: string, actual_output: string}>  $entries
+     * @param  list<mixed>  $entries
      */
     public function __construct(array $entries)
     {
         $normalizedEntries = [];
         $seen = [];
         foreach ($entries as $index => $entry) {
+            if (! is_array($entry)) {
+                throw new EvalRunException(sprintf('Saved output entry at index %d must be an array.', $index));
+            }
+
             $id = $entry['id'] ?? null;
             if (! is_string($id)) {
                 throw new EvalRunException(sprintf('Saved output entry at index %d must contain a string id.', $index));
@@ -58,6 +62,10 @@ final class SavedOutputs
      */
     public static function fromMap(array $outputs, string $context): self
     {
+        if ($outputs !== [] && array_is_list($outputs)) {
+            throw new EvalRunException(sprintf('Saved outputs for %s must be a keyed map of sample id to output string.', $context));
+        }
+
         $entries = [];
         foreach ($outputs as $sampleId => $actualOutput) {
             $id = (string) $sampleId;

@@ -20,6 +20,16 @@ final class SavedOutputsTest extends TestCase
         ]);
     }
 
+    public function test_constructor_rejects_non_array_entries(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must be an array');
+
+        new SavedOutputs([
+            'not-an-entry',
+        ]);
+    }
+
     public function test_constructor_rejects_non_string_id(): void
     {
         $this->expectException(EvalRunException::class);

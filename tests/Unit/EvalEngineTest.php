@@ -132,6 +132,22 @@ final class EvalEngineTest extends TestCase
         $engine->scoreOutputs('rag.saved.non-string', ['s1' => ['not' => 'a string']]);
     }
 
+    public function test_score_outputs_rejects_list_shaped_output_arrays(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.saved.list-shaped')
+            ->withSamples([new DatasetSample(id: '0', input: [], expectedOutput: 'zero')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('keyed map');
+
+        $engine->scoreOutputs('rag.saved.list-shaped', ['zero']);
+    }
+
     public function test_score_outputs_rejects_empty_sample_ids(): void
     {
         /** @var EvalEngine $engine */
