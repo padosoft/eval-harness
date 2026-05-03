@@ -67,6 +67,31 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
+    public function test_dispatch_ttl_does_not_multiply_by_concurrency_windows(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+        $samples = $this->samples();
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 1, waitTimeoutSeconds: 60),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            return $job->resultTtlSeconds === 60;
+        });
+    }
+
     public function test_dispatch_cleans_result_store_when_dispatcher_fails(): void
     {
         $samples = $this->samples();
@@ -774,6 +799,8 @@ final class RecordingBatchResultStore implements BatchResultStore
 
     private ?int $sampleCount = null;
 
+    private ?int $ttlSeconds = null;
+
     /** @var array<int, array{sample_id: string, actual_output: string}> */
     private array $outputs = [];
 
@@ -784,6 +811,7 @@ final class RecordingBatchResultStore implements BatchResultStore
     {
         $this->events[] = 'start:'.$sampleCount;
         $this->sampleCount = $sampleCount;
+        $this->ttlSeconds = $ttlSeconds;
     }
 
     public function sampleCount(string $batchId): ?int
@@ -791,6 +819,13 @@ final class RecordingBatchResultStore implements BatchResultStore
         $this->events[] = 'sample-count';
 
         return $this->sampleCount;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        $this->events[] = 'ttl';
+
+        return $this->ttlSeconds;
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -856,6 +891,11 @@ final class LateFailureAfterSlowOutputReadStore implements BatchResultStore
         return 1;
     }
 
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return 60;
+    }
+
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         //
@@ -913,6 +953,11 @@ final class ThrowingStartBatchResultStore implements BatchResultStore
         return null;
     }
 
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return null;
+    }
+
     public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         //
@@ -952,6 +997,11 @@ final class ThrowingAbortBatchResultStore implements BatchResultStore
     }
 
     public function sampleCount(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
     {
         return null;
     }

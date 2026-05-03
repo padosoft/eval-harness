@@ -140,7 +140,7 @@ final class LazyParallelBatch
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
-        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
+        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
         $currentIndexes = $this->sampleIndexes($samples);
 
@@ -200,11 +200,12 @@ final class LazyParallelBatch
         }
 
         $sampleCount = $storedSampleCount;
+        $resultTtlSeconds = $this->storedTtlSeconds($batchId) ?? $this->resultTtlSeconds;
 
         $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
-            $this->finishResultsSafely($batchId, $sampleCount, $this->resultTtlSeconds);
+            $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
 
             return array_values($outputsByIndex);
         }
@@ -518,14 +519,27 @@ final class LazyParallelBatch
         );
     }
 
-    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
+    private function storedTtlSeconds(string $batchId): ?int
     {
-        $windowCount = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
+        return $this->withResultStore(
+            action: 'read metadata from',
+            batchId: $batchId,
+            callback: fn (): ?int => $this->resultStore->ttlSeconds($batchId),
+        );
+    }
+
+    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, ?int $sampleCount = null): int
+    {
+        $windowWaitSeconds = 0;
+        if ($sampleCount !== null) {
+            $windowCount = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
+            $windowWaitSeconds = $waitTimeoutSeconds * $windowCount;
+        }
 
         return max(
             $this->resultTtlSeconds,
             $waitTimeoutSeconds,
-            $waitTimeoutSeconds * $windowCount,
+            $windowWaitSeconds,
             $options->timeoutSeconds ?? 0,
         );
     }

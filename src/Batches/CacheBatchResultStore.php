@@ -31,7 +31,7 @@ final class CacheBatchResultStore implements BatchResultStore
 
         $this->cache->put(
             $this->metaKey($batchId),
-            ['sample_count' => $sampleCount, 'status' => self::STATUS_ACTIVE],
+            ['sample_count' => $sampleCount, 'status' => self::STATUS_ACTIVE, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
     }
@@ -44,6 +44,16 @@ final class CacheBatchResultStore implements BatchResultStore
         }
 
         return $payload['sample_count'];
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        $payload = $this->metaPayload($batchId);
+        if ($payload === null) {
+            return null;
+        }
+
+        return $payload['ttl_seconds'];
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -191,13 +201,28 @@ final class CacheBatchResultStore implements BatchResultStore
         $this->assertNonNegativeSampleCount($sampleCount);
         $this->assertPositiveTtl($ttlSeconds);
 
+        $successPayloads = $status === self::STATUS_FINISHED
+            ? $this->successfulResults($batchId, $sampleCount)
+            : [];
+
         $this->cache->put(
             $this->metaKey($batchId),
-            ['sample_count' => $sampleCount, 'status' => $status],
+            ['sample_count' => $sampleCount, 'status' => $status, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
 
-        // Per-sample keys expire naturally. The closed marker makes readers and late writers ignore them.
+        // Finished successes stay readable for idempotent collect retries; other sample keys expire naturally.
+        foreach ($successPayloads as $index => $payload) {
+            $this->cache->put(
+                $this->resultKey($batchId, $index),
+                [
+                    'status' => 'success',
+                    'sample_id' => $payload['sample_id'],
+                    'actual_output' => $payload['actual_output'],
+                ],
+                $ttlSeconds,
+            );
+        }
     }
 
     /**
@@ -241,7 +266,7 @@ final class CacheBatchResultStore implements BatchResultStore
     }
 
     /**
-     * @return array{sample_count: int, status: string}|null
+     * @return array{sample_count: int, status: string, ttl_seconds: int}|null
      */
     private function metaPayload(string $batchId): ?array
     {
@@ -257,16 +282,19 @@ final class CacheBatchResultStore implements BatchResultStore
 
         $sampleCount = $payload['sample_count'] ?? null;
         $status = $payload['status'] ?? null;
+        $ttlSeconds = $payload['ttl_seconds'] ?? null;
         if (
             ! is_int($sampleCount)
             || $sampleCount < 0
             || ! is_string($status)
             || ! in_array($status, [self::STATUS_ACTIVE, self::STATUS_ABORTED, self::STATUS_FINISHED], true)
+            || ! is_int($ttlSeconds)
+            || $ttlSeconds < 1
         ) {
             $this->throwInvalidMetadata($batchId);
         }
 
-        return ['sample_count' => $sampleCount, 'status' => $status];
+        return ['sample_count' => $sampleCount, 'status' => $status, 'ttl_seconds' => $ttlSeconds];
     }
 
     private function throwInvalidMetadata(string $batchId): never

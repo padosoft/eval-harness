@@ -868,3 +868,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding one job/cache idempotence test. README has no test-count claim; PR #14 body was updated from `290 tests, 620 assertions` to `291 tests, 623 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `b355216` and generated three comments:
+  - dispatch-only external batches should not multiply result TTL by bounded run windows because `dispatch()` does not wait between windows,
+  - `finish()` should keep successful per-sample keys alive long enough for idempotent collect retries,
+  - external `collectOutputs()` should close the batch with the effective TTL recorded at dispatch/start time, not the service's base TTL.
+- Addressed the twelfth PR #14 Copilot round by storing effective `ttl_seconds` in batch metadata, reading that TTL during external collection, leaving dispatch-only TTL unmultiplied by run windows, and refreshing finished success keys with the finish TTL while keeping abort cleanup O(1).
+- Targeted validation passed after the twelfth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (34 tests, 64 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the twelfth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (292 tests, 624 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one dispatch TTL regression. README has no test-count claim; PR #14 body was updated from `291 tests, 623 assertions` to `292 tests, 624 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

@@ -174,6 +174,11 @@ final class JobRecordingBatchResultStore implements BatchResultStore
         return null;
     }
 
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return null;
+    }
+
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         $this->outputs = [];
