@@ -1122,3 +1122,17 @@
   - `vendor/bin/phpunit` => `OK (340 tests, 740 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #17 again at head `d1baf60` and generated two actionable eval-set consistency comments:
+  - `EvalSetRunResult` should verify a supplied report matches the completed manifest summary, not only the dataset name and completed status,
+  - eval-set manifest `updated_at` should be at least every entry `started_at` / `finished_at`.
+- Addressed the PR #17 eval-set consistency comments by validating report summary fields against completed manifest entries, making completed manifest entries use report timestamps as the source of truth, rejecting manifests whose `updated_at` predates entry timestamps, and adding regression coverage.
+- Targeted validation passed after the PR #17 eval-set consistency fixes:
+  - `vendor/bin/phpunit tests/Unit/EvalSets` => `OK (31 tests, 87 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/EvalSets/EvalSetManifest.php src/EvalSets/EvalSetManifestEntry.php src/EvalSets/EvalSetRunResult.php tests/Unit/EvalSets/EvalSetManifestTest.php tests/Unit/EvalSets/EvalSetRunResultTest.php`
+- Full local gate passed after the PR #17 eval-set consistency fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (342 tests, 744 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two eval-set consistency tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `342 tests, 744 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

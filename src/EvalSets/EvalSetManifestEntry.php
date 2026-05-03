@@ -86,7 +86,7 @@ final class EvalSetManifestEntry
             ));
         }
 
-        $startedAt = $this->startedAt ?? $report->startedAt;
+        $startedAt = $report->startedAt;
         $finishedAt = $report->finishedAt;
 
         return new self(

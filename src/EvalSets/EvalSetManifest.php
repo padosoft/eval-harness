@@ -89,6 +89,7 @@ final class EvalSetManifest
         }
 
         $this->assertProgressOrderIsConsistent($normalizedEntries);
+        $this->assertUpdatedAtCoversEntries($normalizedEntries);
 
         $this->entries = $normalizedEntries;
         foreach ($normalizedEntries as $entry) {
@@ -335,6 +336,28 @@ final class EvalSetManifest
                     $firstNonCompleted->datasetName,
                     $firstNonCompleted->status,
                 ));
+            }
+        }
+    }
+
+    /**
+     * @param  list<EvalSetManifestEntry>  $entries
+     */
+    private function assertUpdatedAtCoversEntries(array $entries): void
+    {
+        foreach ($entries as $entry) {
+            foreach ([
+                'started_at' => $entry->startedAt,
+                'finished_at' => $entry->finishedAt,
+            ] as $field => $timestamp) {
+                if ($timestamp !== null && $this->updatedAt < $timestamp) {
+                    throw new EvalRunException(sprintf(
+                        "Eval set manifest '%s' updated_at cannot be earlier than dataset '%s' %s.",
+                        $this->evalSetName,
+                        $entry->datasetName,
+                        $field,
+                    ));
+                }
             }
         }
     }

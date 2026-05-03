@@ -193,3 +193,5 @@
 - Public batch APIs must validate `list<T>` contracts at runtime. PHPDoc does not protect direct callers from sparse arrays, and positional batch indexes are part of the report-ordering contract.
 - Current-priority handoff text in `AGENTS.md` must describe the post-merge transition too. Macro PR branches inherit that file into `main`, so branch-specific wording should point to `docs/PROGRESS.md` and `git status` plus the next roadmap branch.
 - README comparison rows should not label provider-backed metrics as offline. `cosine-embedding` and `llm-as-judge` can be deterministic in tests when faked, but real runs call configured providers.
+- `EvalSetRunResult` must compare reports against the completed manifest summary, not only dataset names. Timestamps, schema version, sample count, and failure count should agree so persisted resume state and in-memory reports cannot diverge.
+- Eval-set manifest `updated_at` must be at least every entry `started_at` / `finished_at`. Deserialized manifests with a global update time before entry progress are impossible resume states.

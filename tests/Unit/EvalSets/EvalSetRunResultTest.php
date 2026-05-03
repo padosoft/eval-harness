@@ -85,6 +85,21 @@ final class EvalSetRunResultTest extends TestCase
         );
     }
 
+    public function test_rejects_report_that_does_not_match_completed_manifest_summary(): void
+    {
+        $definition = new EvalSetDefinition('nightly', ['rag.first']);
+        $manifest = $this->completedManifest($definition, [$this->report('rag.first', finishedAt: 2.0)]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("report for dataset 'rag.first' does not match the completed manifest entry");
+
+        new EvalSetRunResult(
+            definition: $definition,
+            manifest: $manifest,
+            reports: [$this->report('rag.first', finishedAt: 3.0)],
+        );
+    }
+
     public function test_report_for_returns_only_reports_from_current_pass_after_resume(): void
     {
         $definition = new EvalSetDefinition('nightly', ['rag.first', 'rag.second']);
@@ -110,21 +125,21 @@ final class EvalSetRunResultTest extends TestCase
         $manifest = EvalSetManifest::start($definition, 1.0);
         foreach ($reports as $report) {
             $manifest = $manifest
-                ->markRunning($report->datasetName, $report->startedAt)
+                ->markRunning($report->datasetName, max($manifest->updatedAt, $report->startedAt))
                 ->markCompleted($report->datasetName, $report);
         }
 
         return $manifest;
     }
 
-    private function report(string $datasetName): EvalReport
+    private function report(string $datasetName, float $startedAt = 1.0, float $finishedAt = 2.0): EvalReport
     {
         return new EvalReport(
             datasetName: $datasetName,
             sampleResults: [],
             failures: [],
-            startedAt: 1.0,
-            finishedAt: 2.0,
+            startedAt: $startedAt,
+            finishedAt: $finishedAt,
         );
     }
 }

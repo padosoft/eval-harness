@@ -66,6 +66,7 @@ final class EvalSetRunResult
                     $report->datasetName,
                 ));
             }
+            $this->assertReportMatchesCompletedManifestEntry($definition, $report, $manifestEntry);
 
             if (isset($this->reportsByDataset[$key])) {
                 throw new EvalRunException(sprintf(
@@ -106,5 +107,28 @@ final class EvalSetRunResult
     public function failedDatasetNames(): array
     {
         return $this->manifest->failedDatasetNames();
+    }
+
+    private function assertReportMatchesCompletedManifestEntry(
+        EvalSetDefinition $definition,
+        EvalReport $report,
+        EvalSetManifestEntry $entry,
+    ): void {
+        $reportDuration = $report->finishedAt - $report->startedAt;
+        if (
+            $entry->startedAt !== $report->startedAt
+            || $entry->finishedAt !== $report->finishedAt
+            || $entry->reportSchemaVersion !== $report->schemaVersion
+            || $entry->totalSamples !== $report->totalSamples()
+            || $entry->totalFailures !== $report->totalFailures()
+            || $entry->durationSeconds === null
+            || abs($entry->durationSeconds - $reportDuration) > 0.000001
+        ) {
+            throw new EvalRunException(sprintf(
+                "Eval set result '%s' report for dataset '%s' does not match the completed manifest entry.",
+                $definition->name,
+                $report->datasetName,
+            ));
+        }
     }
 }

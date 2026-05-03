@@ -39,7 +39,7 @@ final class EvalSetManifestTest extends TestCase
         $this->assertSame(EvalSetManifest::SCHEMA_VERSION, $json['schema_version']);
         $this->assertSame('nightly', $json['eval_set']);
         $this->assertSame(12.5, $json['datasets'][0]['finished_at']);
-        $this->assertSame(2.0, $json['datasets'][0]['duration_seconds']);
+        $this->assertSame(2.5, $json['datasets'][0]['duration_seconds']);
         $this->assertSame(ReportSchema::VERSION, $json['datasets'][0]['report_schema_version']);
         $this->assertSame('boom', $json['datasets'][1]['error']);
 
@@ -156,6 +156,28 @@ final class EvalSetManifestTest extends TestCase
             finishedAt: 6.0,
             durationSeconds: 3.0,
             error: 'boom',
+        );
+    }
+
+    public function test_manifest_rejects_updated_at_before_entry_timestamps(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("updated_at cannot be earlier than dataset 'rag.first' finished_at");
+
+        new EvalSetManifest(
+            evalSetName: 'nightly',
+            entries: [
+                new EvalSetManifestEntry(
+                    datasetName: 'rag.first',
+                    status: EvalSetManifestEntry::STATUS_FAILED,
+                    startedAt: 2.0,
+                    finishedAt: 4.0,
+                    durationSeconds: 2.0,
+                    error: 'boom',
+                ),
+            ],
+            startedAt: 1.0,
+            updatedAt: 3.0,
         );
     }
 
