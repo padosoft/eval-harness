@@ -73,9 +73,53 @@ final class EvalCommandTest extends TestCase
 
         $this->artisan('eval-harness:run', [
             'dataset' => 'invalid-batch-mode',
+            '--batch' => 'parallel',
+        ])
+            ->expectsOutputToContain("Unsupported batch mode 'parallel'")
+            ->assertExitCode(1);
+    }
+
+    public function test_batch_lazy_parallel_option_runs_with_bound_sample_runner_class(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('preregistered-batch-lazy-parallel')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'preregistered-batch-lazy-parallel',
+            '--batch' => 'lazy-parallel',
+            '--concurrency' => '2',
+            '--queue' => 'evals',
+            '--timeout' => '5',
+            '--batch-timeout' => '30',
+        ])->assertExitCode(0);
+    }
+
+    public function test_batch_lazy_parallel_rejects_callable_sut_binding(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('lazy-parallel-callable-binding')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'lazy-parallel-callable-binding',
             '--batch' => 'lazy-parallel',
         ])
-            ->expectsOutputToContain("Unsupported batch mode 'lazy-parallel'")
+            ->expectsOutputToContain('Lazy parallel batch mode requires a SampleRunner system-under-test')
             ->assertExitCode(1);
     }
 
@@ -112,6 +156,24 @@ final class EvalCommandTest extends TestCase
             '--timeout' => '30',
         ])
             ->expectsOutputToContain('Serial batch mode does not use a timeout')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_batch_rejects_batch_timeout(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-batch-wait-timeout')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-batch-wait-timeout',
+            '--batch-timeout' => '30',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a wait timeout')
             ->assertExitCode(1);
     }
 

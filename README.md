@@ -114,9 +114,9 @@ surface small and the offline path fast.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
-- **Batch execution foundation** — SUT runs now flow through a
-  deterministic `SerialBatch` contract and `--batch=serial`, preparing
-  the package for queue-backed parallel workers.
+- **Batch execution modes** — SUT runs flow through deterministic
+  `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
+  `--batch=lazy-parallel` for Laravel queue/Horizon workers.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -397,6 +397,49 @@ Eval::dataset('rag.recall')
     path: eval-report.json
 ```
 
+### Queue-backed batch execution
+
+`--batch=lazy-parallel` dispatches one queue job per sample and then
+assembles outputs in dataset order through the shared batch result
+store. It requires the SUT to be a container-resolvable concrete
+`SampleRunner` class that queue workers can resolve through the
+Laravel container.
+Constructor-injected object dependencies are supported when the worker
+container can resolve an equivalent fresh runner. Arbitrary callables,
+closures, anonymous runners, optional/defaulted constructor state,
+scalar/array/null runner properties, and caller-specific object
+configuration remain serial-only because queued jobs carry only the
+runner class name.
+
+```php
+use App\Eval\MyRagRunner;
+
+$this->app->bind('eval-harness.sut', MyRagRunner::class);
+```
+
+```bash
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --batch=lazy-parallel \
+  --concurrency=4 \
+  --queue=evals \
+  --timeout=60 \
+  --batch-timeout=300
+```
+
+Use Laravel's `sync` queue driver for unit tests. In production, run
+Horizon workers on the chosen queue and set
+`EVAL_HARNESS_BATCH_CACHE_STORE` to a cache backend shared by the
+command process and workers so queued sample outputs can be collected
+for report assembly. `--concurrency` caps how many sample jobs this
+command dispatches before waiting for the current window; Horizon
+worker counts are configured in Horizon. `--timeout` is the per-sample
+job timeout; `--batch-timeout` is the maximum wait for each dispatch
+window to finish before the command reports missing queued outputs.
+Programmatic external `dispatch()` / `collectOutputs()` flows can set
+`BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
+metadata and sample outputs alive long enough for delayed collection.
+
 ---
 
 ## Configuration
@@ -404,6 +447,8 @@ Eval::dataset('rag.recall')
 `config/eval-harness.php` (after `vendor:publish`):
 
 ```php
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+
 return [
     'metrics' => [
 
@@ -411,14 +456,14 @@ return [
             'endpoint' => env('EVAL_HARNESS_EMBEDDINGS_ENDPOINT', 'https://api.openai.com/v1/embeddings'),
             'api_key'  => env('EVAL_HARNESS_EMBEDDINGS_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_EMBEDDINGS_MODEL', 'text-embedding-3-small'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT', 30),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_EMBEDDINGS_TIMEOUT'), 30),
         ],
 
         'llm_as_judge' => [
             'endpoint' => env('EVAL_HARNESS_JUDGE_ENDPOINT', 'https://api.openai.com/v1/chat/completions'),
             'api_key'  => env('EVAL_HARNESS_JUDGE_API_KEY', env('OPENAI_API_KEY', '')),
             'model'    => env('EVAL_HARNESS_JUDGE_MODEL', 'gpt-4o-mini'),
-            'timeout_seconds' => (int) env('EVAL_HARNESS_JUDGE_TIMEOUT', 60),
+            'timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_JUDGE_TIMEOUT'), 60),
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
@@ -427,6 +472,14 @@ return [
     'reports' => [
         'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
         'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
+    ],
+
+    'batches' => [
+        'lazy_parallel' => [
+            'cache_store' => env('EVAL_HARNESS_BATCH_CACHE_STORE'),
+            'result_ttl_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_RESULT_TTL'), 3600),
+            'wait_timeout_seconds' => TimeoutNormalizer::normalize(env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT'), 60),
+        ],
     ],
 ];
 ```
@@ -465,8 +518,9 @@ already implement that contract.
 │  EvalEngine                                                      │
 │  - dataset registry (in-memory, single source of truth)          │
 │  - run(dataset, sut) / runBatch(dataset, sut, BatchOptions)      │
-│      ├─► dispatch samples through SerialBatch                    │
+│      ├─► dispatch samples through SerialBatch or LazyParallelBatch│
 │      ├─► invoke input callable or SampleInvocation callable/runner│
+│      ├─► lazy-parallel jobs write outputs to BatchResultStore     │
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
 │      │   - clean → MetricScore                                   │
@@ -569,10 +623,9 @@ accidentally and never burns API credits.
   questions are 60%" instead of a single mean. Implemented in
   Markdown/JSON reports.
 - **Histogram view** in Markdown and JSON reports.
-- **Parallel batch evals** — `SerialBatch` and `--batch=serial` are
-  implemented as the deterministic foundation; queue-backed
-  `LazyParallelBatch` remains planned for running N samples in
-  parallel via Laravel queues.
+- **Parallel batch evals** — `SerialBatch`, `LazyParallelBatch`,
+  `--batch=serial`, and `--batch=lazy-parallel` are implemented for
+  deterministic serial runs and queue-backed sample fan-out.
 - **Eval sets with resumable progress** — run named groups of
   datasets and resume interrupted multi-dataset runs.
 - **Standalone output assertions** — score saved JSON/YAML outputs

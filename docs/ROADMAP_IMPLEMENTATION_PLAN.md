@@ -94,9 +94,9 @@ Branch: `task/parallel-batch-queues`
 
 Implement:
 
-- `SerialBatch` and `LazyParallelBatch`. The first subtask implements the deterministic `SerialBatch` foundation and `EvalEngine::runBatch()`; queue-backed `LazyParallelBatch` follows in the next subtask.
+- `SerialBatch` and `LazyParallelBatch`. Implemented so far: deterministic `SerialBatch` execution and queue-backed `LazyParallelBatch` sample fan-out. Next slices add eval-set/resume manifests.
 - Laravel queue jobs for sample evaluation and report assembly.
-- CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`.
+- CLI options: `--batch=serial|lazy-parallel`, `--concurrency=N`, `--queue=...`, `--timeout=...`, `--batch-timeout=...`.
 - Eval-set runner for executing named groups of datasets, inspired by OpenAI Evals `oaievalset`, with resumable progress manifests for interrupted multi-dataset runs.
 - Horizon deployment guidance without requiring Horizon in package tests.
 - Stable ordering even when queued samples finish out of order.

@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness;
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
@@ -40,11 +41,9 @@ use Throwable;
  *
  *   $report = $engine->run('rag.factuality.fy2026', fn (array $in) => MyApp::answer($in['question']));
  *
- * Concurrency: the engine is intentionally single-threaded. Parallel
- * execution can be layered later (worker pool / queue) through the
- * SampleRunner contract without changing the legacy callable API.
- * Sequential execution keeps deterministic ordering across runs,
- * which is essential for reproducible CI.
+ * Batch execution: serial mode is deterministic and in-process.
+ * Lazy parallel mode dispatches queue-safe SampleRunner jobs while
+ * preserving the same positional output ordering for report scoring.
  */
 final class EvalEngine
 {
@@ -53,13 +52,17 @@ final class EvalEngine
 
     private readonly SerialBatch $serialBatch;
 
+    private readonly ?LazyParallelBatch $lazyParallelBatch;
+
     public function __construct(
         private readonly Container $container,
         private readonly MetricResolver $metricResolver,
         private readonly YamlDatasetLoader $yamlLoader,
         ?SerialBatch $serialBatch = null,
+        ?LazyParallelBatch $lazyParallelBatch = null,
     ) {
         $this->serialBatch = $serialBatch ?? new SerialBatch;
+        $this->lazyParallelBatch = $lazyParallelBatch;
     }
 
     public function dataset(string $name): DatasetBuilder
@@ -123,6 +126,31 @@ final class EvalEngine
         $batchOptions ??= BatchOptions::serial();
 
         $sampleRunner = $this->resolveSampleRunner($systemUnderTest);
+        if ($batchOptions->mode === BatchOptions::MODE_LAZY_PARALLEL) {
+            if (! $sampleRunner instanceof SampleRunner) {
+                throw new EvalRunException(
+                    'Lazy parallel batch mode requires a SampleRunner system-under-test; arbitrary callables and closures are not queue-serializable.',
+                );
+            }
+
+            $sampleInvocations = $this->sampleInvocationsFor(
+                samples: $dataset->samples,
+                usesSampleInvocation: true,
+            );
+
+            return $this->scoreDatasetOutputs(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: $startedAt,
+                actualOutputs: $this->lazyParallelBatch()->run(
+                    samples: $dataset->samples,
+                    sampleInvocations: $sampleInvocations,
+                    runner: $sampleRunner,
+                    options: $batchOptions,
+                ),
+            );
+        }
+
         $callableExpectsSampleInvocation = $sampleRunner === null
             && $this->callableExpectsSampleInvocation($systemUnderTest);
         $sampleInvocations = $this->sampleInvocationsFor(
@@ -290,6 +318,36 @@ final class EvalEngine
             "Unsupported batch mode '%s'.",
             $batchOptions->mode,
         ));
+    }
+
+    private function lazyParallelBatch(): LazyParallelBatch
+    {
+        if ($this->lazyParallelBatch instanceof LazyParallelBatch) {
+            return $this->lazyParallelBatch;
+        }
+
+        try {
+            $batch = $this->container->make(LazyParallelBatch::class);
+        } catch (Throwable $e) {
+            throw new EvalRunException(
+                sprintf(
+                    'Failed to resolve lazy parallel batch services: %s. Ensure the package service provider is registered and queue services are available.',
+                    $e->getMessage() !== '' ? $e->getMessage() : $e::class,
+                ),
+                previous: $e,
+            );
+        }
+
+        if (! $batch instanceof LazyParallelBatch) {
+            throw new EvalRunException(sprintf(
+                'Container binding for %s must resolve to %s; got %s.',
+                LazyParallelBatch::class,
+                LazyParallelBatch::class,
+                get_debug_type($batch),
+            ));
+        }
+
+        return $batch;
     }
 
     /**

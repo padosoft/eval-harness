@@ -6,7 +6,9 @@ namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Closure;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -16,6 +18,7 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Facades\EvalFacade;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
+use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalEngineTest extends TestCase
@@ -108,6 +111,109 @@ final class EvalEngineTest extends TestCase
         $this->assertSame('one', $report->sampleResults[0]->actualOutput);
         $this->assertSame('second', $report->sampleResults[1]->sample->id);
         $this->assertSame('two', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_run_batch_lazy_parallel_scores_samples_through_sync_queue(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-lazy-parallel')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '2+2'], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: ['q' => '3+3'], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->runBatch(
+            'rag.engine.batch-lazy-parallel',
+            new TestSampleRunner,
+            BatchOptions::lazyParallel(concurrency: 2, queue: 'evals', timeoutSeconds: 5),
+        );
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
+        $this->assertSame('hi', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_run_batch_lazy_parallel_rejects_legacy_callables(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-lazy-callable')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('requires a SampleRunner system-under-test');
+
+        $engine->runBatch(
+            'rag.engine.batch-lazy-callable',
+            static fn (array $_input): string => 'hi',
+            BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_run_batch_lazy_parallel_validates_invocations_before_dispatching_jobs(): void
+    {
+        Queue::fake();
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-lazy-invalid-input')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '1+1'], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: ['bad' => new \stdClass], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        try {
+            $engine->runBatch(
+                'rag.engine.batch-lazy-invalid-input',
+                new TestSampleRunner,
+                BatchOptions::lazyParallel(),
+            );
+            $this->fail('Expected invalid queue payload input to abort before dispatching jobs.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('must be queue-serializable', $e->getMessage());
+        }
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_lazy_parallel_resolution_error_includes_underlying_container_failure(): void
+    {
+        $this->app->bind(LazyParallelBatch::class, static function (): never {
+            throw new \RuntimeException('invalid cache store [missing]');
+        });
+
+        $engine = new EvalEngine(
+            container: $this->app,
+            metricResolver: $this->app->make(MetricResolver::class),
+            yamlLoader: $this->app->make(YamlDatasetLoader::class),
+        );
+
+        $engine->dataset('rag.engine.lazy-resolution-error')
+            ->withSamples([new DatasetSample(id: 's1', input: ['answer' => 'hi'], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Failed to resolve lazy parallel batch services: invalid cache store [missing]');
+
+        $engine->runBatch(
+            'rag.engine.lazy-resolution-error',
+            new TestSampleRunner,
+            BatchOptions::lazyParallel(),
+        );
     }
 
     public function test_direct_constructor_remains_backward_compatible_without_serial_batch(): void

@@ -646,3 +646,344 @@
   - `vendor/bin/phpunit` => `OK (241 tests, 524 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `64cf9d4` and generated no new comments.
+- Verified PR #13 CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, resolved all review threads, and merged the subtask into `task/parallel-batch-queues` at merge commit `158abaa`.
+- Started the next Macro Task 3 subtask branch `task/parallel-batch-queues-lazy-parallel` from `task/parallel-batch-queues`.
+- Implemented the queue-backed lazy parallel batch slice:
+  - `BatchOptions` now supports `lazy-parallel`,
+  - `LazyParallelBatch` dispatches one `EvaluateSampleJob` per sample,
+  - `CacheBatchResultStore` collects queued outputs by positional index for deterministic report assembly,
+  - `EvalEngine::runBatch()` uses lazy parallel mode only for concrete `SampleRunner` runners and keeps legacy callable support serial-only,
+  - `eval-harness:run --batch=lazy-parallel` is documented and covered with sync queue tests,
+  - Composer now requires the Illuminate bus/cache/queue components used by the new queue contract.
+- Targeted validation passed after the lazy parallel implementation:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (80 tests, 168 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalEngine.php src/Console/EvalCommand.php src/EvalHarnessServiceProvider.php tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php`
+  - `composer validate --strict --no-check-publish`
+- Full local gate passed before opening the lazy parallel subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (255 tests, 550 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding tests. README still has no test-count claim; this progress file records the current `255 tests, 550 assertions` result.
+- Opened subtask PR #14 from `task/parallel-batch-queues-lazy-parallel` into `task/parallel-batch-queues`; requested Copilot through the GraphQL fallback because `gh pr edit 14 --add-reviewer copilot` was blocked by the missing `read:project` scope.
+- PR #14 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `2a42dad`.
+- While the `copilot-pull-request-reviewer` request was still pending, `chatgpt-codex-connector` generated two actionable review comments:
+  - `--timeout` was used both as the per-sample job timeout and as the whole batch result collection deadline,
+  - lazy-parallel accepted `--concurrency` but dispatched all samples in one pass.
+- Addressed those comments by adding a separate `BatchOptions::$waitTimeoutSeconds` / `--batch-timeout` value and changing `LazyParallelBatch::run()` to dispatch and collect bounded concurrency windows before dispatching more jobs.
+- Targeted validation passed after the PR #14 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (84 tests, 178 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalEngine.php src/Console/EvalCommand.php src/EvalHarnessServiceProvider.php tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the PR #14 review fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (259 tests, 560 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search again. README still has no test-count claim; this progress file records the current `259 tests, 560 assertions` result.
+- Copilot SWE agent pushed cleanup commit `bf7744f` to PR #14, removing a dead `LazyParallelBatch::indexedSamples()` helper. Pulled it locally with fast-forward and re-ran local validation on that head:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (259 tests, 560 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- The official `copilot-pull-request-reviewer` then reviewed PR #14 at head `bf7744f` and generated six comments. Two were stale duplicates of the already-fixed timeout/concurrency issues; four were actionable:
+  - queue-level failures such as worker timeouts/max-attempts should record a batch result failure,
+  - catching every runner exception in `EvaluateSampleJob::handle()` bypassed Laravel retry/backoff and failed-job reporting,
+  - `LazyParallelBatch::dispatch()` needed cleanup when queue dispatch fails after result metadata is written,
+  - fixed 50 ms result polling can over-read the shared cache on large Horizon-backed runs.
+- Addressed the actionable PR #14 Copilot comments by moving queued failure recording to `EvaluateSampleJob::failed()`, enabling `failOnTimeout`, letting `handle()` exceptions propagate through Laravel queue retry/failure semantics, translating sync-queue job failures back into sample-id batch errors, cleaning result state when dispatch fails, and changing result polling to exponential backoff capped at 1 second.
+- Targeted validation passed after the official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (9 tests, 17 assertions)`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (262 tests, 567 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding job/batch tests. README has no test-count claim; this progress file records the current `262 tests, 567 assertions` result.
+- Copilot reviewed PR #14 again at head `3ef480d` and generated ten comments. The actionable points were:
+  - dispatch/timeout failure paths and external collect flows needed a closed/aborted batch marker so late async jobs cannot recreate orphaned result keys after cleanup,
+  - per-window polling should scan only in-flight sample indexes instead of the full dataset,
+  - lazy-parallel cache store, result TTL, and default wait timeout needed host-app config hooks for Horizon deployments,
+  - `CacheBatchResultStore` needed direct invalid-payload and at-least-once duplicate-delivery coverage,
+  - successful external `dispatch()` / `collectOutputs()` flows needed cleanup,
+  - `EvalEngine` should not eagerly resolve `LazyParallelBatch` for serial-only container consumers,
+  - `--concurrency` wording should describe producer dispatch windows, not Horizon worker counts.
+- Addressed the second PR #14 Copilot round by adding `BatchResultStore::finish()` / `abort()` markers, making cache results first-writer-wins per sample index, ignoring late writes after finished/aborted batches, reading only requested sample indexes, exposing `eval-harness.batches.lazy_parallel.*` config, resolving `LazyParallelBatch` lazily from `EvalEngine`, updating CLI/README wording, and adding direct cache store tests.
+- Targeted validation passed after the second official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/Console/EvalCommandTest.php` => `OK (59 tests, 126 assertions)`
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (14 tests, 26 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalHarnessServiceProvider.php src/Console/EvalCommand.php config/eval-harness.php tests/Unit/Batches tests/Unit/Jobs tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the second official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (268 tests, 580 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding cache store tests. README has no test-count claim; this progress file records the current `268 tests, 580 assertions` result.
+- Pushed PR #14 head `9cb74c2`, updated the PR body validation count, and requested a fresh official Copilot review through the GraphQL fallback after `gh pr edit 14 --add-reviewer copilot` was blocked by missing `read:project`.
+- PR #14 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `9cb74c2`.
+- Copilot reviewed PR #14 again at head `9cb74c2` and generated six comments:
+  - `CacheBatchResultStore::recordSuccess()` / `recordFailure()` had an active-check/write race if a worker wrote just as `finish()` / `abort()` closed the batch,
+  - the lazy-parallel wait-timeout message did not tell operators to adjust `--batch-timeout`,
+  - `AGENTS.md` would become stale after PR #14 merged because it named the in-flight subtask branch as current,
+  - queue names were validated with `trim()` but the untrimmed value was retained,
+  - `BatchResultStore::forget()` remained in the public interface even though the finish/abort contract replaced it.
+- Addressed the third PR #14 Copilot round by re-checking active batch state after first-writer cache writes and removing racing results, trimming retained queue names, updating the wait-timeout diagnostic, removing unused `forget()` from the result-store interface, and making `AGENTS.md` merge-safe for the next eval-set/resume subtask.
+- Targeted validation passed after the third official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (27 tests, 56 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php AGENTS.md`
+- Full local gate passed after the third official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (271 tests, 584 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding batch/cache tests. README has no test-count claim; PR #14 body was updated from `268 tests, 580 assertions` to `271 tests, 584 assertions` before push/re-review.
+- Copilot reviewed PR #14 again at head `c51ffcd` and generated five comments:
+  - lazy-parallel runner instances with state would lose that state because jobs only carry the runner class name,
+  - the progress note saying the PR body needed updating was stale after the body had already been updated,
+  - the README config snippet still cast batch timeout/TTL env vars with `(int) env(...)` instead of using `TimeoutNormalizer`,
+  - `AGENTS.md` still described PR #14 as in-flight instead of only documenting the post-merge next step,
+  - result-store cache-driver failures escaped as raw framework exceptions that `EvalCommand` would not catch.
+- Addressed the fourth PR #14 Copilot round by requiring stateless concrete lazy-parallel `SampleRunner` classes, wrapping result-store operations in `EvalRunException`, updating README config snippets to use `TimeoutNormalizer`, making `AGENTS.md` post-merge only, and correcting the stale PR-body progress note.
+- Targeted validation passed after the fourth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (29 tests, 60 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the fourth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (273 tests, 588 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two lazy-parallel tests. README has no test-count claim; PR #14 body was updated to `273 tests, 588 assertions` and reformatted with preserved Markdown newlines before push/re-review.
+- Copilot reviewed PR #14 again at head `826da9f` and generated four comments:
+  - best-effort `finish()` / `abort()` cleanup failures could mask a successful run or the original dispatch/timeout error,
+  - successful cache result payloads carried `sample_id` but the reader returned only output strings, allowing external `collectOutputs()` callers to pass a reordered sample list,
+  - the configured `cache_store` hook needed direct service-provider coverage.
+- Addressed the fifth PR #14 Copilot round by making finish/abort cleanup best-effort, changing successful batch reads to return `sample_id` plus `actual_output`, validating stored sample ids during collection, and adding service-provider coverage that the configured cache store name is passed to the cache factory.
+- Targeted validation passed after the fifth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php` => `OK (30 tests, 52 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the fifth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (276 tests, 594 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three queue/batch service tests. README has no test-count claim; PR #14 body was updated from `273 tests, 588 assertions` to `276 tests, 594 assertions` before push/re-review.
+- Copilot reviewed PR #14 again at head `415a00a` and generated four comments:
+  - lazy-parallel runner validation rejected normal container constructor injection,
+  - result TTL could be lower than job timeout or batch wait timeout,
+  - result-store close did one cache delete per sample and could become an O(n) Redis/Horizon cleanup path,
+  - README queue guidance still implied constructor-injected runners were unsupported.
+- Addressed the sixth PR #14 Copilot round by accepting concrete `SampleRunner` classes with required object-typed constructor dependencies, continuing to reject scalar/untyped caller-instance constructor state, deriving an effective result TTL from configured TTL, per-sample timeout, batch wait timeout, and bounded dispatch windows, changing cache close to leave per-sample keys for natural TTL expiry behind a closed marker, and updating queue docs.
+- Targeted validation passed after the sixth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 55 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Contracts/SampleRunner.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php`
+- Full local gate passed after the sixth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (278 tests, 597 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two lazy-parallel/cache tests. README has no test-count claim; PR #14 body was updated from `276 tests, 594 assertions` to `278 tests, 597 assertions` through the GitHub REST API because `gh pr edit` was blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `7ccbaa2` and generated five comments:
+  - external `collectOutputs()` trusted the caller's sample-list length instead of the batch metadata,
+  - the timeout branch did not re-check stored job failures before reporting missing outputs,
+  - configured `cache_store` names needed trimming before reaching Laravel's cache factory,
+  - lazy-parallel service resolution hid the root container/cache-store failure behind a generic queue-services message,
+  - runner validation still allowed optional/defaulted constructor state or preconfigured instance properties that workers would not preserve.
+- Addressed the seventh PR #14 Copilot round by adding `BatchResultStore::sampleCount()` metadata reads, rejecting mismatched external collection sample counts without closing the batch, preferring late stored failures over timeout diagnostics, trimming configured cache-store names, including the underlying lazy-parallel container error in `EvalRunException`, and rejecting initialized non-DI runner properties/defaulted constructor parameters.
+- Targeted validation passed after the seventh official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php` => `OK (70 tests, 135 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/EvalHarnessServiceProvider.php src/EvalEngine.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php`
+- Full local gate passed after the seventh official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (282 tests, 605 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding four lazy-parallel/cache/engine tests. README has no test-count claim; PR #14 body was updated from `278 tests, 597 assertions` to `282 tests, 605 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `73dcdff` and generated four comments:
+  - external collection should not abort a batch after caller-side validation errors such as a reordered sample list,
+  - `assertInvocationList()` should reject non-`SampleInvocation` entries before job construction can throw a `TypeError`,
+  - `EvalHarnessServiceProvider` should use `TimeoutNormalizer` instead of raw casts for lazy-parallel TTL and wait-timeout config,
+  - a Macro Task 3 roadmap sentence needed grammar cleanup.
+- Addressed the eighth PR #14 Copilot round by letting failed external collection reads leave the active batch retryable, validating invocation entry types with `EvalRunException`, normalizing lazy-parallel config timeouts in the service provider, and rewording the roadmap item.
+- Targeted validation passed after the eighth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php` => `OK (73 tests, 141 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/EvalHarnessServiceProvider.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/ServiceProviderTest.php docs/ROADMAP_IMPLEMENTATION_PLAN.md`
+- Full local gate passed after the eighth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (285 tests, 611 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-parallel/service-provider tests. README has no test-count claim; PR #14 body was updated from `282 tests, 605 assertions` to `285 tests, 611 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `12b91a4` and generated four comments:
+  - runner property-name validation rejected valid DI patterns where a constructor dependency is stored under a different property name or in a parent property,
+  - malformed batch metadata was treated as inactive instead of surfacing an invalid-metadata error,
+  - the one-second lazy batch timeout diagnostic read `1 seconds`,
+  - direct `EvaluateSampleJob` construction should reject zero or negative timeout values.
+- Addressed the ninth PR #14 Copilot round by allowing object-valued runner properties while still rejecting scalar/array/null instance state, validating cache metadata status and sample count before active checks, pluralizing the wait-timeout diagnostic, and adding direct job timeout validation.
+- Targeted validation passed after the ninth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php` => `OK (76 tests, 146 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the ninth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (288 tests, 616 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-parallel/cache/job tests. README has no test-count claim; PR #14 body was updated from `285 tests, 611 assertions` to `288 tests, 616 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `a3bc1f0` and generated three comments:
+  - direct `EvaluateSampleJob` construction should reject anonymous/non-autoloadable runner classes,
+  - job `sampleId` should match the embedded `SampleInvocation::$id`,
+  - README overstated current validation for custom object-valued runner state.
+- Addressed the tenth PR #14 Copilot round by mirroring concrete/autoloadable runner validation in `EvaluateSampleJob`, rejecting sample-id mismatches before execution, and clarifying README wording around object-valued dependencies versus caller-specific object configuration.
+- Targeted validation passed after the tenth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (24 tests, 46 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Jobs/EvaluateSampleJob.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the tenth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (290 tests, 620 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding two job-constructor tests. README has no test-count claim; PR #14 body was updated from `288 tests, 616 assertions` to `290 tests, 620 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `510a2ca` and generated two comments:
+  - direct `EvaluateSampleJob` construction should reject abstract classes or interfaces that implement/extend `SampleRunner`,
+  - successful external `collectOutputs()` should be idempotent because a caller can crash after collection but before persisting the assembled report.
+- Addressed the eleventh PR #14 Copilot round by requiring queued runner classes to be instantiable and keeping finished cache-backed success results readable until TTL expiry while late writes still require an active batch marker.
+- Targeted validation passed after the eleventh official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (33 tests, 63 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the eleventh official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (291 tests, 623 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one job/cache idempotence test. README has no test-count claim; PR #14 body was updated from `290 tests, 620 assertions` to `291 tests, 623 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `b355216` and generated three comments:
+  - dispatch-only external batches should not multiply result TTL by bounded run windows because `dispatch()` does not wait between windows,
+  - `finish()` should keep successful per-sample keys alive long enough for idempotent collect retries,
+  - external `collectOutputs()` should close the batch with the effective TTL recorded at dispatch/start time, not the service's base TTL.
+- Addressed the twelfth PR #14 Copilot round by storing effective `ttl_seconds` in batch metadata, reading that TTL during external collection, leaving dispatch-only TTL unmultiplied by run windows, and refreshing finished success keys with the finish TTL while keeping abort cleanup O(1).
+- Targeted validation passed after the twelfth official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (34 tests, 64 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the twelfth official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (292 tests, 624 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one dispatch TTL regression. README has no test-count claim; PR #14 body was updated from `291 tests, 623 assertions` to `292 tests, 624 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Remote blocker on PR #14 after pushing head `68b4a30`:
+  - CI is green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix and the PR is `CLEAN`,
+  - `gh pr edit 14 --add-reviewer copilot` is still blocked by missing `read:project`,
+  - the documented GraphQL fallback requested `copilot-pull-request-reviewer[bot]`, but Copilot posted `Copilot encountered an error and was unable to review this pull request. You can try again by re-requesting a review.` at `2026-05-03T17:10:37Z` on commit `68b4a30`,
+  - subsequent GraphQL re-request and REST remove/re-add attempts did not produce a valid official Copilot review on `68b4a30`.
+- Do not merge PR #14 until a fresh official Copilot review succeeds on the latest head and any actionable comments are resolved. Next remote step: re-request Copilot from the GitHub UI or retry the GraphQL fallback after the Copilot reviewer service recovers.
+- Copilot recovered and reviewed PR #14 at head `1c38041`, generating five actionable comments:
+  - initialized object-valued runner properties could still hide caller-specific configuration that queued workers would lose,
+  - external `dispatch()` batches needed an explicit or derived TTL path for delayed collection,
+  - `CacheBatchResultStore::finish()` reread and rewrote every success key, creating an O(n) cache spike,
+  - the timeout branch needed to re-check stored failures after computing missing sample ids,
+  - the per-sample timeout validation still used ambiguous "Batch timeout" wording.
+- Addressed the latest PR #14 Copilot round by comparing initialized runner object state against a fresh container-resolved runner, adding `BatchOptions::lazyParallel(resultTtlSeconds: ...)` and deriving dispatch TTL from queue-drain windows, making cache-backed `finish()` metadata-only, re-checking failures after missing-output scans, and renaming the per-sample timeout validation to "Queued sample timeout".
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (45 tests, 91 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php src/Batches/LazyParallelBatch.php src/Batches/CacheBatchResultStore.php src/EvalHarnessServiceProvider.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (298 tests, 636 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding six batch/cache tests. README has no test-count claim; PR #14 body was updated to `298 tests, 636 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `bf28766` and generated five comments:
+  - sparse or 1-based sample arrays should be rejected before dispatch/polling can hit result-store index errors,
+  - `dispatch()` could leave an active batch marker if index validation threw after metadata creation,
+  - a stale `CacheBatchResultStore::finish()` comment still flagged full success-key rereads/rewrites, so the O(1) close invariant needed clearer contract/test coverage,
+  - `BatchResultStore` needed lifecycle invariant documentation for first-writer-wins, late-write ignores, and idempotent finished reads,
+  - `EvaluateSampleJob::handle()` needed direct coverage for container misbindings that resolve a runner class to a non-`SampleRunner`.
+- Addressed the latest PR #14 Copilot round by requiring zero-based list inputs before writing batch metadata, documenting result-store lifecycle invariants on the public interface, keeping the metadata-only finish regression, and adding worker-side misbound-runner coverage.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (41 tests, 77 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Batches/BatchResultStore.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (301 tests, 642 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch/job tests. README has no test-count claim; PR #14 body was updated to `301 tests, 642 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `d6b1e0c` and generated two comments:
+  - initialized object-valued dependencies with DTO/config state could still be treated as queue-safe even though workers rebuild runners by class name,
+  - `EvaluateSampleJob::failed()` should guard result-store resolution/write failures so the original queue failure is not lost behind a later generic timeout.
+- Addressed the latest PR #14 Copilot round by recursively rejecting initialized dependency objects that carry scalar/array/null configuration and wrapping `failed()` result-store errors in `EvalRunException` messages that include the original queue failure.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php` => `OK (33 tests, 63 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Jobs/EvaluateSampleJob.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (302 tests, 644 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one failed-hook regression. README has no test-count claim; PR #14 body was updated to `302 tests, 644 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `deaea8e` and generated four comments:
+  - external `collectOutputs()` should re-check completion after the missing-output scan,
+  - a result write racing with `finish()` should not delete an already persisted success needed for idempotent collect retries,
+  - `dispatch()` should validate indexes before writing metadata,
+  - the timeout branch should re-check completion before throwing.
+- Addressed the latest PR #14 Copilot round by validating dispatch indexes before `startResults()`, re-checking completed outputs before external collect and timeout errors, and keeping racing successes readable when a normal `finish()` marker appears after `add()`.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php` => `OK (37 tests, 66 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php src/Batches/CacheBatchResultStore.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (305 tests, 647 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch/cache race tests. README has no test-count claim; PR #14 body was updated to `305 tests, 647 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `1b45493` and generated four comments:
+  - `container->make($runnerClass)` can return the same singleton/instance-bound runner object, which is not a fresh worker-process proxy,
+  - malformed sample entries should fail with `EvalRunException` instead of raw property access errors,
+  - external `collectOutputs()` needed the same zero-based `DatasetSample` list validation as dispatch/run,
+  - the PR-body update note in `docs/PROGRESS.md` was stale after the previous PR body update.
+- Addressed the latest PR #14 Copilot round by rejecting singleton/instance-bound runner validation, adding `DatasetSample` runtime validation for run/dispatch/collect paths, adding collect sparse-list coverage, and fixing the stale progress entry.
+- Targeted validation passed after the latest official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (30 tests, 55 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the latest official Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding three lazy-batch validation tests. README has no test-count claim; PR #14 body was updated to `308 tests, 653 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `adcadc6` and only flagged the stale PR-body handoff note above. Corrected it to record that the PR body already shows `308 tests, 653 assertions`.
+- Full local gate passed after the docs-only stale-note correction:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (308 tests, 653 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #14 again at head `189d3e6` and generated one comment: queue-drain TTL needed to multiply each producer window by the larger of per-job timeout and batch wait timeout, not only batch wait timeout.
+- Addressed the latest PR #14 Copilot round by deriving window TTL from `max(timeoutSeconds, waitTimeoutSeconds) * windowCount` and adding dispatch TTL coverage where per-job timeout dominates.
+- Targeted validation passed after the latest official Copilot fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (31 tests, 56 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/LazyParallelBatch.php tests/Unit/Batches/LazyParallelBatchTest.php`
+- Full local gate passed after the latest official Copilot fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (309 tests, 654 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding one TTL regression. README has no test-count claim; update the PR body validation line to `309 tests, 654 assertions` before requesting the next Copilot review.

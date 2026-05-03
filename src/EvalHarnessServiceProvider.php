@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness;
 
+use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * Package service provider.
@@ -52,6 +59,38 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(SerialBatch::class, static function (): SerialBatch {
             return new SerialBatch;
+        });
+
+        $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
+            /** @var CacheFactory $cache */
+            $cache = $app->make(CacheFactory::class);
+            /** @var ConfigRepository $config */
+            $config = $app->make(ConfigRepository::class);
+            $cacheStore = $config->get('eval-harness.batches.lazy_parallel.cache_store');
+            $cacheStore = is_string($cacheStore) ? trim($cacheStore) : null;
+
+            return new CacheBatchResultStore(
+                $cache->store($cacheStore !== '' ? $cacheStore : null),
+            );
+        });
+
+        $this->app->singleton(LazyParallelBatch::class, static function (Container $app): LazyParallelBatch {
+            /** @var ConfigRepository $config */
+            $config = $app->make(ConfigRepository::class);
+
+            return new LazyParallelBatch(
+                dispatcher: $app->make(Dispatcher::class),
+                resultStore: $app->make(BatchResultStore::class),
+                container: $app,
+                resultTtlSeconds: TimeoutNormalizer::normalize(
+                    $config->get('eval-harness.batches.lazy_parallel.result_ttl_seconds'),
+                    3600,
+                ),
+                defaultWaitTimeoutSeconds: TimeoutNormalizer::normalize(
+                    $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
+                    60,
+                ),
+            );
         });
 
         $this->app->singleton(EvalEngine::class, static function (Container $app): EvalEngine {

@@ -18,14 +18,40 @@ final class BatchOptionsTest extends TestCase
         $this->assertSame(1, $options->concurrency);
         $this->assertNull($options->queue);
         $this->assertNull($options->timeoutSeconds);
+        $this->assertNull($options->waitTimeoutSeconds);
+    }
+
+    public function test_lazy_parallel_options_are_valid(): void
+    {
+        $options = BatchOptions::lazyParallel(
+            concurrency: 4,
+            queue: 'evals',
+            timeoutSeconds: 30,
+            waitTimeoutSeconds: 300,
+            resultTtlSeconds: 900,
+        );
+
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $options->mode);
+        $this->assertSame(4, $options->concurrency);
+        $this->assertSame('evals', $options->queue);
+        $this->assertSame(30, $options->timeoutSeconds);
+        $this->assertSame(300, $options->waitTimeoutSeconds);
+        $this->assertSame(900, $options->resultTtlSeconds);
+    }
+
+    public function test_queue_name_is_trimmed(): void
+    {
+        $options = BatchOptions::lazyParallel(queue: ' evals ');
+
+        $this->assertSame('evals', $options->queue);
     }
 
     public function test_rejects_unsupported_modes(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage("Unsupported batch mode 'lazy-parallel'");
+        $this->expectExceptionMessage("Unsupported batch mode 'parallel'");
 
-        new BatchOptions(mode: 'lazy-parallel');
+        new BatchOptions(mode: 'parallel');
     }
 
     public function test_serial_mode_requires_single_concurrency(): void
@@ -44,10 +70,18 @@ final class BatchOptionsTest extends TestCase
         new BatchOptions(queue: 'evals');
     }
 
+    public function test_rejects_blank_queue_name(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch queue name');
+
+        BatchOptions::lazyParallel(queue: '   ');
+    }
+
     public function test_rejects_invalid_timeout(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('Batch timeout');
+        $this->expectExceptionMessage('Queued sample timeout');
 
         new BatchOptions(timeoutSeconds: 0);
     }
@@ -58,5 +92,37 @@ final class BatchOptionsTest extends TestCase
         $this->expectExceptionMessage('does not use a timeout');
 
         new BatchOptions(timeoutSeconds: 30);
+    }
+
+    public function test_serial_mode_rejects_wait_timeout(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('does not use a wait timeout');
+
+        new BatchOptions(waitTimeoutSeconds: 30);
+    }
+
+    public function test_rejects_invalid_wait_timeout(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch wait timeout');
+
+        BatchOptions::lazyParallel(waitTimeoutSeconds: 0);
+    }
+
+    public function test_rejects_invalid_result_ttl(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch result TTL');
+
+        BatchOptions::lazyParallel(resultTtlSeconds: 0);
+    }
+
+    public function test_serial_mode_rejects_result_ttl(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('does not use a result TTL');
+
+        new BatchOptions(resultTtlSeconds: 60);
     }
 }
