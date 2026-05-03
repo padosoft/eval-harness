@@ -469,7 +469,7 @@ final class EvalReport
         }
 
         $floatValue = (float) $value;
-        if ($floatValue < 0.0 || is_nan($floatValue)) {
+        if ($floatValue < 0.0 || is_nan($floatValue) || is_infinite($floatValue)) {
             return null;
         }
 

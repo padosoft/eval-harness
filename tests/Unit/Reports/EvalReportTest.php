@@ -390,8 +390,8 @@ final class EvalReportTest extends TestCase
                             'usage' => [
                                 'prompt_tokens' => -1,
                                 'completion_tokens' => 'nan',
-                                'cost_usd' => -0.1,
-                                'latency_ms' => 'slow',
+                                'cost_usd' => '1e309',
+                                'latency_ms' => INF,
                             ],
                         ]),
                     ],

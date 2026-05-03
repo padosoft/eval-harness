@@ -1247,3 +1247,10 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding usage summary tests. README has no numeric PHPUnit test-count claim to update.
+- Copilot reviewed PR #21 and generated one actionable comment: usage summary float parsing accepted non-finite overflow values such as `1e309`/`INF`, which could leak infinities into JSON/Markdown report summaries.
+- Addressed the PR #21 Copilot comment by rejecting `is_infinite()` values in usage float parsing and adding regression coverage for overflow/INF usage details.
+- Full local gate passed after the PR #21 non-finite usage fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (401 tests, 877 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
