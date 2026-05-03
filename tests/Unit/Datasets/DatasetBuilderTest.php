@@ -233,6 +233,25 @@ final class DatasetBuilderTest extends TestCase
         $this->assertSame('new', $dataset->samples[0]->id);
     }
 
+    public function test_with_samples_normalizes_non_zero_based_arrays(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $dataset = $engine->dataset('normalize.samples')
+            ->withSamples([
+                1 => new DatasetSample(id: 'first', input: [], expectedOutput: 'one'),
+                3 => new DatasetSample(id: 'second', input: [], expectedOutput: 'two'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->assertSame(['first', 'second'], [
+            $dataset->samples[0]->id,
+            $dataset->samples[1]->id,
+        ]);
+    }
+
     public function test_failed_yaml_replacement_does_not_register_previous_yaml(): void
     {
         /** @var EvalEngine $engine */

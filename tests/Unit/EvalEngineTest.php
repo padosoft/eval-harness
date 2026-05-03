@@ -6,12 +6,15 @@ namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Closure;
 use Illuminate\Support\Facades\Http;
+use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Facades\EvalFacade;
+use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -55,6 +58,79 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(0, $report->totalFailures());
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->meanScore('exact-match'), 1e-9);
         $this->assertEqualsWithDelta(2.0 / 3.0, $report->macroF1('exact-match'), 1e-9);
+    }
+
+    public function test_run_batch_serial_scores_samples(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-serial')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['q' => '2+2'], expectedOutput: '4'),
+                new DatasetSample(id: 's2', input: ['q' => '3+3'], expectedOutput: '6'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->runBatch(
+            'rag.engine.batch-serial',
+            static fn (array $input): string => $input['q'] === '2+2' ? '4' : 'wrong',
+            BatchOptions::serial(),
+        );
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertEqualsWithDelta(0.5, $report->meanScore('exact-match'), 1e-9);
+        $this->assertSame('wrong', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_run_batch_serial_scores_normalized_programmatic_samples(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.engine.batch-normalized-samples')
+            ->withSamples([
+                2 => new DatasetSample(id: 'first', input: ['answer' => 'one'], expectedOutput: 'one'),
+                4 => new DatasetSample(id: 'second', input: ['answer' => 'two'], expectedOutput: 'two'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->runBatch(
+            'rag.engine.batch-normalized-samples',
+            static fn (array $input): string => (string) $input['answer'],
+            BatchOptions::serial(),
+        );
+
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame('first', $report->sampleResults[0]->sample->id);
+        $this->assertSame('one', $report->sampleResults[0]->actualOutput);
+        $this->assertSame('second', $report->sampleResults[1]->sample->id);
+        $this->assertSame('two', $report->sampleResults[1]->actualOutput);
+    }
+
+    public function test_direct_constructor_remains_backward_compatible_without_serial_batch(): void
+    {
+        $engine = new EvalEngine(
+            container: $this->app,
+            metricResolver: $this->app->make(MetricResolver::class),
+            yamlLoader: $this->app->make(YamlDatasetLoader::class),
+        );
+
+        $engine->dataset('rag.engine.direct-constructor')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['answer' => 'ok'], expectedOutput: 'ok'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $report = $engine->run(
+            'rag.engine.direct-constructor',
+            static fn (array $input): string => (string) $input['answer'],
+        );
+
+        $this->assertSame(1.0, $report->meanScore('exact-match'));
     }
 
     public function test_score_outputs_scores_precomputed_outputs_without_sut(): void

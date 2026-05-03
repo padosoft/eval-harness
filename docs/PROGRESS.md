@@ -573,3 +573,76 @@
   - `vendor/bin/phpunit` => `OK (222 tests, 485 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- PR #12 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `e3ac10e`.
+- Copilot reviewed PR #12 again at head `e3ac10e` and generated no new comments.
+- Verified all three PR #12 review threads resolved, mergeability `MERGEABLE`, and no failed checks.
+- PR #12 was merged into `main` at merge commit `f707317`.
+- Started Macro Task 3 on `task/parallel-batch-queues` from `main` and pushed the macro branch.
+- Started subtask branch `task/parallel-batch-queues-contracts` from `task/parallel-batch-queues`.
+- Implemented the deterministic batch foundation:
+  - `BatchOptions` validates the current serial batch surface,
+  - `SerialBatch` runs samples in dataset order and enforces string outputs,
+  - `EvalEngine::run()` now routes through `EvalEngine::runBatch()` with `BatchOptions::serial()`,
+  - `eval-harness:run` accepts `--batch=serial`, `--concurrency`, `--queue`, and `--timeout` while rejecting parallel-only options for serial mode.
+- Targeted validation passed after the first Macro Task 3 slice:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (61 tests, 131 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed before opening the Macro Task 3 contracts subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (234 tests, 510 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened subtask PR #13 from `task/parallel-batch-queues-contracts` into `task/parallel-batch-queues`; requested Copilot through the GraphQL fallback because `gh pr edit 13 --add-reviewer copilot` was blocked by the missing `read:project` scope.
+- PR #13 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `01959e1`.
+- While Copilot was still pending, `chatgpt-codex-connector` generated one actionable review comment:
+  - `--batch=serial --timeout=30` succeeded even though serial execution does not consume the timeout value.
+- Addressed the timeout feedback by rejecting non-null serial timeouts in `BatchOptions` and adding constructor plus command regression coverage.
+- Targeted validation passed after the timeout feedback fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Console/EvalCommandTest.php` => `OK (26 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Console/EvalCommandTest.php`
+- Full local gate passed after the timeout feedback fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (236 tests, 514 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `91d379c` and generated three comments:
+  - serial batch output assembly must not depend on gapped/non-zero-based dataset sample array keys,
+  - `EvalEngine::scoreDatasetOutputs()` assumes batch outputs and dataset samples share the same positional keys,
+  - serial mode should reject positive timeout values, which was already addressed in `91d379c`.
+- Addressed the sample-key comments by normalizing programmatic `withSamples()` input to a zero-based list, validating direct `GoldenDataset` construction, and adding builder/engine/constructor regression coverage.
+- Targeted validation passed after the Copilot sample-key fix:
+  - `vendor/bin/phpunit tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalEngineTest.php` => `OK (50 tests, 109 assertions)`
+  - `vendor/bin/pint --test src/Datasets/DatasetBuilder.php src/Datasets/GoldenDataset.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the Copilot sample-key fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (239 tests, 522 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `89989c4` and generated one comment:
+  - adding required `SerialBatch` constructor injection to public `EvalEngine` could break direct `new EvalEngine(...)` consumers.
+- Addressed the constructor compatibility comment by making `SerialBatch` optional with an internal serial fallback and adding direct-instantiation regression coverage.
+- Targeted validation passed after the constructor compatibility fix:
+  - `vendor/bin/phpunit tests/Unit/EvalEngineTest.php` => `OK (31 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/EvalEngine.php tests/Unit/EvalEngineTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the constructor compatibility fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (240 tests, 523 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `3cd2538` after the `@copilot review` fallback and generated three comments:
+  - `SerialBatchTest` used a zero-argument callback against a two-argument callable contract,
+  - serial scoring built a full output list and then looped the dataset again,
+  - `DatasetBuilder::withSamples()` docblock still claimed a list even though the method now accepts and reindexes non-zero-based arrays.
+- Addressed the comments by adding `SerialBatch::runEach()` for single-pass serial report scoring, updating the non-string test callback arity, and widening the `withSamples()` parameter docblock.
+- Targeted validation passed after the single-pass serial scoring/docblock fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/SerialBatchTest.php tests/Unit/Datasets/DatasetBuilderTest.php tests/Unit/EvalEngineTest.php` => `OK (52 tests, 111 assertions)`
+  - `vendor/bin/pint --test src/Batches/SerialBatch.php src/Datasets/DatasetBuilder.php src/EvalEngine.php tests/Unit/Batches/SerialBatchTest.php`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the single-pass serial scoring/docblock fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (241 tests, 524 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

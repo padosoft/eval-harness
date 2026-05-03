@@ -41,6 +41,12 @@ final class GoldenDataset
                 ),
             );
         }
+
+        if (! array_is_list($samples)) {
+            throw new DatasetSchemaException(
+                sprintf("Dataset '%s' samples must be a zero-based list.", $name),
+            );
+        }
     }
 
     public function sampleCount(): int

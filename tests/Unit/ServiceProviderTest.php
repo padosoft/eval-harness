@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit;
 
+use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
@@ -36,6 +37,11 @@ final class ServiceProviderTest extends TestCase
     public function test_yaml_loader_is_bound(): void
     {
         $this->assertInstanceOf(YamlDatasetLoader::class, $this->app->make(YamlDatasetLoader::class));
+    }
+
+    public function test_serial_batch_is_bound(): void
+    {
+        $this->assertInstanceOf(SerialBatch::class, $this->app->make(SerialBatch::class));
     }
 
     public function test_config_is_merged(): void
