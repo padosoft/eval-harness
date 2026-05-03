@@ -116,6 +116,32 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_collect_outputs_rejects_truncated_sample_list_without_closing_batch(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchResultStore $store */
+        $store = $this->app->make(BatchResultStore::class);
+        $samples = $this->samples();
+
+        $store->start('truncated-batch', 2, 60);
+        $store->recordSuccess('truncated-batch', 0, 's1', 'first output', 60);
+
+        try {
+            $batch->collectOutputs('truncated-batch', [$samples[0]]);
+            $this->fail('Expected truncated collect sample list to fail.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('was initialized for 2 samples; got 1 samples', $e->getMessage());
+        }
+
+        $store->recordSuccess('truncated-batch', 1, 's2', 'second output', 60);
+
+        $this->assertSame(
+            ['first output', 'second output'],
+            $batch->collectOutputs('truncated-batch', $samples),
+        );
+    }
+
     public function test_collect_outputs_rejects_results_for_the_wrong_sample_id(): void
     {
         /** @var LazyParallelBatch $batch */
@@ -211,6 +237,26 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_timeout_path_reports_late_stored_failure_before_missing_outputs(): void
+    {
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+        $batch = new LazyParallelBatch(
+            dispatcher: new MissingOutputDispatcher,
+            resultStore: new LateFailureAfterSlowOutputReadStore,
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Lazy parallel batch job for sample 's1' failed: worker failed late");
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(),
+        );
+    }
+
     public function test_rejects_anonymous_runners_because_workers_cannot_autoload_them(): void
     {
         /** @var LazyParallelBatch $batch */
@@ -274,6 +320,23 @@ final class LazyParallelBatchTest extends TestCase
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
             return $job->runnerClass === DependencyInjectedLazyParallelRunner::class;
         });
+    }
+
+    public function test_rejects_preconfigured_runner_properties_because_workers_resolve_fresh_instances(): void
+    {
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $samples = [new DatasetSample(id: 's1', input: ['answer' => 'x'], expectedOutput: 'x')];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('preconfigured runner instance state remains serial-only');
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new PreconfiguredLazyParallelRunner,
+            options: BatchOptions::lazyParallel(),
+        );
     }
 
     public function test_result_store_failures_are_wrapped_as_eval_run_exceptions(): void
@@ -386,6 +449,16 @@ final class DependencyInjectedLazyParallelRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         return get_debug_type($this->dependency);
+    }
+}
+
+final class PreconfiguredLazyParallelRunner implements SampleRunner
+{
+    public string $answer = 'configured output';
+
+    public function run(SampleInvocation $sample): string
+    {
+        return $this->answer;
     }
 }
 
@@ -611,6 +684,8 @@ final class RecordingBatchResultStore implements BatchResultStore
     /** @var list<string> */
     public array $events = [];
 
+    private ?int $sampleCount = null;
+
     /** @var array<int, array{sample_id: string, actual_output: string}> */
     private array $outputs = [];
 
@@ -620,6 +695,14 @@ final class RecordingBatchResultStore implements BatchResultStore
     public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         $this->events[] = 'start:'.$sampleCount;
+        $this->sampleCount = $sampleCount;
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        $this->events[] = 'sample-count';
+
+        return $this->sampleCount;
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -671,6 +754,60 @@ final class RecordingBatchResultStore implements BatchResultStore
     }
 }
 
+final class LateFailureAfterSlowOutputReadStore implements BatchResultStore
+{
+    private bool $failureAvailable = false;
+
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return 1;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        usleep(1_100_000);
+        $this->failureAvailable = true;
+
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        if (! $this->failureAvailable) {
+            return [];
+        }
+
+        return [
+            0 => ['sample_id' => 's1', 'error' => 'worker failed late'],
+        ];
+    }
+}
+
 final class ThrowingStartBatchResultStore implements BatchResultStore
 {
     public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -681,6 +818,11 @@ final class ThrowingStartBatchResultStore implements BatchResultStore
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return null;
     }
 
     public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -719,6 +861,11 @@ final class ThrowingAbortBatchResultStore implements BatchResultStore
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return null;
     }
 
     public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void

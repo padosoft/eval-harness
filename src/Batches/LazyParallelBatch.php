@@ -181,7 +181,25 @@ final class LazyParallelBatch
      */
     public function collectOutputs(string $batchId, array $samples): array
     {
-        $sampleCount = count($samples);
+        $storedSampleCount = $this->storedSampleCount($batchId);
+        if ($storedSampleCount === null) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch '%s' result metadata is missing. Confirm the batch id is correct and the batch result cache has not expired.",
+                $batchId,
+            ));
+        }
+
+        $providedSampleCount = count($samples);
+        if ($providedSampleCount !== $storedSampleCount) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch '%s' was initialized for %d samples; got %d samples for collection.",
+                $batchId,
+                $storedSampleCount,
+                $providedSampleCount,
+            ));
+        }
+
+        $sampleCount = $storedSampleCount;
 
         try {
             $outputsByIndex = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
@@ -233,6 +251,15 @@ final class LazyParallelBatch
                 $pollIntervalMicroseconds * 2,
             );
         } while (true);
+
+        $failure = $this->firstFailure($batchId, $sampleCount, $this->sampleIndexes($samples));
+        if ($failure !== null) {
+            throw new EvalRunException(sprintf(
+                "Lazy parallel batch job for sample '%s' failed: %s.",
+                $failure['sample_id'],
+                $failure['error'],
+            ));
+        }
 
         $missingSampleIds = $this->missingSampleIds($batchId, $samples, $sampleCount);
 
@@ -410,18 +437,32 @@ final class LazyParallelBatch
         }
 
         $constructor = (new ReflectionClass($runnerClass))->getConstructor();
+        $containerDependencyProperties = [];
         if ($constructor !== null) {
             foreach ($constructor->getParameters() as $parameter) {
-                if ($parameter->isOptional()) {
-                    continue;
-                }
-
                 $type = $parameter->getType();
-                if (! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
+                if ($parameter->isOptional() || ! $type instanceof ReflectionNamedType || $type->isBuiltin()) {
                     throw new EvalRunException(
-                        'Lazy parallel batch mode requires a container-resolvable SampleRunner class; scalar constructor state from the caller instance cannot be preserved by queued workers.',
+                        'Lazy parallel batch mode requires a container-resolvable SampleRunner class; optional, untyped, or scalar constructor state from the caller instance cannot be preserved by queued workers.',
                     );
                 }
+
+                $containerDependencyProperties[] = $parameter->getName();
+            }
+        }
+
+        $containerDependencyProperties = array_flip($containerDependencyProperties);
+        foreach ((new ReflectionClass($runnerClass))->getProperties() as $property) {
+            if ($property->isStatic() || ! $property->isInitialized($runner)) {
+                continue;
+            }
+
+            $property->setAccessible(true);
+            $value = $property->getValue($runner);
+            if (! array_key_exists($property->getName(), $containerDependencyProperties) || ! is_object($value)) {
+                throw new EvalRunException(
+                    'Lazy parallel batch mode requires a container-resolvable SampleRunner class; preconfigured runner instance state remains serial-only because queued workers resolve a fresh runner by class name.',
+                );
             }
         }
 
@@ -465,6 +506,15 @@ final class LazyParallelBatch
         }
 
         return $indexes;
+    }
+
+    private function storedSampleCount(string $batchId): ?int
+    {
+        return $this->withResultStore(
+            action: 'read metadata from',
+            batchId: $batchId,
+            callback: fn (): ?int => $this->resultStore->sampleCount($batchId),
+        );
     }
 
     private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int

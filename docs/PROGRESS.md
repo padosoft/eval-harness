@@ -790,3 +790,20 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the test-count README sync search after adding two lazy-parallel/cache tests. README has no test-count claim; PR #14 body was updated from `276 tests, 594 assertions` to `278 tests, 597 assertions` through the GitHub REST API because `gh pr edit` was blocked by missing `read:project`.
+- Copilot reviewed PR #14 again at head `7ccbaa2` and generated five comments:
+  - external `collectOutputs()` trusted the caller's sample-list length instead of the batch metadata,
+  - the timeout branch did not re-check stored job failures before reporting missing outputs,
+  - configured `cache_store` names needed trimming before reaching Laravel's cache factory,
+  - lazy-parallel service resolution hid the root container/cache-store failure behind a generic queue-services message,
+  - runner validation still allowed optional/defaulted constructor state or preconfigured instance properties that workers would not preserve.
+- Addressed the seventh PR #14 Copilot round by adding `BatchResultStore::sampleCount()` metadata reads, rejecting mismatched external collection sample counts without closing the batch, preferring late stored failures over timeout diagnostics, trimming configured cache-store names, including the underlying lazy-parallel container error in `EvalRunException`, and rejecting initialized non-DI runner properties/defaulted constructor parameters.
+- Targeted validation passed after the seventh official Copilot fixes:
+  - `vendor/bin/phpunit tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php` => `OK (70 tests, 135 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches/BatchResultStore.php src/Batches/CacheBatchResultStore.php src/Batches/LazyParallelBatch.php src/EvalHarnessServiceProvider.php src/EvalEngine.php tests/Unit/Batches/LazyParallelBatchTest.php tests/Unit/Batches/CacheBatchResultStoreTest.php tests/Unit/Jobs/EvaluateSampleJobTest.php tests/Unit/ServiceProviderTest.php tests/Unit/EvalEngineTest.php`
+- Full local gate passed after the seventh official Copilot fixes:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (282 tests, 605 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding four lazy-parallel/cache/engine tests. README has no test-count claim; PR #14 body was updated from `278 tests, 597 assertions` to `282 tests, 605 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.

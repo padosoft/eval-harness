@@ -36,6 +36,24 @@ final class CacheBatchResultStore implements BatchResultStore
         );
     }
 
+    public function sampleCount(string $batchId): ?int
+    {
+        $payload = $this->metaPayload($batchId);
+        if ($payload === null) {
+            return null;
+        }
+
+        $sampleCount = $payload['sample_count'] ?? null;
+        if (! is_int($sampleCount) || $sampleCount < 0) {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch metadata for batch '%s' is invalid.",
+                $batchId,
+            ));
+        }
+
+        return $sampleCount;
+    }
+
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         $this->close($batchId, $sampleCount, $ttlSeconds, self::STATUS_FINISHED);
@@ -217,10 +235,19 @@ final class CacheBatchResultStore implements BatchResultStore
      */
     private function isActive(string $batchId): bool
     {
+        $payload = $this->metaPayload($batchId);
+
+        return $payload !== null && ($payload['status'] ?? null) === self::STATUS_ACTIVE;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function metaPayload(string $batchId): ?array
+    {
         $payload = $this->cache->get($this->metaKey($batchId));
 
-        return is_array($payload)
-            && ($payload['status'] ?? null) === self::STATUS_ACTIVE;
+        return is_array($payload) ? $payload : null;
     }
 
     /**

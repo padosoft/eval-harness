@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -186,6 +187,33 @@ final class EvalEngineTest extends TestCase
         }
 
         Queue::assertNothingPushed();
+    }
+
+    public function test_lazy_parallel_resolution_error_includes_underlying_container_failure(): void
+    {
+        $this->app->bind(LazyParallelBatch::class, static function (): never {
+            throw new \RuntimeException('invalid cache store [missing]');
+        });
+
+        $engine = new EvalEngine(
+            container: $this->app,
+            metricResolver: $this->app->make(MetricResolver::class),
+            yamlLoader: $this->app->make(YamlDatasetLoader::class),
+        );
+
+        $engine->dataset('rag.engine.lazy-resolution-error')
+            ->withSamples([new DatasetSample(id: 's1', input: ['answer' => 'hi'], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Failed to resolve lazy parallel batch services: invalid cache store [missing]');
+
+        $engine->runBatch(
+            'rag.engine.lazy-resolution-error',
+            new TestSampleRunner,
+            BatchOptions::lazyParallel(),
+        );
     }
 
     public function test_direct_constructor_remains_backward_compatible_without_serial_batch(): void

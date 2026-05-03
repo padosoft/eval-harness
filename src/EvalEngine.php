@@ -330,7 +330,10 @@ final class EvalEngine
             $batch = $this->container->make(LazyParallelBatch::class);
         } catch (Throwable $e) {
             throw new EvalRunException(
-                'Lazy parallel batch mode requires Laravel queue services. Ensure the package service provider is registered and queue services are available.',
+                sprintf(
+                    'Failed to resolve lazy parallel batch services: %s. Ensure the package service provider is registered and queue services are available.',
+                    $e->getMessage() !== '' ? $e->getMessage() : $e::class,
+                ),
                 previous: $e,
             );
         }

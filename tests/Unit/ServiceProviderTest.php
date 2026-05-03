@@ -90,7 +90,7 @@ final class ServiceProviderTest extends TestCase
         $cacheFactory = $this->app->make(CacheFactory::class);
         $recordingFactory = new RecordingCacheFactory($cacheFactory);
         $this->app->instance(CacheFactory::class, $recordingFactory);
-        config(['eval-harness.batches.lazy_parallel.cache_store' => 'eval-results']);
+        config(['eval-harness.batches.lazy_parallel.cache_store' => ' eval-results ']);
         $this->app->forgetInstance(BatchResultStore::class);
 
         $this->app->make(BatchResultStore::class);

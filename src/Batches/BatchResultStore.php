@@ -11,6 +11,8 @@ interface BatchResultStore
 {
     public function start(string $batchId, int $sampleCount, int $ttlSeconds): void;
 
+    public function sampleCount(string $batchId): ?int;
+
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void;
 
     public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void;

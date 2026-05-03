@@ -66,9 +66,10 @@ class EvalHarnessServiceProvider extends ServiceProvider
             /** @var ConfigRepository $config */
             $config = $app->make(ConfigRepository::class);
             $cacheStore = $config->get('eval-harness.batches.lazy_parallel.cache_store');
+            $cacheStore = is_string($cacheStore) ? trim($cacheStore) : null;
 
             return new CacheBatchResultStore(
-                $cache->store(is_string($cacheStore) && $cacheStore !== '' ? $cacheStore : null),
+                $cache->store($cacheStore !== '' ? $cacheStore : null),
             );
         });
 
