@@ -1284,3 +1284,4 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Verified `origin/main` had not advanced relative to the Macro Task 4 branch before opening the macro PR (`git rev-list --left-right --count origin/main...HEAD` => `0 14`).
+- Opened Macro Task 4 PR #23 (`task/advanced-metrics` -> `main`) with summary, subtask PR list, guardrails, validation, and README comparison prefix check in the PR body.
