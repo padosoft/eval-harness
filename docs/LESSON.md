@@ -204,3 +204,5 @@
 - Fresh-runner validation in `EvaluateSampleJob` is invariant per runner class inside a worker. Cache successful validation per class so direct public jobs keep the guard without doubling container construction for every sample.
 - Dispatch-only lazy-parallel batches should scan the full batch for stored failures when dispatch fails in a later window. Earlier workers can record a more actionable sample failure while the producer is still enqueueing later windows.
 - Handoff docs should avoid naming even macro branches when the same text merges into `main`. Use `docs/PROGRESS.md` as the source of truth for open macro PRs.
+- Macro Task 4 embedding metrics should use a fakeable `EmbeddingClient` boundary instead of each metric owning HTTP transport. Keep the default OpenAI-compatible client for current env/config compatibility, but let host apps bind deterministic fakes or Laravel AI-backed clients.
+- Name the new token-overlap metric `bertscore-like`, not plain BERTScore. It embeds normalized expected/actual tokens and computes best-match cosine precision/recall/F1; it is useful and fakeable, but not a contextual Python BERTScore implementation.

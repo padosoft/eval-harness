@@ -10,7 +10,7 @@ return [
     | Default provider transport
     |--------------------------------------------------------------------------
     |
-    | The eval-harness ships LLM-as-judge and cosine-embedding metrics that
+    | The eval-harness ships LLM-as-judge and embedding-backed metrics that
     | call out to an external provider via raw `Http::`. The defaults below
     | match OpenAI's wire format; OpenRouter / Regolo / any OpenAI-compatible
     | endpoint works with only an env-var change.

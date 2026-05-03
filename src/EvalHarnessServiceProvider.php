@@ -8,13 +8,16 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\EvalCommand;
+use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
+use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
@@ -47,6 +50,13 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(MetricResolver::class, static function (Container $app): MetricResolver {
             return new MetricResolver($app);
+        });
+
+        $this->app->singleton(EmbeddingClient::class, static function (Container $app): EmbeddingClient {
+            return new OpenAiCompatibleEmbeddingClient(
+                http: $app->make(Factory::class),
+                config: $app->make(ConfigRepository::class),
+            );
         });
 
         $this->app->singleton(YamlDatasetLoader::class, static function (): YamlDatasetLoader {

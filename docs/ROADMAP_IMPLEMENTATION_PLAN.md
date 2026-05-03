@@ -121,7 +121,7 @@ Branch: `task/advanced-metrics`
 
 Implement:
 
-- Embedding-based BERTScore-like metric through an embedding client interface.
+- Embedding-based BERTScore-like metric through an embedding client interface. Implemented in the first Macro Task 4 slice with `EmbeddingClient`, `OpenAiCompatibleEmbeddingClient`, and the `bertscore-like` metric alias.
 - LLM-as-judge refusal-quality metric with strict response schema.
 - Advanced citation groundedness using evidence spans and quote matching.
 - Token/cost parser hook inspired by Ragas.
