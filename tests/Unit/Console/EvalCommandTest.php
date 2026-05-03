@@ -97,6 +97,24 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_serial_batch_rejects_timeout(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-batch-timeout')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-batch-timeout',
+            '--timeout' => '30',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a timeout')
+            ->assertExitCode(1);
+    }
+
     public function test_outputs_option_runs_without_bound_sut(): void
     {
         /** @var EvalEngine $engine */

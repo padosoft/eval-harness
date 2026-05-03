@@ -51,4 +51,12 @@ final class BatchOptionsTest extends TestCase
 
         new BatchOptions(timeoutSeconds: 0);
     }
+
+    public function test_serial_mode_rejects_timeout(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('does not use a timeout');
+
+        new BatchOptions(timeoutSeconds: 30);
+    }
 }

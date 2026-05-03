@@ -593,3 +593,16 @@
   - `vendor/bin/phpunit` => `OK (234 tests, 510 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened subtask PR #13 from `task/parallel-batch-queues-contracts` into `task/parallel-batch-queues`; requested Copilot through the GraphQL fallback because `gh pr edit 13 --add-reviewer copilot` was blocked by the missing `read:project` scope.
+- PR #13 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix at head `01959e1`.
+- While Copilot was still pending, `chatgpt-codex-connector` generated one actionable review comment:
+  - `--batch=serial --timeout=30` succeeded even though serial execution does not consume the timeout value.
+- Addressed the timeout feedback by rejecting non-null serial timeouts in `BatchOptions` and adding constructor plus command regression coverage.
+- Targeted validation passed after the timeout feedback fix:
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Console/EvalCommandTest.php` => `OK (26 tests, 65 assertions)`
+  - `vendor/bin/pint --test src/Batches/BatchOptions.php tests/Unit/Batches/BatchOptionsTest.php tests/Unit/Console/EvalCommandTest.php`
+- Full local gate passed after the timeout feedback fix:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (236 tests, 514 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

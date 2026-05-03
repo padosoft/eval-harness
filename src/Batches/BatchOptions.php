@@ -50,6 +50,10 @@ final class BatchOptions
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Batch timeout must be null or greater than or equal to 1 second.');
         }
+
+        if ($timeoutSeconds !== null) {
+            throw new EvalRunException('Serial batch mode does not use a timeout.');
+        }
     }
 
     public static function serial(): self
