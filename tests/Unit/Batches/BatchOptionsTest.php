@@ -20,12 +20,26 @@ final class BatchOptionsTest extends TestCase
         $this->assertNull($options->timeoutSeconds);
     }
 
+    public function test_lazy_parallel_options_are_valid(): void
+    {
+        $options = BatchOptions::lazyParallel(
+            concurrency: 4,
+            queue: 'evals',
+            timeoutSeconds: 30,
+        );
+
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $options->mode);
+        $this->assertSame(4, $options->concurrency);
+        $this->assertSame('evals', $options->queue);
+        $this->assertSame(30, $options->timeoutSeconds);
+    }
+
     public function test_rejects_unsupported_modes(): void
     {
         $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage("Unsupported batch mode 'lazy-parallel'");
+        $this->expectExceptionMessage("Unsupported batch mode 'parallel'");
 
-        new BatchOptions(mode: 'lazy-parallel');
+        new BatchOptions(mode: 'parallel');
     }
 
     public function test_serial_mode_requires_single_concurrency(): void
@@ -42,6 +56,14 @@ final class BatchOptionsTest extends TestCase
         $this->expectExceptionMessage('does not use a queue name');
 
         new BatchOptions(queue: 'evals');
+    }
+
+    public function test_rejects_blank_queue_name(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch queue name');
+
+        BatchOptions::lazyParallel(queue: '   ');
     }
 
     public function test_rejects_invalid_timeout(): void

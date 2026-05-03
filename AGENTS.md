@@ -73,6 +73,6 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Macro Task 3 is active on `task/parallel-batch-queues`. Current subtask branch: `task/parallel-batch-queues-contracts`.
+Macro Task 3 is active on `task/parallel-batch-queues`. Current subtask branch: `task/parallel-batch-queues-lazy-parallel`.
 
-This slice is the deterministic batch foundation: `BatchOptions`, `SerialBatch`, `EvalEngine::runBatch()`, and `eval-harness:run --batch=serial`. The next slices should add queue-backed `LazyParallelBatch`, Horizon guidance, and eval-set/resume manifests. Unless `docs/PROGRESS.md` records a newer active branch, continue from this branch and keep subtask PRs targeted into `task/parallel-batch-queues`.
+This slice adds queue-backed `LazyParallelBatch`, `EvaluateSampleJob`, cache-backed batch result collection, `eval-harness:run --batch=lazy-parallel`, Horizon guidance, and sync/fake queue coverage. The next slices should add eval-set/resume manifests. Unless `docs/PROGRESS.md` records a newer active branch or that this subtask PR has merged, continue from this branch and keep subtask PRs targeted into `task/parallel-batch-queues`.

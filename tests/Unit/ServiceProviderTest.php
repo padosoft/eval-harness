@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit;
 
+use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
@@ -42,6 +44,16 @@ final class ServiceProviderTest extends TestCase
     public function test_serial_batch_is_bound(): void
     {
         $this->assertInstanceOf(SerialBatch::class, $this->app->make(SerialBatch::class));
+    }
+
+    public function test_lazy_parallel_batch_is_bound(): void
+    {
+        $this->assertInstanceOf(LazyParallelBatch::class, $this->app->make(LazyParallelBatch::class));
+    }
+
+    public function test_batch_result_store_is_bound(): void
+    {
+        $this->assertInstanceOf(BatchResultStore::class, $this->app->make(BatchResultStore::class));
     }
 
     public function test_config_is_merged(): void

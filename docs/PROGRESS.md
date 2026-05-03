@@ -646,3 +646,24 @@
   - `vendor/bin/phpunit` => `OK (241 tests, 524 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot reviewed PR #13 at head `64cf9d4` and generated no new comments.
+- Verified PR #13 CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, resolved all review threads, and merged the subtask into `task/parallel-batch-queues` at merge commit `158abaa`.
+- Started the next Macro Task 3 subtask branch `task/parallel-batch-queues-lazy-parallel` from `task/parallel-batch-queues`.
+- Implemented the queue-backed lazy parallel batch slice:
+  - `BatchOptions` now supports `lazy-parallel`,
+  - `LazyParallelBatch` dispatches one `EvaluateSampleJob` per sample,
+  - `CacheBatchResultStore` collects queued outputs by positional index for deterministic report assembly,
+  - `EvalEngine::runBatch()` uses lazy parallel mode only for concrete `SampleRunner` runners and keeps legacy callable support serial-only,
+  - `eval-harness:run --batch=lazy-parallel` is documented and covered with sync queue tests,
+  - Composer now requires the Illuminate bus/cache/queue components used by the new queue contract.
+- Targeted validation passed after the lazy parallel implementation:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (80 tests, 168 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Batches src/Jobs src/EvalEngine.php src/Console/EvalCommand.php src/EvalHarnessServiceProvider.php tests/Unit/Batches tests/Unit/EvalEngineTest.php tests/Unit/Console/EvalCommandTest.php tests/Unit/ServiceProviderTest.php`
+  - `composer validate --strict --no-check-publish`
+- Full local gate passed before opening the lazy parallel subtask PR:
+  - `composer validate --strict --no-check-publish`
+  - `vendor/bin/phpunit` => `OK (255 tests, 550 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the test-count README sync search after adding tests. README still has no test-count claim; this progress file records the current `255 tests, 550 assertions` result.

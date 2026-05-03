@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\EvalHarness\Jobs;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
+use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Contracts\SampleInvocation;
+use Padosoft\EvalHarness\Contracts\SampleRunner;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Throwable;
+
+/**
+ * Queue job that evaluates one dataset sample through a SampleRunner.
+ */
+final class EvaluateSampleJob implements ShouldQueue
+{
+    use InteractsWithQueue;
+    use Queueable;
+
+    public ?int $timeout = null;
+
+    /**
+     * @param  class-string<SampleRunner>  $runnerClass
+     */
+    public function __construct(
+        public readonly string $batchId,
+        public readonly int $index,
+        public readonly string $sampleId,
+        public readonly SampleInvocation $sample,
+        public readonly string $runnerClass,
+        public readonly int $resultTtlSeconds,
+        ?int $timeoutSeconds = null,
+    ) {
+        if ($index < 0) {
+            throw new EvalRunException('Queued sample index must be greater than or equal to 0.');
+        }
+
+        if ($resultTtlSeconds < 1) {
+            throw new EvalRunException('Batch result TTL must be greater than or equal to 1 second.');
+        }
+
+        if (! is_a($runnerClass, SampleRunner::class, true)) {
+            throw new EvalRunException(sprintf(
+                "Queued sample runner '%s' must implement %s.",
+                $runnerClass,
+                SampleRunner::class,
+            ));
+        }
+
+        if ($timeoutSeconds !== null) {
+            $this->timeout = $timeoutSeconds;
+        }
+    }
+
+    public function handle(Container $container, BatchResultStore $resultStore): void
+    {
+        try {
+            $runner = $container->make($this->runnerClass);
+            if (! $runner instanceof SampleRunner) {
+                throw new EvalRunException(sprintf(
+                    "Queued sample runner '%s' must resolve to %s; got %s.",
+                    $this->runnerClass,
+                    SampleRunner::class,
+                    get_debug_type($runner),
+                ));
+            }
+
+            $actualOutput = $runner->run($this->sample);
+        } catch (Throwable $e) {
+            $resultStore->recordFailure(
+                batchId: $this->batchId,
+                index: $this->index,
+                sampleId: $this->sampleId,
+                error: $e->getMessage() !== '' ? $e->getMessage() : $e::class,
+                ttlSeconds: $this->resultTtlSeconds,
+            );
+
+            return;
+        }
+
+        $resultStore->recordSuccess(
+            batchId: $this->batchId,
+            index: $this->index,
+            sampleId: $this->sampleId,
+            actualOutput: $actualOutput,
+            ttlSeconds: $this->resultTtlSeconds,
+        );
+    }
+}

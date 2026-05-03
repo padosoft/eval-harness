@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness;
 
+use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
@@ -54,12 +59,27 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new SerialBatch;
         });
 
+        $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
+            /** @var CacheFactory $cache */
+            $cache = $app->make(CacheFactory::class);
+
+            return new CacheBatchResultStore($cache->store());
+        });
+
+        $this->app->singleton(LazyParallelBatch::class, static function (Container $app): LazyParallelBatch {
+            return new LazyParallelBatch(
+                dispatcher: $app->make(Dispatcher::class),
+                resultStore: $app->make(BatchResultStore::class),
+            );
+        });
+
         $this->app->singleton(EvalEngine::class, static function (Container $app): EvalEngine {
             return new EvalEngine(
                 container: $app,
                 metricResolver: $app->make(MetricResolver::class),
                 yamlLoader: $app->make(YamlDatasetLoader::class),
                 serialBatch: $app->make(SerialBatch::class),
+                lazyParallelBatch: $app->make(LazyParallelBatch::class),
             );
         });
     }

@@ -32,10 +32,10 @@ use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
  *   - With `--outputs=<path>`: the command scores precomputed
  *     sample outputs from a JSON/YAML file and does not require a
  *     system-under-test binding.
- *   - With `--batch=serial`: the command routes SUT invocation
- *     through the batch execution contract. Serial is the current
- *     implemented mode; queue-backed modes will layer on this
- *     contract without changing report assembly.
+ *   - With `--batch=serial|lazy-parallel`: the command routes SUT
+ *     invocation through the batch execution contract. Lazy parallel
+ *     requires a SampleRunner binding because queue jobs cannot
+ *     serialize arbitrary callables.
  *
  * Output:
  *   - Markdown report on stdout by default.
@@ -63,8 +63,8 @@ final class EvalCommand extends Command
         {dataset : Dataset name (e.g. rag.factuality.fy2026)}
         {--registrar= : FQCN of an invokable class that registers the dataset + drives the SUT}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
-        {--batch=serial : Batch mode for invoking the SUT; currently supports serial}
-        {--concurrency=1 : Desired sample concurrency for batch modes that support it}
+        {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
+        {--concurrency=1 : Desired worker concurrency for queue-backed batch modes}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
         {--json : Emit JSON report instead of Markdown}

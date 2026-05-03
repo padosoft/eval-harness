@@ -118,3 +118,7 @@
 - When adding constructor dependencies to public service objects such as `EvalEngine`, keep direct-instantiation compatibility with an optional fallback even if the Laravel container binding provides the new dependency.
 - When a method intentionally accepts a wider shape and normalizes it internally, update PHPDoc from `list<T>` to the real accepted shape so static analysis and consumer expectations do not drift.
 - Serial batch traversal can expose a streaming/sink path for report assembly so serial mode keeps deterministic ordering without a temporary full output list.
+- Queue-backed batch jobs should resolve a concrete `SampleRunner` class in the worker, not serialize closures or anonymous runners. Lazy parallel mode should reject arbitrary callables and anonymous `SampleRunner` instances with an operator-facing message.
+- Horizon-ready queue result assembly needs a store shared by the command process and workers. A cache-backed result store keyed by batch id and sample index lets jobs finish out of order while the engine assembles outputs in dataset order.
+- Queue fake tests should assert dispatch shape through a dispatch-only path; full `run()` tests should use the `sync` queue so queued jobs execute and write results deterministically.
+- When package code starts importing queue/cache/bus contracts directly, add explicit `illuminate/bus`, `illuminate/cache`, and `illuminate/queue` Composer requirements instead of relying on transitive Testbench or `laravel/framework` replacements.

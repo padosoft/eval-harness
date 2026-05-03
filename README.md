@@ -114,9 +114,9 @@ surface small and the offline path fast.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
-- **Batch execution foundation** — SUT runs now flow through a
-  deterministic `SerialBatch` contract and `--batch=serial`, preparing
-  the package for queue-backed parallel workers.
+- **Batch execution modes** — SUT runs flow through deterministic
+  `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
+  `--batch=lazy-parallel` for Laravel queue/Horizon workers.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -397,6 +397,34 @@ Eval::dataset('rag.recall')
     path: eval-report.json
 ```
 
+### Queue-backed batch execution
+
+`--batch=lazy-parallel` dispatches one queue job per sample and then
+assembles outputs in dataset order through the shared batch result
+store. It requires the SUT to be a concrete `SampleRunner` class so
+queue workers can resolve it; arbitrary callables and closures remain
+serial-only.
+
+```php
+use App\Eval\MyRagRunner;
+
+$this->app->bind('eval-harness.sut', MyRagRunner::class);
+```
+
+```bash
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --batch=lazy-parallel \
+  --concurrency=4 \
+  --queue=evals \
+  --timeout=60
+```
+
+Use Laravel's `sync` queue driver for unit tests. In production, run
+Horizon workers on the chosen queue and use a cache backend shared by
+the command process and workers so queued sample outputs can be
+collected for report assembly.
+
 ---
 
 ## Configuration
@@ -465,8 +493,9 @@ already implement that contract.
 │  EvalEngine                                                      │
 │  - dataset registry (in-memory, single source of truth)          │
 │  - run(dataset, sut) / runBatch(dataset, sut, BatchOptions)      │
-│      ├─► dispatch samples through SerialBatch                    │
+│      ├─► dispatch samples through SerialBatch or LazyParallelBatch│
 │      ├─► invoke input callable or SampleInvocation callable/runner│
+│      ├─► lazy-parallel jobs write outputs to BatchResultStore     │
 │      ├─► for each metric: score(sample, actual)                  │
 │      │   - exception → SampleFailure                             │
 │      │   - clean → MetricScore                                   │
@@ -569,10 +598,9 @@ accidentally and never burns API credits.
   questions are 60%" instead of a single mean. Implemented in
   Markdown/JSON reports.
 - **Histogram view** in Markdown and JSON reports.
-- **Parallel batch evals** — `SerialBatch` and `--batch=serial` are
-  implemented as the deterministic foundation; queue-backed
-  `LazyParallelBatch` remains planned for running N samples in
-  parallel via Laravel queues.
+- **Parallel batch evals** — `SerialBatch`, `LazyParallelBatch`,
+  `--batch=serial`, and `--batch=lazy-parallel` are implemented for
+  deterministic serial runs and queue-backed sample fan-out.
 - **Eval sets with resumable progress** — run named groups of
   datasets and resume interrupted multi-dataset runs.
 - **Standalone output assertions** — score saved JSON/YAML outputs

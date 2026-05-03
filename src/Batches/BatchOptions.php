@@ -8,14 +8,18 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 /**
  * Runtime options for sample batch execution.
- *
- * Only serial execution is implemented in this slice. Queue-backed
- * lazy parallel execution will reuse the same option object so CLI
- * validation and docs do not drift when jobs are introduced.
  */
 final class BatchOptions
 {
     public const MODE_SERIAL = 'serial';
+
+    public const MODE_LAZY_PARALLEL = 'lazy-parallel';
+
+    /** @var list<string> */
+    private const SUPPORTED_MODES = [
+        self::MODE_SERIAL,
+        self::MODE_LAZY_PARALLEL,
+    ];
 
     public function __construct(
         public readonly string $mode = self::MODE_SERIAL,
@@ -23,11 +27,11 @@ final class BatchOptions
         public readonly ?string $queue = null,
         public readonly ?int $timeoutSeconds = null,
     ) {
-        if ($mode !== self::MODE_SERIAL) {
+        if (! in_array($mode, self::SUPPORTED_MODES, true)) {
             throw new EvalRunException(sprintf(
                 "Unsupported batch mode '%s'. Supported modes: %s.",
                 $mode,
-                self::MODE_SERIAL,
+                implode(', ', self::SUPPORTED_MODES),
             ));
         }
 
@@ -35,29 +39,41 @@ final class BatchOptions
             throw new EvalRunException('Batch concurrency must be greater than or equal to 1.');
         }
 
-        if ($concurrency !== 1) {
-            throw new EvalRunException('Serial batch mode requires concurrency 1.');
-        }
-
         if ($queue !== null && trim($queue) === '') {
             throw new EvalRunException('Batch queue name must be null or a non-empty string.');
-        }
-
-        if ($queue !== null) {
-            throw new EvalRunException('Serial batch mode does not use a queue name.');
         }
 
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Batch timeout must be null or greater than or equal to 1 second.');
         }
 
-        if ($timeoutSeconds !== null) {
-            throw new EvalRunException('Serial batch mode does not use a timeout.');
+        if ($mode === self::MODE_SERIAL) {
+            if ($concurrency !== 1) {
+                throw new EvalRunException('Serial batch mode requires concurrency 1.');
+            }
+
+            if ($queue !== null) {
+                throw new EvalRunException('Serial batch mode does not use a queue name.');
+            }
+
+            if ($timeoutSeconds !== null) {
+                throw new EvalRunException('Serial batch mode does not use a timeout.');
+            }
         }
     }
 
     public static function serial(): self
     {
         return new self;
+    }
+
+    public static function lazyParallel(int $concurrency = 1, ?string $queue = null, ?int $timeoutSeconds = null): self
+    {
+        return new self(
+            mode: self::MODE_LAZY_PARALLEL,
+            concurrency: $concurrency,
+            queue: $queue,
+            timeoutSeconds: $timeoutSeconds,
+        );
     }
 }
