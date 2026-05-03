@@ -38,4 +38,17 @@ final class GoldenDatasetTest extends TestCase
             metrics: [new ExactMatchMetric],
         );
     }
+
+    public function test_constructor_rejects_non_dataset_sample_entries(): void
+    {
+        $this->expectException(DatasetSchemaException::class);
+        $this->expectExceptionMessage('sample at index 0 must be an instance of '.DatasetSample::class);
+
+        /** @phpstan-ignore-next-line the test asserts behaviour on bad input shape. */
+        new GoldenDataset(
+            name: 'bad.sample.entry',
+            samples: [(object) ['id' => 's1']],
+            metrics: [new ExactMatchMetric],
+        );
+    }
 }

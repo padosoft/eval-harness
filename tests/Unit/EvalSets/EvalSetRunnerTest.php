@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\EvalSets;
 
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -12,6 +13,7 @@ use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalSets\EvalSetDefinition;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifestEntry;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalSetRunnerTest extends TestCase
@@ -146,6 +148,56 @@ final class EvalSetRunnerTest extends TestCase
         $this->assertFalse($result->isComplete());
         $this->assertSame(['rag.first'], $result->failedDatasetNames());
         $this->assertSame('previous failure', $result->manifest->entryFor('rag.first')?->error);
+    }
+
+    public function test_engine_surfaces_unregistered_eval_set_dataset_as_setup_error(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Dataset 'rag.missing' is not registered");
+
+        $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.missing']),
+            static fn (array $input): string => (string) $input['answer'],
+        );
+    }
+
+    public function test_engine_surfaces_lazy_parallel_callable_sut_as_setup_error(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $this->registerDataset($engine, 'rag.first', 'first');
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('requires a SampleRunner system-under-test');
+
+        $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.first']),
+            static fn (array $input): string => (string) $input['answer'],
+            BatchOptions::lazyParallel(),
+        );
+    }
+
+    public function test_engine_surfaces_lazy_parallel_service_resolution_errors_as_setup_errors(): void
+    {
+        $this->app->bind(LazyParallelBatch::class, static function (): never {
+            throw new \RuntimeException('invalid cache store [missing]');
+        });
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $this->registerDataset($engine, 'rag.first', 'first');
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Failed to resolve lazy parallel batch services: invalid cache store [missing]');
+
+        $engine->runEvalSet(
+            new EvalSetDefinition('nightly', ['rag.first']),
+            new EvalSetAnswerRunner,
+            BatchOptions::lazyParallel(),
+        );
     }
 
     private function registerDataset(EvalEngine $engine, string $name, string $answer): void

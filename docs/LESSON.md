@@ -195,3 +195,5 @@
 - README comparison rows should not label provider-backed metrics as offline. `cosine-embedding` and `llm-as-judge` can be deterministic in tests when faked, but real runs call configured providers.
 - `EvalSetRunResult` must compare reports against the completed manifest summary, not only dataset names. Timestamps, schema version, sample count, and failure count should agree so persisted resume state and in-memory reports cannot diverge.
 - Eval-set manifest `updated_at` must be at least every entry `started_at` / `finished_at`. Deserialized manifests with a global update time before entry progress are impossible resume states.
+- Direct `GoldenDataset` construction must validate every sample element, not only list keys. Later report paths dereference `DatasetSample` properties and should not turn malformed constructor input into raw runtime errors.
+- Eval-set resume manifests should capture dataset execution failures, not setup/configuration failures. Surface unregistered datasets, invalid lazy-parallel SUTs, and lazy batch service resolution errors to the caller before or instead of marking a dataset failed.

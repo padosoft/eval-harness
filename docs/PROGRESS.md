@@ -1136,3 +1136,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two eval-set consistency tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `342 tests, 744 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot reviewed PR #17 again at head `bbad523` and generated two actionable comments:
+  - direct `GoldenDataset` construction still needed to reject non-`DatasetSample` entries, not only sparse arrays,
+  - `EvalSetRunner` should surface setup/configuration failures such as unregistered datasets, invalid lazy-parallel SUTs, and lazy batch service resolution errors instead of persisting them as resumable dataset failures.
+- Addressed the PR #17 setup/error-boundary comments by adding direct sample element validation to `GoldenDataset`, preflighting eval-set dataset registration and lazy-parallel SUT shape, surfacing lazy batch service setup failures, and adding regression coverage.
+- Targeted validation passed after the PR #17 setup/error-boundary fixes:
+  - `vendor/bin/phpunit tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php` => `OK (11 tests, 38 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test src/Datasets/GoldenDataset.php src/EvalSets/EvalSetRunner.php tests/Unit/Datasets/GoldenDatasetTest.php tests/Unit/EvalSets/EvalSetRunnerTest.php`
+- Full local gate passed after the PR #17 setup/error-boundary fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (346 tests, 752 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding four setup/error-boundary tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `346 tests, 752 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
