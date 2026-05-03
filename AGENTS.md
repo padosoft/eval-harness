@@ -77,4 +77,4 @@ Do not assume the active branch from this file. Check `docs/PROGRESS.md` and `gi
 
 Macro Task 4 is active for advanced metrics. Finish any open subtask or macro PR recorded in `docs/PROGRESS.md` before starting a new slice.
 
-The current Macro Task 4 focus is fakeable provider contracts and advanced metric aliases. After the embedding/BERTScore-like, refusal-quality, and citation evidence slices, continue with usage/cost summaries and retry/timeout behavior unless `docs/PROGRESS.md` records a newer priority.
+The current Macro Task 4 focus is fakeable provider contracts and advanced metric aliases. After the embedding/BERTScore-like, refusal-quality, citation evidence, and usage-summary slices, continue with retry/timeout behavior unless `docs/PROGRESS.md` records a newer priority.
