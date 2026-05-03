@@ -403,3 +403,4 @@
   - `vendor/bin/phpunit` => `OK (188 tests, 416 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Opened subtask PR #11 from `task/metrics-reporting-standalone-assertions` into `task/metrics-reporting` and requested Copilot through the GraphQL fallback.
