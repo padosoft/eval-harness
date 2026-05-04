@@ -262,6 +262,103 @@ final class EvalReportTest extends TestCase
         $this->assertEqualsWithDelta(0.0, $cohorts[1]['metrics']['exact-match']['mean'], 1e-9);
     }
 
+    public function test_adversarial_summary_groups_categories_and_compliance_frameworks(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.prompt-injection',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'prompt-injection',
+                                'label' => 'Prompt injection',
+                                'severity' => 'high',
+                                'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.pii-leak',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'pii-leak',
+                                'label' => 'PII leak',
+                                'severity' => 'critical',
+                                'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF', 'EU AI Act', 'OWASP LLM'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'unsafe',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(id: 'non-adversarial', input: [], expectedOutput: 'safe'),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $summary = $report->adversarialSummary();
+
+        $this->assertSame(2, $summary['total_samples']);
+        $this->assertSame(['pii-leak', 'prompt-injection'], array_column($summary['categories'], 'category'));
+        $this->assertSame(['EU AI Act', 'NIST AI RMF', 'OWASP LLM'], $summary['categories'][0]['compliance_frameworks']);
+        $this->assertEqualsWithDelta(0.0, $summary['categories'][0]['metrics']['exact-match']['mean'], 1e-9);
+        $this->assertEqualsWithDelta(1.0, $summary['categories'][1]['metrics']['exact-match']['mean'], 1e-9);
+
+        $frameworks = [];
+        foreach ($summary['compliance_frameworks'] as $framework) {
+            $frameworks[$framework['framework']] = $framework;
+        }
+
+        $this->assertSame(1, $frameworks['EU AI Act']['sample_count']);
+        $this->assertSame(['pii-leak'], $frameworks['EU AI Act']['categories']);
+        $this->assertSame(2, $frameworks['NIST AI RMF']['sample_count']);
+        $this->assertSame(['pii-leak', 'prompt-injection'], $frameworks['NIST AI RMF']['categories']);
+    }
+
+    public function test_adversarial_summary_ignores_malformed_adversarial_metadata(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 's1',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: ['adversarial' => ['label' => 'missing category']],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $this->assertSame([
+            'total_samples' => 0,
+            'categories' => [],
+            'compliance_frameworks' => [],
+        ], $report->adversarialSummary());
+    }
+
     public function test_histogram_places_boundary_scores_in_stable_buckets(): void
     {
         $report = $this->reportWithScores([0.0, 0.05, 0.5, 1.0]);

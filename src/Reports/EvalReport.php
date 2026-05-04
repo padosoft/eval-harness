@@ -351,6 +351,118 @@ final class EvalReport
     }
 
     /**
+     * @return array{total_samples: int, categories: list<array{category: string, label: string, severity: string|null, sample_count: int, compliance_frameworks: list<string>, metrics: array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>}>, compliance_frameworks: list<array{framework: string, sample_count: int, categories: list<string>}>}
+     */
+    public function adversarialSummary(): array
+    {
+        /** @var array<string, array{category: string, label: string, severity: string|null, frameworks: array<string, string>, results: list<SampleResult>}> $categories */
+        $categories = [];
+        /** @var array<string, array{framework: string, sample_count: int, categories: array<string, string>}> $frameworks */
+        $frameworks = [];
+        $totalSamples = 0;
+
+        foreach ($this->sampleResults as $result) {
+            $adversarial = $this->adversarialForSample($result->sample);
+            if ($adversarial === null) {
+                continue;
+            }
+
+            $totalSamples++;
+            $category = $adversarial['category'];
+            $categories[$category] ??= [
+                'category' => $category,
+                'label' => $adversarial['label'],
+                'severity' => $adversarial['severity'],
+                'frameworks' => [],
+                'results' => [],
+            ];
+            $categories[$category]['results'][] = $result;
+
+            foreach ($adversarial['compliance_frameworks'] as $framework) {
+                $categories[$category]['frameworks'][$framework] = $framework;
+                $frameworks[$framework] ??= [
+                    'framework' => $framework,
+                    'sample_count' => 0,
+                    'categories' => [],
+                ];
+                $frameworks[$framework]['sample_count']++;
+                $frameworks[$framework]['categories'][$category] = $category;
+            }
+        }
+
+        ksort($categories);
+        ksort($frameworks);
+
+        $metricNames = $this->metricNames();
+        $categorySummaries = [];
+        foreach ($categories as $category) {
+            $frameworkList = array_values($category['frameworks']);
+            sort($frameworkList);
+
+            $metrics = [];
+            foreach ($metricNames as $metricName) {
+                $metrics[$metricName] = $this->aggregateValues(
+                    $this->scoresForResults($category['results'], $metricName),
+                );
+            }
+
+            $categorySummaries[] = [
+                'category' => $category['category'],
+                'label' => $category['label'],
+                'severity' => $category['severity'],
+                'sample_count' => count($category['results']),
+                'compliance_frameworks' => $frameworkList,
+                'metrics' => $metrics,
+            ];
+        }
+
+        $frameworkSummaries = [];
+        foreach ($frameworks as $framework) {
+            $frameworkCategories = array_values($framework['categories']);
+            sort($frameworkCategories);
+
+            $frameworkSummaries[] = [
+                'framework' => $framework['framework'],
+                'sample_count' => $framework['sample_count'],
+                'categories' => $frameworkCategories,
+            ];
+        }
+
+        return [
+            'total_samples' => $totalSamples,
+            'categories' => $categorySummaries,
+            'compliance_frameworks' => $frameworkSummaries,
+        ];
+    }
+
+    /**
+     * @return array{category: string, label: string, severity: string|null, compliance_frameworks: list<string>}|null
+     */
+    public function adversarialForSample(DatasetSample $sample): ?array
+    {
+        $raw = $sample->metadata['adversarial'] ?? null;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $category = $this->nonEmptyString($raw['category'] ?? null);
+        if ($category === null) {
+            return null;
+        }
+
+        $label = $this->nonEmptyString($raw['label'] ?? null) ?? $category;
+        $severity = $this->nonEmptyString($raw['severity'] ?? null);
+        $frameworks = $this->stringList($raw['compliance_frameworks'] ?? null);
+
+        return [
+            'category' => $category,
+            'label' => $label,
+            'severity' => $severity,
+            'compliance_frameworks' => $frameworks,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function tagsForSample(DatasetSample $sample): array
@@ -381,6 +493,37 @@ final class EvalReport
         $tags = array_values(array_unique($tags));
 
         return $tags;
+    }
+
+    private function nonEmptyString(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $entry) {
+            $string = $this->nonEmptyString($entry);
+            if ($string !== null) {
+                $strings[$string] = $string;
+            }
+        }
+
+        return array_values($strings);
     }
 
     /**

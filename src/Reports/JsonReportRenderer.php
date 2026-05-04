@@ -28,9 +28,14 @@ namespace Padosoft\EvalHarness\Reports;
  *     {"name": "geography", "label": "geography", "is_untagged": false, "sample_count": 4, "metrics": {...}},
  *     {"name": null, "label": "(untagged)", "is_untagged": true, "sample_count": 1, "metrics": {...}}
  *   ],
+ *   "adversarial": {
+ *     "total_samples": 2,
+ *     "categories": [{"category": "prompt-injection", "sample_count": 1, "compliance_frameworks": ["OWASP LLM"], "metrics": {...}}],
+ *     "compliance_frameworks": [{"framework": "OWASP LLM", "sample_count": 2, "categories": ["prompt-injection"]}]
+ *   },
  *   "macro_f1": 0.8,
  *   "samples": [
- *     {"id": "...", "tags": ["geography"], "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
+ *     {"id": "...", "tags": ["geography"], "adversarial": null, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
  *   ],
  *   "failures": [
  *     {"sample_id": "...", "metric": "...", "error": "..."}
@@ -64,6 +69,7 @@ final class JsonReportRenderer
             $samples[] = [
                 'id' => $result->sample->id,
                 'tags' => $report->tagsForSample($result->sample),
+                'adversarial' => $report->adversarialForSample($result->sample),
                 'actual_output' => $result->actualOutput,
                 'scores' => $scores,
             ];
@@ -91,6 +97,7 @@ final class JsonReportRenderer
             'metric_distributions' => $report->metricDistributions(),
             'usage' => $report->usageSummary(),
             'cohorts' => $report->cohortSummaries(),
+            'adversarial' => $report->adversarialSummary(),
             'macro_f1' => $report->macroF1(),
             'samples' => $samples,
             'failures' => $failures,

@@ -120,7 +120,8 @@ surface small and the offline path fast.
 - **Opt-in adversarial lane** — `AdversarialDatasetFactory` and
   `php artisan eval-harness:adversarial` build/run safety regression
   seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
-  abuse, and similar red-team categories.
+  abuse, and similar red-team categories. JSON/Markdown reports add
+  category and compliance-framework summaries.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -161,6 +162,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
 | Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
 | Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
+| Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -629,6 +631,13 @@ competitor endorsement, excessive agency, and hallucination
 overreliance. Samples include `metadata.tags`, `metadata.adversarial`,
 `metadata.refusal_expected`, and `metadata.refusal_policy` so they can be
 scored with `refusal-quality` and grouped in JSON/Markdown reports.
+Reports expose a safe normalized adversarial subset only: category,
+label, severity, and compliance frameworks. Raw prompts, refusal policy
+text, and arbitrary sample metadata stay out of JSON sample rows.
+The top-level JSON `adversarial` block aggregates category metrics and
+framework counts for OWASP LLM, NIST AI RMF, and EU AI Act style
+security reporting; Markdown reports render the same data under
+`Adversarial coverage`.
 
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with
@@ -825,8 +834,8 @@ accidentally and never burns API credits.
 
 - **Adversarial harness** — prompt injection / jailbreak / tool-abuse
   test datasets bundled (opt-in), including multi-input targets and
-  `eval-harness:adversarial`; compliance/framework report mapping is
-  next.
+  `eval-harness:adversarial`; JSON/Markdown category and compliance
+  framework summaries are implemented.
 - **Regression detection** — store the last N runs in a JSON
   manifest and fail the gate when macro-F1 drops more than X%.
 - **Report API contract for a separate UI package** — read-only
