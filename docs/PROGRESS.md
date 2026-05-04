@@ -2070,3 +2070,7 @@
   - `vendor/bin/pint --test`
 - README snippet fixes applied in comparison/recipe section for correct registrar escaping (`App\Console\EvalRegistrar`).
 - Merged PR #35 (`task/v1-stabilization-release-stability-docs` -> `task/v1-stabilization-release`) at merge commit `0aba050`.
+- Opened macro PR #36: `task/v1-stabilization-release` -> `main`.
+- Requested Copilot review via GraphQL fallback; no actionable review comments were posted before merge.
+- CI check suite was green on PHP 8.3/8.4/8.5 and Laravel 12/13.
+- Merged PR #36 into `main` at merge commit `8909663`.
