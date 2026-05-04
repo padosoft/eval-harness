@@ -1407,3 +1407,38 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding six adversarial command tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Opened PR #25 (`task/adversarial-regression-command` -> `task/adversarial-regression`), requested official Copilot review through the GraphQL fallback, verified CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, and Copilot reviewed all 12 changed files with no comments. PR #25 merged into the macro branch at merge commit `fecb21d`.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-reporting` from `task/adversarial-regression`.
+- Implemented adversarial report mapping:
+  - JSON reports now include a top-level `adversarial` summary with category aggregates and compliance framework counts,
+  - JSON sample rows include only a safe normalized adversarial subset (`category`, `label`, `severity`, `compliance_frameworks`) and still omit raw metadata/policy/prompt fields,
+  - Markdown reports now render an `Adversarial coverage` section with category and compliance framework tables.
+- Updated README's feature list, adversarial usage docs, roadmap, and comparison matrix with the compliance mapping row while keeping explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial reporting slice:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (41 tests, 172 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the adversarial reporting slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (458 tests, 1152 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding four adversarial reporting tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #26 at head `39ca3c5` and generated one actionable comment: the JSON report renderer docblock example omitted adversarial category `label` and `severity` fields that the renderer actually emits.
+- Addressed the PR #26 docblock contract comment by adding `label` and `severity` to the `JsonReportRenderer` JSON shape example and recording the synchronization lesson.
+- Full local gate passed after the PR #26 docblock fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (458 tests, 1152 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README comparison prefix check after the docblock fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #26 again at head `3aedde2` and generated one actionable comment: adversarial category severity was taken from the first sample, making the category summary order-dependent when later samples had higher or non-null severity.
+- Addressed the severity comment by deriving category severity through deterministic precedence (`critical > high > medium > low`) and adding regression coverage for missing first severity followed by higher later severities.
+- Targeted validation passed after the PR #26 severity fix:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (42 tests, 173 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the PR #26 severity fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (459 tests, 1153 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README comparison prefix check after the severity fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
