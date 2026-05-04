@@ -1901,3 +1901,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twenty-fifth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `6317193` and generated two actionable comments:
+  - no-baseline fail results could still carry `missing-value` checks with baseline data, producing contradictory public JSON,
+  - the plain adversarial command returned before validating `--manifest-retain` when `--manifest` was omitted, so invalid or useless retention options could be silently accepted.
+- The same review body included a low-confidence note that tightening the shared positive integer parser changed `eval-harness:run --concurrency=` outside this adversarial slice.
+- Addressed the twenty-sixth PR #28 review round by rejecting no-baseline fail results that carry baseline/current/drop scores, introducing an adversarial-only strict `manifestRetainOption()`, rejecting `--manifest-retain` without `--manifest` or `--regression-gate`, and restoring the shared batch parser's empty-value fallback for `--concurrency=` while adding command coverage for the compatibility behavior.
+- Targeted validation passed after the twenty-sixth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (130 tests, 435 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the twenty-sixth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (547 tests, 1489 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twenty-sixth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

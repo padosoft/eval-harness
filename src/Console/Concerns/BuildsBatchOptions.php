@@ -27,7 +27,7 @@ trait BuildsBatchOptions
     private function positiveIntegerOption(string $name, int $default): int
     {
         $value = $this->option($name);
-        if ($value === null) {
+        if ($value === null || $value === '') {
             return $default;
         }
 

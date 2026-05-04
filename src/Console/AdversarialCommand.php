@@ -164,12 +164,18 @@ final class AdversarialCommand extends Command
 
     private function validateManifestOptions(): void
     {
+        if ($this->option('manifest') === null && $this->optionWasProvided('manifest-retain')) {
+            $this->manifestRetainOption();
+
+            throw new EvalRunException('The --manifest-retain option requires --manifest or --regression-gate.');
+        }
+
         $manifestPath = $this->manifestPathOption(required: false);
         if ($manifestPath === null) {
             return;
         }
 
-        $this->positiveIntegerOption('manifest-retain', 10);
+        $this->manifestRetainOption();
     }
 
     private function validateRegressionGateOptions(): void
@@ -188,7 +194,7 @@ final class AdversarialCommand extends Command
         }
 
         $this->manifestPathOption(required: true);
-        $this->positiveIntegerOption('manifest-retain', 10);
+        $this->manifestRetainOption();
 
         /** @var AdversarialRegressionGate $gate */
         $gate = $this->laravel->make(AdversarialRegressionGate::class);
@@ -233,6 +239,20 @@ final class AdversarialCommand extends Command
         return $this->input->hasParameterOption('--'.$name, true);
     }
 
+    private function manifestRetainOption(): int
+    {
+        $value = $this->option('manifest-retain');
+        if ($value === null) {
+            return 10;
+        }
+
+        if (! is_string($value) || $value === '' || ! ctype_digit($value) || (int) $value < 1) {
+            throw new EvalRunException('The --manifest-retain option must be a positive integer.');
+        }
+
+        return (int) $value;
+    }
+
     private function recordManifestWithRegressionGate(EvalReport $report): ?AdversarialRegressionGateResult
     {
         try {
@@ -246,7 +266,7 @@ final class AdversarialCommand extends Command
                 gate: $gate,
                 maxDrop: $this->regressionMaxDropRatio(),
                 metricTargets: $this->stringListOption('regression-metric'),
-                maxRuns: $this->positiveIntegerOption('manifest-retain', 10),
+                maxRuns: $this->manifestRetainOption(),
                 manifestName: $report->datasetName,
             );
         } catch (EvalHarnessException $e) {
@@ -413,7 +433,7 @@ final class AdversarialCommand extends Command
             $store->record(
                 path: $manifestPath,
                 report: $report,
-                maxRuns: $this->positiveIntegerOption('manifest-retain', 10),
+                maxRuns: $this->manifestRetainOption(),
                 manifestName: $report->datasetName,
             );
         } catch (EvalHarnessException $e) {

@@ -206,6 +206,71 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_manifest_retention_option_rejects_empty_value_without_manifest(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest-retain' => '',
+            ])
+                ->expectsOutputToContain('The --manifest-retain option must be a positive integer.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
+    public function test_manifest_retention_option_requires_manifest_or_regression_gate(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest-retain' => '2',
+            ])
+                ->expectsOutputToContain('The --manifest-retain option requires --manifest or --regression-gate.')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
     public function test_regression_gate_requires_manifest_path(): void
     {
         $sample = $this->adversarialSample('ssrf');

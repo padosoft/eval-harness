@@ -77,6 +77,10 @@ final class AdversarialRegressionGateResult
                 if ($check->status !== AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
                     throw new EvalRunException('Adversarial regression gate fail results without a baseline can only contain missing-value checks.');
                 }
+
+                if ($check->baselineScore !== null || $check->currentScore !== null || $check->drop !== null) {
+                    throw new EvalRunException('Adversarial regression gate fail results without a baseline can only contain missing-value checks without baseline, current, or drop scores.');
+                }
             }
         }
 

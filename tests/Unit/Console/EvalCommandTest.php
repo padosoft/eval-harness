@@ -61,6 +61,24 @@ final class EvalCommandTest extends TestCase
         ])->assertExitCode(0);
     }
 
+    public function test_empty_batch_options_keep_omitted_defaults(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('empty-batch-option-defaults')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'empty-batch-option-defaults',
+            '--concurrency' => '',
+            '--timeout' => '',
+            '--batch-timeout' => '',
+        ])->assertExitCode(0);
+    }
+
     public function test_invalid_batch_mode_returns_failure(): void
     {
         /** @var EvalEngine $engine */
