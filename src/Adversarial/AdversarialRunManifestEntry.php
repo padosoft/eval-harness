@@ -203,6 +203,19 @@ final class AdversarialRunManifestEntry
                 throw new EvalRunException(sprintf('Adversarial run manifest adversarial.%s must be a zero-based list.', $field));
             }
         }
+
+        foreach ($adversarial['categories'] as $index => $category) {
+            if (! is_array($category)) {
+                throw new EvalRunException(sprintf('Adversarial run manifest adversarial.categories[%d] must be an object.', $index));
+            }
+
+            $metrics = $category['metrics'] ?? null;
+            if (! is_array($metrics)) {
+                throw new EvalRunException(sprintf('Adversarial run manifest adversarial.categories[%d].metrics must be an object.', $index));
+            }
+
+            $this->assertMetricAggregates($metrics);
+        }
     }
 
     /**

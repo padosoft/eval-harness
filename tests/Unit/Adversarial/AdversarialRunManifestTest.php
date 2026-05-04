@@ -76,6 +76,17 @@ final class AdversarialRunManifestTest extends TestCase
         $this->assertSame(0.0, $entry->metrics['refusal-quality']['pass_rate']);
     }
 
+    public function test_entry_rejects_invalid_nested_adversarial_metric_aggregates(): void
+    {
+        $payload = AdversarialRunManifestEntry::fromReport($this->report('run.dataset', 1.0, 2.0), 'run-1')->toJson();
+        $payload['adversarial']['categories'][0]['metrics']['exact-match']['pass_rate'] = 1.5;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Adversarial run manifest metric 'exact-match' aggregate 'pass_rate' must be in [0, 1].");
+
+        AdversarialRunManifestEntry::fromJson($payload);
+    }
+
     public function test_manifest_records_newest_runs_and_retains_last_n(): void
     {
         $manifest = AdversarialRunManifest::empty('adversarial.security', 1.0)
@@ -125,6 +136,24 @@ final class AdversarialRunManifestTest extends TestCase
             if (is_file($path)) {
                 @unlink($path);
             }
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_defaults_manifest_name_to_report_dataset(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+
+        try {
+            $manifest = (new AdversarialRunManifestStore)->record($path, $this->report('versioned.dataset', 1.0, 2.0), runId: 'run-1');
+
+            $this->assertSame('versioned.dataset', $manifest->name);
+        } finally {
+            @unlink($path);
             @unlink($path.'.lock');
             if (is_dir($directory)) {
                 @rmdir($directory);

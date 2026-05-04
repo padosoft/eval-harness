@@ -1475,3 +1475,15 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `eb31478` and generated four actionable comments: command tests left manifest lock files behind, nested adversarial category metric aggregates were normalized but not range-validated, and direct store callers defaulted the manifest name to an old unversioned dataset name.
+- Addressed the second PR #27 review round by cleaning up command-test lock files, validating nested category metric aggregates with the same [0,1] bounds as top-level metrics, deriving the default manifest name from `EvalReport::datasetName`, and adding regression coverage.
+- Targeted validation passed after the second PR #27 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 90 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the second PR #27 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (472 tests, 1200 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

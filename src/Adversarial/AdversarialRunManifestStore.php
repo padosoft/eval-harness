@@ -17,11 +17,12 @@ final class AdversarialRunManifestStore
         string $path,
         EvalReport $report,
         int $maxRuns = 10,
-        string $manifestName = 'adversarial.security',
+        ?string $manifestName = null,
         ?string $runId = null,
     ): AdversarialRunManifest {
         $this->assertPath($path);
         $this->ensureDirectory($path);
+        $manifestName ??= $report->datasetName;
 
         $lock = $this->openLock($path);
         try {

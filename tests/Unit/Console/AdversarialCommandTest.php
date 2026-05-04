@@ -115,6 +115,7 @@ final class AdversarialCommandTest extends TestCase
         } finally {
             @unlink($outputs);
             @unlink($manifest);
+            @unlink($manifest.'.lock');
             @unlink($report);
         }
     }
@@ -146,6 +147,7 @@ final class AdversarialCommandTest extends TestCase
         } finally {
             @unlink($outputs);
             @unlink($manifest);
+            @unlink($manifest.'.lock');
         }
     }
 
