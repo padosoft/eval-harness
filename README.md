@@ -117,6 +117,9 @@ surface small and the offline path fast.
 - **Citation evidence checks** — `citation-groundedness` can score
   simple citation markers or stricter `metadata.citation_evidence`
   spans that require both citation markers and quote text.
+- **Opt-in adversarial seeds** — `AdversarialDatasetFactory` builds
+  safety/regression seed samples for prompt injection, jailbreaks,
+  data leaks, SSRF, tool abuse, and similar red-team categories.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -155,6 +158,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
+| Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -581,6 +585,31 @@ The judge-backed metrics (`llm-as-judge`, `refusal-quality`) share the
 same chat-completions settings. `refusal-quality` requires each sample
 to declare `metadata.refusal_expected: true|false` so safety/refusal
 behavior is explicit in the dataset contract.
+
+Adversarial safety/regression seeds are opt-in. Build and register them
+programmatically when a host app wants a red-team lane:
+
+```php
+use Padosoft\EvalHarness\Adversarial\AdversarialCategory;
+use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+
+$factory = app(AdversarialDatasetFactory::class);
+
+$dataset = $factory->build(categories: [
+    AdversarialCategory::PromptInjection,
+    'pii-leak',
+    'ssrf',
+]);
+
+app(\Padosoft\EvalHarness\EvalEngine::class)->registerDataset($dataset);
+```
+
+The default factory covers 10 categories: prompt injection, jailbreak,
+tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
+competitor endorsement, excessive agency, and hallucination
+overreliance. Samples include `metadata.tags`, `metadata.adversarial`,
+`metadata.refusal_expected`, and `metadata.refusal_policy` so they can be
+scored with `refusal-quality` and grouped in JSON/Markdown reports.
 
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with

@@ -1375,3 +1375,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding runtime normalizer assertions. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1027 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `66b0d2f` and generated no new comments. CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, all PR #23 review threads were resolved, and Macro Task 4 merged into `main` at merge commit `bacd9a4`.
+- Started Macro Task 5 from updated `main` on `task/adversarial-regression`, pushed the macro branch, and created subtask branch `task/adversarial-regression-seeds`.
+- Implemented the first Macro Task 5 slice: opt-in `AdversarialCategory` contracts and `AdversarialDatasetFactory` seed generation for 10 red-team categories with refusal-quality metadata, compliance/tags, multi-input sample shapes, and service-provider binding.
+- Updated README's comparison matrix with an adversarial red-team seed row while keeping explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial seed factory slice:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialDatasetFactoryTest.php tests/Unit/ServiceProviderTest.php` => `OK (18 tests, 97 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the adversarial seed factory slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (448 tests, 1103 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding five adversarial factory tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

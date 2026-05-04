@@ -148,7 +148,7 @@ Branch: `task/adversarial-regression`
 
 Implement:
 
-- Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance.
+- Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance. Initial seed factory implemented through `AdversarialDatasetFactory`.
 - Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt.
 - Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting.
 - Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon.

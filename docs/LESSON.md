@@ -231,3 +231,5 @@
 - Advanced `citation_evidence` metadata should fail closed on partially malformed quote lists. Silently discarding bad `quotes` entries lowers the required evidence count and can hide dataset authoring errors.
 - OpenAI-compatible embedding indexes can arrive as zero-padded digit strings such as `"01"`. Normalize leading zeroes before integer validation so ordering works while still rejecting non-digit or overflow values.
 - Runtime integer normalizers should treat digit-only strings separately before any float fallback. Oversized numeric strings can otherwise pass float validation and cast to `PHP_INT_MAX`, turning bad retry/sleep config into unsafe huge values.
+- Adversarial seed datasets must stay opt-in. A package-level factory can provide stable samples and metadata, but host apps should explicitly register/run them so security tests do not surprise normal eval lanes.
+- Red-team seed samples should carry normal `metadata.tags` plus structured `metadata.adversarial` category/compliance data. That lets existing cohort/report paths group them before the dedicated adversarial command/reporting slices exist.
