@@ -22,6 +22,15 @@ final class AdversarialRegressionGate
     /**
      * @param  list<string>  $metricTargets
      */
+    public function assertConfiguration(float $maxDrop, array $metricTargets = []): void
+    {
+        $this->assertMaxDrop($maxDrop);
+        $this->normalizeMetricTargets($metricTargets);
+    }
+
+    /**
+     * @param  list<string>  $metricTargets
+     */
     public function evaluate(
         AdversarialRunManifestEntry $current,
         ?AdversarialRunManifestEntry $baseline,
@@ -124,12 +133,16 @@ final class AdversarialRegressionGate
             }
 
             $parts = explode(':', $target);
-            if (count($parts) > 2 || $parts[0] === '') {
+            if (count($parts) > 2) {
                 throw new EvalRunException(sprintf("Adversarial regression gate metric target '%s' must use metric or metric:aggregate syntax.", $target));
             }
 
             $metricName = $parts[0];
             $aggregate = $parts[1] ?? 'mean';
+            if ($metricName === '' || $metricName !== trim($metricName) || $aggregate === '' || $aggregate !== trim($aggregate)) {
+                throw new EvalRunException(sprintf("Adversarial regression gate metric target '%s' must use metric or metric:aggregate syntax.", $target));
+            }
+
             if (! isset(self::AGGREGATES[$aggregate])) {
                 throw new EvalRunException(sprintf(
                     "Adversarial regression gate metric target '%s' uses unsupported aggregate '%s'. Supported aggregates: %s.",

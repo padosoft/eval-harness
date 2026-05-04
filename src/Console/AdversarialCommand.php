@@ -9,8 +9,6 @@ use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateCheck;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateResult;
-use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
-use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestEntry;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Console\Concerns\BuildsBatchOptions;
 use Padosoft\EvalHarness\Console\Concerns\DispatchesEvalRegistrars;
@@ -92,7 +90,7 @@ final class AdversarialCommand extends Command
         }
 
         try {
-            $baselineManifest = $this->regressionBaselineManifest($datasetName);
+            $this->validateRegressionGateOptions();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -136,15 +134,13 @@ final class AdversarialCommand extends Command
             return self::FAILURE;
         }
 
-        try {
-            $regressionGate = $this->evaluateRegressionGate($report, $baselineManifest);
-        } catch (EvalHarnessException $e) {
-            $this->error($e->getMessage());
-
-            return self::FAILURE;
-        }
-
-        if (! $this->recordManifest($report)) {
+        $regressionGate = null;
+        if ($this->regressionGateEnabled()) {
+            $regressionGate = $this->recordManifestWithRegressionGate($report);
+            if ($regressionGate === null) {
+                return self::FAILURE;
+            }
+        } elseif (! $this->recordManifest($report)) {
             return self::FAILURE;
         }
 
@@ -155,28 +151,21 @@ final class AdversarialCommand extends Command
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
     }
 
-    private function regressionBaselineManifest(string $datasetName): ?AdversarialRunManifest
+    private function validateRegressionGateOptions(): void
     {
         if (! $this->regressionGateEnabled()) {
-            return null;
+            return;
         }
 
-        $manifestPath = $this->manifestPathForRegressionGate();
-        $this->regressionMaxDropRatio();
+        $this->manifestPathForRegressionGate();
+        $this->positiveIntegerOption('manifest-retain', 10);
 
-        /** @var AdversarialRunManifestStore $store */
-        $store = $this->laravel->make(AdversarialRunManifestStore::class);
-        $manifest = $store->load($manifestPath);
-        if ($manifest !== null && $manifest->name !== $datasetName) {
-            throw new EvalRunException(sprintf(
-                "Adversarial run manifest '%s' belongs to manifest '%s', not '%s'.",
-                $manifestPath,
-                $manifest->name,
-                $datasetName,
-            ));
-        }
-
-        return $manifest;
+        /** @var AdversarialRegressionGate $gate */
+        $gate = $this->laravel->make(AdversarialRegressionGate::class);
+        $gate->assertConfiguration(
+            maxDrop: $this->regressionMaxDropRatio(),
+            metricTargets: $this->stringListOption('regression-metric'),
+        );
     }
 
     private function manifestPathForRegressionGate(): string
@@ -189,20 +178,27 @@ final class AdversarialCommand extends Command
         return $manifestPath;
     }
 
-    private function evaluateRegressionGate(EvalReport $report, ?AdversarialRunManifest $baselineManifest): ?AdversarialRegressionGateResult
+    private function recordManifestWithRegressionGate(EvalReport $report): ?AdversarialRegressionGateResult
     {
-        if (! $this->regressionGateEnabled()) {
+        try {
+            /** @var AdversarialRunManifestStore $store */
+            $store = $this->laravel->make(AdversarialRunManifestStore::class);
+            /** @var AdversarialRegressionGate $gate */
+            $gate = $this->laravel->make(AdversarialRegressionGate::class);
+            $result = $store->recordWithRegressionGate(
+                path: $this->manifestPathForRegressionGate(),
+                report: $report,
+                gate: $gate,
+                maxDrop: $this->regressionMaxDropRatio(),
+                metricTargets: $this->stringListOption('regression-metric'),
+                maxRuns: $this->positiveIntegerOption('manifest-retain', 10),
+                manifestName: $report->datasetName,
+            );
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
             return null;
         }
-
-        /** @var AdversarialRegressionGate $gate */
-        $gate = $this->laravel->make(AdversarialRegressionGate::class);
-        $result = $gate->evaluate(
-            current: AdversarialRunManifestEntry::fromReport($report),
-            baseline: $baselineManifest?->latest(),
-            maxDrop: $this->regressionMaxDropRatio(),
-            metricTargets: $this->stringListOption('regression-metric'),
-        );
 
         $this->writeRegressionGateResult($result);
 

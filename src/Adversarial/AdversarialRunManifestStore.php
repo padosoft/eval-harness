@@ -55,6 +55,58 @@ final class AdversarialRunManifestStore
         return $manifest;
     }
 
+    /**
+     * @param  list<string>  $metricTargets
+     */
+    public function recordWithRegressionGate(
+        string $path,
+        EvalReport $report,
+        AdversarialRegressionGate $gate,
+        float $maxDrop,
+        array $metricTargets = [],
+        int $maxRuns = 10,
+        ?string $manifestName = null,
+        ?string $runId = null,
+    ): AdversarialRegressionGateResult {
+        $this->assertPath($path);
+        $this->ensureDirectory($path);
+        $manifestName ??= $report->datasetName;
+        $gate->assertConfiguration($maxDrop, $metricTargets);
+
+        $lock = $this->openLock($path);
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new EvalRunException(sprintf("Failed to lock adversarial run manifest '%s'.", $path));
+            }
+
+            $manifest = $this->load($path);
+            if ($manifest !== null && $manifest->name !== $manifestName) {
+                throw new EvalRunException(sprintf(
+                    "Adversarial run manifest '%s' belongs to manifest '%s', not '%s'.",
+                    $path,
+                    $manifest->name,
+                    $manifestName,
+                ));
+            }
+
+            $manifest ??= AdversarialRunManifest::empty($manifestName);
+            $entry = AdversarialRunManifestEntry::fromReport($report, $runId);
+            $result = $gate->evaluate(
+                current: $entry,
+                baseline: $manifest->latest(),
+                maxDrop: $maxDrop,
+                metricTargets: $metricTargets,
+            );
+
+            $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+
+        return $result;
+    }
+
     public function load(string $path): ?AdversarialRunManifest
     {
         $this->assertPath($path);

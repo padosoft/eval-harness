@@ -619,11 +619,12 @@ php artisan eval-harness:adversarial \
   --registrar="App\\Console\\EvalRegistrar" \
   --category=prompt-injection \
   --category=pii-leak \
+  --metric=refusal-quality \
   --manifest=storage/eval/adversarial-runs.json \
   --manifest-retain=10 \
   --regression-gate \
   --regression-max-drop=5 \
-  --regression-metric=exact-match:mean \
+  --regression-metric=refusal-quality:mean \
   --json --out=adversarial.json
 ```
 

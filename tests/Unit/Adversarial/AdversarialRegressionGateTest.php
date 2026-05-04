@@ -101,6 +101,54 @@ final class AdversarialRegressionGateTest extends TestCase
         );
     }
 
+    public function test_rejects_metric_target_with_inner_whitespace(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must use metric or metric:aggregate syntax');
+
+        (new AdversarialRegressionGate)->assertConfiguration(
+            maxDrop: 0.05,
+            metricTargets: ['exact-match :mean'],
+        );
+    }
+
+    public function test_check_rejects_status_that_contradicts_scores(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('status does not match the configured max_drop');
+
+        new AdversarialRegressionGateCheck(
+            target: 'macro_f1',
+            baselineScore: 1.0,
+            currentScore: 0.80,
+            drop: 0.20,
+            maxDrop: 0.05,
+            status: AdversarialRegressionGateCheck::STATUS_PASS,
+        );
+    }
+
+    public function test_result_rejects_status_that_contradicts_checks(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('pass results cannot contain failing checks');
+
+        new AdversarialRegressionGateResult(
+            status: AdversarialRegressionGateResult::STATUS_PASS,
+            currentRunId: 'current',
+            baselineRunId: 'baseline',
+            checks: [
+                new AdversarialRegressionGateCheck(
+                    target: 'macro_f1',
+                    baselineScore: 1.0,
+                    currentScore: 0.80,
+                    drop: 0.20,
+                    maxDrop: 0.05,
+                    status: AdversarialRegressionGateCheck::STATUS_FAIL,
+                ),
+            ],
+        );
+    }
+
     /**
      * @param  array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>|null  $metrics
      */

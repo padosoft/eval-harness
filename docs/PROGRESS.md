@@ -1527,3 +1527,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding regression gate tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 at head `091231e` and generated nine actionable comments:
+  - gate/check DTO statuses needed to reject contradictory payloads,
+  - the README example configured an `exact-match` regression metric without enabling that metric,
+  - the roadmap command note omitted the required `--manifest=<path>`,
+  - baseline comparison and manifest recording needed to happen under the same manifest lock,
+  - malformed `--regression-metric` values needed fail-fast CLI validation and command-level coverage,
+  - docs needed to say percentage points rather than relative percent.
+- Addressed the PR #28 review comments by validating DTO status consistency, adding fail-fast metric target parsing, moving regression gate compare+record into `AdversarialRunManifestStore::recordWithRegressionGate()` under the manifest lock, fixing README/roadmap wording, and adding command/store/DTO regression coverage.
+- Targeted validation passed after the PR #28 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (50 tests, 156 assertions)`
+- Full local gate passed after the PR #28 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (490 tests, 1266 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the PR #28 review fixes. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

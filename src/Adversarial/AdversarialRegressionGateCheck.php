@@ -54,8 +54,30 @@ final class AdversarialRegressionGateCheck
             throw new EvalRunException(sprintf("Unsupported adversarial regression gate check status '%s'.", $status));
         }
 
-        if ($status !== self::STATUS_MISSING_VALUE && ($baselineScore === null || $currentScore === null || $drop === null)) {
+        if ($status === self::STATUS_MISSING_VALUE) {
+            if ($baselineScore !== null && $currentScore !== null) {
+                throw new EvalRunException('Adversarial regression gate missing-value checks require a missing baseline or current score.');
+            }
+
+            if ($drop !== null) {
+                throw new EvalRunException('Adversarial regression gate missing-value checks cannot include a score drop.');
+            }
+
+            return;
+        }
+
+        if ($baselineScore === null || $currentScore === null || $drop === null) {
             throw new EvalRunException('Adversarial regression gate pass/fail checks require baseline, current, and drop scores.');
+        }
+
+        $expectedDrop = max(0.0, $baselineScore - $currentScore);
+        if (abs($drop - $expectedDrop) > 0.000000001) {
+            throw new EvalRunException('Adversarial regression gate check drop must match baseline_score minus current_score.');
+        }
+
+        $shouldFail = $drop > $maxDrop + 0.000000001;
+        if (($status === self::STATUS_FAIL) !== $shouldFail) {
+            throw new EvalRunException('Adversarial regression gate check status does not match the configured max_drop.');
         }
     }
 

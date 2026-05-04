@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Adversarial;
 
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateResult;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestEntry;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
@@ -185,6 +187,46 @@ final class AdversarialRunManifestTest extends TestCase
             $manifest = (new AdversarialRunManifestStore)->record($path, $this->report('versioned.dataset', 1.0, 2.0), runId: 'run-1');
 
             $this->assertSame('versioned.dataset', $manifest->name);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_records_with_regression_gate_against_latest_locked_manifest(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $missing = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                runId: 'run-baseline',
+            );
+            $failed = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 0.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 2,
+                runId: 'run-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $missing->status);
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $failed->status);
+            $this->assertSame('run-baseline', $failed->baselineRunId);
+            $this->assertSame(['run-current', 'run-baseline'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
         } finally {
             @unlink($path);
             @unlink($path.'.lock');
