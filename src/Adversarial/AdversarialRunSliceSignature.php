@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Adversarial;
 
+use Padosoft\EvalHarness\Reports\EvalReport;
+
 /**
  * Builds the compatibility key shared by baseline lookup and retention.
  *
@@ -13,32 +15,53 @@ final class AdversarialRunSliceSignature
 {
     public static function fromEntry(AdversarialRunManifestEntry $entry): string
     {
-        return serialize([
-            'report_schema_version' => $entry->reportSchemaVersion,
-            'dataset' => $entry->datasetName,
-            'metrics' => self::metricSignature($entry),
-            'adversarial' => self::adversarialSliceSignature($entry),
-        ]);
+        return serialize(self::components(
+            reportSchemaVersion: $entry->reportSchemaVersion,
+            datasetName: $entry->datasetName,
+            metricNames: array_keys($entry->metrics),
+            adversarial: $entry->adversarial,
+        ));
     }
 
-    /**
-     * @return list<string>
-     */
-    private static function metricSignature(AdversarialRunManifestEntry $entry): array
+    public static function fromReport(EvalReport $report): string
     {
-        $names = array_keys($entry->metrics);
-        sort($names);
-
-        return $names;
+        return serialize(self::components(
+            reportSchemaVersion: $report->schemaVersion,
+            datasetName: $report->datasetName,
+            metricNames: $report->metricNames(),
+            adversarial: $report->adversarialSummary(),
+        ));
     }
 
     /**
+     * @param  list<string>  $metricNames
+     * @param  array<string, mixed>  $adversarial
+     * @return array{report_schema_version: string, dataset: string, metrics: list<string>, adversarial: array{total_samples: int, categories: list<array{category: string, sample_count: int}>}}
+     */
+    private static function components(
+        string $reportSchemaVersion,
+        string $datasetName,
+        array $metricNames,
+        array $adversarial,
+    ): array {
+        sort($metricNames, SORT_STRING);
+
+        return [
+            'report_schema_version' => $reportSchemaVersion,
+            'dataset' => $datasetName,
+            'metrics' => $metricNames,
+            'adversarial' => self::adversarialSliceSignature($adversarial),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $adversarial
      * @return array{total_samples: int, categories: list<array{category: string, sample_count: int}>}
      */
-    private static function adversarialSliceSignature(AdversarialRunManifestEntry $entry): array
+    private static function adversarialSliceSignature(array $adversarial): array
     {
         $categories = [];
-        $rawCategories = $entry->adversarial['categories'] ?? [];
+        $rawCategories = $adversarial['categories'] ?? [];
         if (is_array($rawCategories) && array_is_list($rawCategories)) {
             foreach ($rawCategories as $category) {
                 if (! is_array($category)) {
@@ -68,7 +91,7 @@ final class AdversarialRunSliceSignature
             },
         );
 
-        $totalSamples = $entry->adversarial['total_samples'] ?? 0;
+        $totalSamples = $adversarial['total_samples'] ?? 0;
 
         return [
             'total_samples' => is_int($totalSamples) ? $totalSamples : 0,

@@ -145,12 +145,12 @@ final class AdversarialRunManifestEntry
 
     private static function defaultRunId(EvalReport $report): string
     {
-        return hash('sha256', implode('|', [
-            $report->datasetName,
-            self::formatFloatForRunId($report->startedAt),
-            self::formatFloatForRunId($report->finishedAt),
-            (string) $report->totalSamples(),
-            (string) $report->totalFailures(),
+        return hash('sha256', serialize([
+            'slice_signature' => AdversarialRunSliceSignature::fromReport($report),
+            'started_at' => self::formatFloatForRunId($report->startedAt),
+            'finished_at' => self::formatFloatForRunId($report->finishedAt),
+            'total_samples' => $report->totalSamples(),
+            'total_failures' => $report->totalFailures(),
         ]));
     }
 

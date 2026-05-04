@@ -41,7 +41,7 @@ trait BuildsBatchOptions
     private function nullablePositiveIntegerOption(string $name): ?int
     {
         $value = $this->option($name);
-        if ($value === null) {
+        if ($value === null || $value === '') {
             return null;
         }
 

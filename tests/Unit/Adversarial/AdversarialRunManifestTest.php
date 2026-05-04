@@ -43,13 +43,59 @@ final class AdversarialRunManifestTest extends TestCase
         $report = $this->report('run.dataset', 1.1234567, 2.7654321, 1.0);
         $entry = AdversarialRunManifestEntry::fromReport($report);
 
-        $this->assertSame(hash('sha256', implode('|', [
-            'run.dataset',
-            '1.123457',
-            '2.765432',
-            '1',
-            '0',
+        $this->assertSame(hash('sha256', serialize([
+            'slice_signature' => serialize([
+                'report_schema_version' => 'eval-harness.report.v1',
+                'dataset' => 'run.dataset',
+                'metrics' => ['exact-match'],
+                'adversarial' => [
+                    'total_samples' => 1,
+                    'categories' => [
+                        [
+                            'category' => 'prompt-injection',
+                            'sample_count' => 1,
+                        ],
+                    ],
+                ],
+            ]),
+            'started_at' => '1.123457',
+            'finished_at' => '2.765432',
+            'total_samples' => 1,
+            'total_failures' => 0,
         ])), $entry->runId);
+    }
+
+    public function test_slice_signature_matches_reports_and_entries(): void
+    {
+        $report = $this->report('run.dataset', 1.0, 2.0, category: 'prompt-injection');
+        $entry = AdversarialRunManifestEntry::fromReport($report);
+
+        $this->assertSame(
+            AdversarialRunSliceSignature::fromEntry($entry),
+            AdversarialRunSliceSignature::fromReport($report),
+        );
+    }
+
+    public function test_entry_default_run_id_distinguishes_shared_manifest_slices(): void
+    {
+        $prompt = AdversarialRunManifestEntry::fromReport(
+            $this->report('run.dataset', 1.0, 2.0, category: 'prompt-injection', metricName: 'exact-match'),
+        );
+        $ssrf = AdversarialRunManifestEntry::fromReport(
+            $this->report('run.dataset', 1.0, 2.0, category: 'ssrf', metricName: 'exact-match'),
+        );
+        $rouge = AdversarialRunManifestEntry::fromReport(
+            $this->report('run.dataset', 1.0, 2.0, category: 'prompt-injection', metricName: 'rouge-l'),
+        );
+
+        $this->assertCount(3, array_unique([$prompt->runId, $ssrf->runId, $rouge->runId]));
+
+        $manifest = AdversarialRunManifest::empty('shared.adversarial', 1.0)
+            ->record($prompt, maxRuns: 3)
+            ->record($ssrf, maxRuns: 3)
+            ->record($rouge, maxRuns: 3);
+
+        $this->assertCount(3, $manifest->runs);
     }
 
     public function test_entry_allows_metric_failure_count_above_sample_count(): void

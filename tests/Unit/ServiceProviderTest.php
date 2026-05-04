@@ -77,9 +77,15 @@ final class ServiceProviderTest extends TestCase
         $this->assertInstanceOf(AdversarialRunManifestStore::class, $this->app->make(AdversarialRunManifestStore::class));
     }
 
-    public function test_adversarial_regression_gate_is_bound(): void
+    public function test_adversarial_regression_gate_is_an_explicit_singleton(): void
     {
-        $this->assertInstanceOf(AdversarialRegressionGate::class, $this->app->make(AdversarialRegressionGate::class));
+        $this->assertTrue($this->app->bound(AdversarialRegressionGate::class));
+
+        $first = $this->app->make(AdversarialRegressionGate::class);
+        $second = $this->app->make(AdversarialRegressionGate::class);
+
+        $this->assertInstanceOf(AdversarialRegressionGate::class, $first);
+        $this->assertSame($first, $second, 'AdversarialRegressionGate must be a container singleton so gate policy stays stable across command/store resolution.');
     }
 
     public function test_config_is_merged(): void
