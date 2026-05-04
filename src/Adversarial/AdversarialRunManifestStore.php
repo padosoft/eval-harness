@@ -21,6 +21,7 @@ final class AdversarialRunManifestStore
         ?string $runId = null,
     ): AdversarialRunManifest {
         $this->assertPath($path);
+        $this->assertRetention($maxRuns);
         $this->ensureDirectory($path);
         $manifestName ??= $report->datasetName;
 
@@ -69,10 +70,10 @@ final class AdversarialRunManifestStore
         ?string $runId = null,
     ): AdversarialRegressionGateResult {
         $this->assertPath($path);
-        $this->ensureDirectory($path);
         $manifestName ??= $report->datasetName;
         $gate->assertConfiguration($maxDrop, $metricTargets);
         $this->assertRetention($maxRuns);
+        $this->ensureDirectory($path);
 
         $lock = $this->openLock($path);
         try {
@@ -101,13 +102,15 @@ final class AdversarialRunManifestStore
 
             if ($this->shouldRecordRegressionGateResult($entry, $result)) {
                 $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
+
+                return $this->withRecordingStatus($result, recorded: true);
             }
+
+            return $result;
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
         }
-
-        return $result;
     }
 
     public function load(string $path): ?AdversarialRunManifest
@@ -277,6 +280,19 @@ final class AdversarialRunManifestStore
         }
 
         return true;
+    }
+
+    private function withRecordingStatus(
+        AdversarialRegressionGateResult $result,
+        bool $recorded,
+    ): AdversarialRegressionGateResult {
+        return new AdversarialRegressionGateResult(
+            status: $result->status,
+            currentRunId: $result->currentRunId,
+            baselineRunId: $result->baselineRunId,
+            checks: $result->checks,
+            recorded: $recorded,
+        );
     }
 
     private function assertRetention(int $maxRuns): void

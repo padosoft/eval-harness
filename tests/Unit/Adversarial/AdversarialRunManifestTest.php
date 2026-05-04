@@ -221,7 +221,10 @@ final class AdversarialRunManifestTest extends TestCase
             );
 
             $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $missing->status);
+            $this->assertTrue($missing->recorded);
+            $this->assertTrue($missing->toJson()['recorded']);
             $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $failed->status);
+            $this->assertFalse($failed->recorded);
             $this->assertSame('run-baseline', $failed->baselineRunId);
             $this->assertSame(['run-baseline'], array_map(
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
@@ -242,18 +245,22 @@ final class AdversarialRunManifestTest extends TestCase
         $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
 
         try {
-            $this->expectException(EvalRunException::class);
-            $this->expectExceptionMessage('retention must keep at least one run');
+            try {
+                (new AdversarialRunManifestStore)->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0, 1.0, metricName: 'rouge-l'),
+                    gate: new AdversarialRegressionGate,
+                    maxDrop: 0.05,
+                    metricTargets: ['exact-match:mean'],
+                    maxRuns: 0,
+                    runId: 'run-missing-metric',
+                );
 
-            (new AdversarialRunManifestStore)->recordWithRegressionGate(
-                path: $path,
-                report: $this->report('run.dataset', 1.0, 2.0, 1.0, metricName: 'rouge-l'),
-                gate: new AdversarialRegressionGate,
-                maxDrop: 0.05,
-                metricTargets: ['exact-match:mean'],
-                maxRuns: 0,
-                runId: 'run-missing-metric',
-            );
+                $this->fail('Expected invalid retention to fail before creating the manifest directory.');
+            } catch (EvalRunException $e) {
+                $this->assertStringContainsString('retention must keep at least one run', $e->getMessage());
+                $this->assertDirectoryDoesNotExist($directory);
+            }
         } finally {
             @unlink($path);
             @unlink($path.'.lock');
@@ -261,6 +268,38 @@ final class AdversarialRunManifestTest extends TestCase
                 @rmdir($directory);
             }
         }
+    }
+
+    public function test_store_rejects_invalid_regression_gate_configuration_before_creating_directory(): void
+    {
+        $store = new AdversarialRunManifestStore;
+
+        $this->assertGatedStoreCallRejectsBeforeCreatingDirectory(
+            function (string $path) use ($store): void {
+                $store->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0),
+                    gate: new AdversarialRegressionGate,
+                    maxDrop: 1.1,
+                    runId: 'run-invalid-drop',
+                );
+            },
+            'max drop must be a finite ratio in [0, 1]',
+        );
+
+        $this->assertGatedStoreCallRejectsBeforeCreatingDirectory(
+            function (string $path) use ($store): void {
+                $store->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0),
+                    gate: new AdversarialRegressionGate,
+                    maxDrop: 0.05,
+                    metricTargets: ['exact-match :mean'],
+                    runId: 'run-invalid-target',
+                );
+            },
+            "metric target 'exact-match :mean' must use metric or metric:aggregate syntax",
+        );
     }
 
     public function test_store_skips_incompatible_latest_regression_baseline(): void
@@ -372,6 +411,7 @@ final class AdversarialRunManifestTest extends TestCase
             );
 
             $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertFalse($result->recorded);
             $this->assertFileDoesNotExist($path);
         } finally {
             @unlink($path);
@@ -400,6 +440,7 @@ final class AdversarialRunManifestTest extends TestCase
             );
 
             $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertFalse($result->recorded);
             $this->assertFileDoesNotExist($path);
         } finally {
             @unlink($path);
@@ -474,6 +515,43 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_rejects_manifest_name_mismatch_for_regression_gate_writes(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record($path, $this->report('first.dataset', 1.0, 2.0), manifestName: 'first.dataset', runId: 'run-1');
+
+            try {
+                $store->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('second.dataset', 2.0, 3.0),
+                    gate: new AdversarialRegressionGate,
+                    maxDrop: 0.05,
+                    manifestName: 'second.dataset',
+                    runId: 'run-2',
+                );
+
+                $this->fail('Expected manifest-name mismatch to fail for gated writes.');
+            } catch (EvalRunException $e) {
+                $this->assertStringContainsString("belongs to manifest 'first.dataset', not 'second.dataset'", $e->getMessage());
+            }
+
+            $this->assertSame(['run-1'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_invalid_json(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'eval-adv-manifest-');
@@ -489,6 +567,32 @@ final class AdversarialRunManifestTest extends TestCase
         } finally {
             @unlink($path);
             @unlink($path.'.lock');
+        }
+    }
+
+    /**
+     * @param  callable(string): void  $call
+     */
+    private function assertGatedStoreCallRejectsBeforeCreatingDirectory(callable $call, string $expectedMessage): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+
+        try {
+            try {
+                $call($path);
+
+                $this->fail('Expected invalid gate configuration to fail before creating the manifest directory.');
+            } catch (EvalRunException $e) {
+                $this->assertStringContainsString($expectedMessage, $e->getMessage());
+                $this->assertDirectoryDoesNotExist($directory);
+            }
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
         }
     }
 

@@ -45,7 +45,7 @@ final class AdversarialCommand extends Command
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--manifest= : JSON manifest path to update with this adversarial run summary}
         {--manifest-retain=10 : Maximum number of adversarial runs to retain when --manifest is used}
-        {--regression-gate : Compare this run with the latest existing --manifest baseline and fail on score drops}
+        {--regression-gate : Compare this run with the latest compatible failure-free --manifest baseline and fail on score drops}
         {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
@@ -236,7 +236,7 @@ final class AdversarialCommand extends Command
     private function writeRegressionGateResult(AdversarialRegressionGateResult $result, EvalReport $report): void
     {
         if ($result->missingBaseline()) {
-            if ($report->totalFailures() > 0) {
+            if (! $result->recorded) {
                 $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run has metric failures and was not recorded for future comparisons.');
 
                 return;
@@ -248,7 +248,7 @@ final class AdversarialCommand extends Command
         }
 
         if (! $result->failed()) {
-            if ($report->totalFailures() > 0) {
+            if (! $result->recorded) {
                 $this->writeRegressionDiagnostic('Adversarial regression gate: pass - score checks passed, but current run has metric failures and was not recorded for future comparisons.');
 
                 return;

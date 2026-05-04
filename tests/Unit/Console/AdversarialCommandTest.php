@@ -10,6 +10,13 @@ use Padosoft\EvalHarness\Tests\TestCase;
 
 final class AdversarialCommandTest extends TestCase
 {
+    public function test_adversarial_command_help_mentions_compatible_regression_baseline(): void
+    {
+        $this->artisan('help', ['command_name' => 'eval-harness:adversarial'])
+            ->expectsOutputToContain('Compare this run with the latest compatible failure-free --manifest baseline and fail on score drops')
+            ->assertExitCode(0);
+    }
+
     public function test_scores_selected_adversarial_category_saved_outputs_without_sut(): void
     {
         $sample = $this->adversarialSample('prompt-injection');

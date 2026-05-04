@@ -1636,3 +1636,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the seventh PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `f7c32e0` and generated four actionable comments:
+  - the gated manifest path needed test coverage for manifest-name mismatch protection,
+  - command help needed to say the gate compares against the latest compatible failure-free baseline,
+  - regression gate results needed to expose whether the current run was recorded,
+  - gated store validation should reject invalid options before creating manifest directories.
+- Addressed the eighth PR #28 review round by adding `AdversarialRegressionGateResult::$recorded` plus JSON serialization, returning recorded status from `recordWithRegressionGate()`, moving gated store validation before directory setup, updating the command help text, adding store/command/DTO coverage, and recording the persistence/validation lessons.
+- Targeted validation passed after the eighth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (69 tests, 227 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the eighth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (509 tests, 1337 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the eighth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

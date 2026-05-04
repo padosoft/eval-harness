@@ -31,6 +31,7 @@ final class AdversarialRegressionGateResult
         public readonly string $currentRunId,
         public readonly ?string $baselineRunId,
         public readonly array $checks,
+        public readonly bool $recorded = false,
     ) {
         if (! isset(self::STATUSES[$status])) {
             throw new EvalRunException(sprintf("Unsupported adversarial regression gate status '%s'.", $status));
@@ -71,6 +72,10 @@ final class AdversarialRegressionGateResult
             throw new EvalRunException('Adversarial regression gate fail results require at least one check.');
         }
 
+        if ($recorded && $status === self::STATUS_FAIL) {
+            throw new EvalRunException('Adversarial regression gate failed results cannot be marked as recorded.');
+        }
+
         $hasFailedCheck = false;
         foreach ($checks as $check) {
             if ($check->failed()) {
@@ -104,7 +109,7 @@ final class AdversarialRegressionGateResult
     }
 
     /**
-     * @return array{status: string, current_run_id: string, baseline_run_id: string|null, checks: list<array{target: string, baseline_score: float|null, current_score: float|null, drop: float|null, max_drop: float, status: string}>}
+     * @return array{status: string, current_run_id: string, baseline_run_id: string|null, recorded: bool, checks: list<array{target: string, baseline_score: float|null, current_score: float|null, drop: float|null, max_drop: float, status: string}>}
      */
     public function toJson(): array
     {
@@ -112,6 +117,7 @@ final class AdversarialRegressionGateResult
             'status' => $this->status,
             'current_run_id' => $this->currentRunId,
             'baseline_run_id' => $this->baselineRunId,
+            'recorded' => $this->recorded,
             'checks' => array_map(
                 static fn (AdversarialRegressionGateCheck $check): array => $check->toJson(),
                 $this->checks,
