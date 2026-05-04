@@ -1355,3 +1355,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding four review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `441 tests, 1021 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `f2081ac` and generated two actionable comments: `metadata.citation_evidence[].quotes` entries should fail closed when malformed instead of being silently discarded, and embedding response indexes should normalize zero-padded digit strings such as `"01"`.
+- Addressed those comments by validating every alternate quote as a non-empty string, rejecting malformed `quotes` containers, normalizing leading zeroes before embedding index integer validation, and adding regression coverage for both paths.
+- Targeted validation passed after the citation/zero-padded-index review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/CitationGroundednessMetricTest.php tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php` => `OK (27 tests, 71 assertions)`
+- Full local gate passed after the citation/zero-padded-index review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (443 tests, 1024 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1024 assertions` before re-requesting Copilot.

@@ -203,17 +203,46 @@ final class CitationGroundednessMetric implements Metric
     private function quotesFor(DatasetSample $sample, array $span, int $index): array
     {
         $quotes = [];
-        $single = $span['quote'] ?? null;
-        if (is_string($single) && trim($single) !== '') {
+        if (array_key_exists('quote', $span)) {
+            $single = $span['quote'];
+            if (! is_string($single) || trim($single) === '') {
+                throw new MetricException(
+                    sprintf(
+                        "Sample '%s' metadata.citation_evidence[%d].quote must be a non-empty string.",
+                        $sample->id,
+                        $index,
+                    ),
+                );
+            }
+
             $quotes[] = trim($single);
         }
 
-        $many = $span['quotes'] ?? null;
-        if (is_array($many)) {
-            foreach ($many as $quote) {
-                if (is_string($quote) && trim($quote) !== '') {
-                    $quotes[] = trim($quote);
+        if (array_key_exists('quotes', $span)) {
+            $many = $span['quotes'];
+            if (! is_array($many) || ! array_is_list($many)) {
+                throw new MetricException(
+                    sprintf(
+                        "Sample '%s' metadata.citation_evidence[%d].quotes must be a list of non-empty strings.",
+                        $sample->id,
+                        $index,
+                    ),
+                );
+            }
+
+            foreach ($many as $quoteIndex => $quote) {
+                if (! is_string($quote) || trim($quote) === '') {
+                    throw new MetricException(
+                        sprintf(
+                            "Sample '%s' metadata.citation_evidence[%d].quotes[%d] must be a non-empty string.",
+                            $sample->id,
+                            $index,
+                            $quoteIndex,
+                        ),
+                    );
                 }
+
+                $quotes[] = trim($quote);
             }
         }
 

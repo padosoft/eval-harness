@@ -190,6 +190,11 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient, Provides
             return null;
         }
 
+        $index = ltrim($index, '0');
+        if ($index === '') {
+            $index = '0';
+        }
+
         $filtered = filter_var(
             $index,
             FILTER_VALIDATE_INT,

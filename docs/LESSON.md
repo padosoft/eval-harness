@@ -228,3 +228,5 @@
 - `bertscore-like` uses context-free token embeddings, so duplicate normalized tokens should be embedded once per sample and then reused per occurrence. Re-embedding repeated tokens only adds provider cost and latency without changing the score.
 - Built-in provider clients should not synthesize wall-clock `latency_ms` into usage details. Local measured latency makes otherwise identical reports change on every run; only propagate explicit provider/custom-client latency fields.
 - Provider and judge exception messages are serialized into report failures. Do not include raw HTTP bodies or raw malformed judge responses in those messages because providers and models can echo prompts, sample inputs, or policy text.
+- Advanced `citation_evidence` metadata should fail closed on partially malformed quote lists. Silently discarding bad `quotes` entries lowers the required evidence count and can hide dataset authoring errors.
+- OpenAI-compatible embedding indexes can arrive as zero-padded digit strings such as `"01"`. Normalize leading zeroes before integer validation so ordering works while still rejecting non-digit or overflow values.

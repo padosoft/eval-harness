@@ -180,6 +180,23 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $this->assertSame([[1.0, 0.0], [0.0, 2.5]], $client->embedMany(['first', 'second']));
     }
 
+    public function test_zero_padded_digit_string_indexes_are_normalized_before_ordering(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['index' => '01', 'embedding' => [0, '2.5']],
+                    ['index' => '00', 'embedding' => [1, 0]],
+                ],
+            ]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->assertSame([[1.0, 0.0], [0.0, 2.5]], $client->embedMany(['first', 'second']));
+    }
+
     public function test_invalid_response_index_throws_metric_exception(): void
     {
         Http::fake([

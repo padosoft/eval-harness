@@ -161,6 +161,29 @@ final class CitationGroundednessMetricTest extends TestCase
         $this->assertSame(1.0, $score->score);
     }
 
+    public function test_evidence_quotes_list_rejects_non_string_entries(): void
+    {
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('metadata.citation_evidence[0].quotes[1] must be a non-empty string');
+
+        (new CitationGroundednessMetric)->score(
+            new DatasetSample(
+                id: 's1',
+                input: [],
+                expectedOutput: 'unused',
+                metadata: [
+                    'citation_evidence' => [
+                        [
+                            'citation' => '[policy]',
+                            'quotes' => ['valid quote', 123],
+                        ],
+                    ],
+                ],
+            ),
+            'valid quote [policy]',
+        );
+    }
+
     public function test_empty_evidence_list_throws(): void
     {
         $this->expectException(MetricException::class);
