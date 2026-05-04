@@ -183,7 +183,7 @@ final class AdversarialCommandTest extends TestCase
                 '--outputs' => $outputs,
                 '--regression-gate' => true,
             ])
-                ->expectsOutputToContain('The --regression-gate option requires --manifest=<path>')
+                ->expectsOutputToContain('The --regression-gate option requires --manifest=<path> so the current run can compare with or seed a compatible baseline.')
                 ->assertExitCode(1);
         } finally {
             @unlink($outputs);

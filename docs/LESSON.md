@@ -261,3 +261,5 @@
 - Manifest baseline lookup should choose the newest compatible candidate by timestamps, not the first serialized array entry. Direct callers can `save()` or edit JSON with out-of-order runs, and lookup must not depend on constructor input order.
 - Command option preflight that can fail before eval should run before adversarial dataset registration. Even a failed command can mutate the singleton `EvalEngine` in a reused process if validation happens after `registerDataset()`.
 - Command tests for regression gates should assert operator-facing diagnostics as well as exit codes and manifest contents, especially score-drop failure summaries and stderr/stdout routing.
+- Compatibility signatures should normalize duplicate category summaries with a deterministic secondary key such as `sample_count`. `usort()` with only the category name can leave same-name duplicates order-dependent and make equivalent manifest slices hash differently.
+- `--regression-gate` manifest guidance should mention first-run seeding as well as comparisons. A manifest is required even when there is no previous baseline because the current clean run can become the first compatible baseline.

@@ -9,6 +9,7 @@ use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateResult;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestEntry;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunSliceSignature;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Metrics\MetricScore;
@@ -705,6 +706,31 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_slice_signature_normalizes_duplicate_categories_by_sample_count(): void
+    {
+        $first = $this->entryWithAdversarialCategories(
+            report: $this->report('run.dataset', 1.0, 2.0, 1.0, category: 'ssrf', sampleCount: 3),
+            runId: 'run-first-order',
+            categories: [
+                $this->categorySummary('ssrf', 2),
+                $this->categorySummary('ssrf', 1),
+            ],
+        );
+        $second = $this->entryWithAdversarialCategories(
+            report: $this->report('run.dataset', 3.0, 4.0, 1.0, category: 'ssrf', sampleCount: 3),
+            runId: 'run-second-order',
+            categories: [
+                $this->categorySummary('ssrf', 1),
+                $this->categorySummary('ssrf', 2),
+            ],
+        );
+
+        $this->assertSame(
+            AdversarialRunSliceSignature::fromEntry($first),
+            AdversarialRunSliceSignature::fromEntry($second),
+        );
+    }
+
     public function test_store_does_not_record_regression_gate_run_when_configured_metric_is_missing(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -1180,6 +1206,45 @@ final class AdversarialRunManifestTest extends TestCase
         $payload['report_schema_version'] = $reportSchemaVersion;
 
         return AdversarialRunManifestEntry::fromJson($payload);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $categories
+     */
+    private function entryWithAdversarialCategories(
+        EvalReport $report,
+        string $runId,
+        array $categories,
+    ): AdversarialRunManifestEntry {
+        $payload = AdversarialRunManifestEntry::fromReport($report, $runId)->toJson();
+        $adversarial = $payload['adversarial'];
+        $this->assertIsArray($adversarial);
+        $adversarial['categories'] = $categories;
+        $payload['adversarial'] = $adversarial;
+
+        return AdversarialRunManifestEntry::fromJson($payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function categorySummary(string $category, int $sampleCount): array
+    {
+        return [
+            'category' => $category,
+            'label' => $category,
+            'severity' => 'high',
+            'sample_count' => $sampleCount,
+            'compliance_frameworks' => ['OWASP LLM'],
+            'metrics' => [
+                'exact-match' => [
+                    'mean' => 1.0,
+                    'p50' => 1.0,
+                    'p95' => 1.0,
+                    'pass_rate' => 1.0,
+                ],
+            ],
+        ];
     }
 
     private function sample(string $category = 'prompt-injection', ?string $id = null): DatasetSample

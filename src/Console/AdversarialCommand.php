@@ -178,7 +178,7 @@ final class AdversarialCommand extends Command
             return;
         }
 
-        $this->manifestPathForRegressionGate();
+        $this->manifestPathOption(required: true);
         $this->positiveIntegerOption('manifest-retain', 10);
 
         /** @var AdversarialRegressionGate $gate */
@@ -189,22 +189,15 @@ final class AdversarialCommand extends Command
         );
     }
 
-    private function manifestPathForRegressionGate(): string
-    {
-        $manifestPath = $this->manifestPathOption(required: true);
-        if ($manifestPath === null) {
-            throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
-        }
-
-        return $manifestPath;
-    }
-
+    /**
+     * @return ($required is true ? string : ?string)
+     */
     private function manifestPathOption(bool $required): ?string
     {
         $manifestPath = $this->option('manifest');
         if ($manifestPath === null || ($required && $manifestPath === '')) {
             if ($required) {
-                throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
+                throw new EvalRunException('The --regression-gate option requires --manifest=<path> so the current run can compare with or seed a compatible baseline.');
             }
 
             return null;
@@ -225,7 +218,7 @@ final class AdversarialCommand extends Command
             /** @var AdversarialRegressionGate $gate */
             $gate = $this->laravel->make(AdversarialRegressionGate::class);
             $result = $store->recordWithRegressionGate(
-                path: $this->manifestPathForRegressionGate(),
+                path: $this->manifestPathOption(required: true),
                 report: $report,
                 gate: $gate,
                 maxDrop: $this->regressionMaxDropRatio(),

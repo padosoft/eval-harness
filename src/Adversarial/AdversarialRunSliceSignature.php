@@ -58,7 +58,14 @@ final class AdversarialRunSliceSignature
 
         usort(
             $categories,
-            static fn (array $left, array $right): int => strcmp($left['category'], $right['category']),
+            static function (array $left, array $right): int {
+                $byCategory = strcmp($left['category'], $right['category']);
+                if ($byCategory !== 0) {
+                    return $byCategory;
+                }
+
+                return $left['sample_count'] <=> $right['sample_count'];
+            },
         );
 
         $totalSamples = $entry->adversarial['total_samples'] ?? 0;
