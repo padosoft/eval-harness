@@ -1487,3 +1487,15 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `e67170b` and generated two actionable comments: `macro_f1` needed an upper bound and manifest rehydration needed full validation for the normalized adversarial category/framework shapes.
+- Addressed the third PR #27 review round by bounding `macro_f1` to `[0, 1]`, validating category fields (`category`, `label`, nullable `severity`, `sample_count`, `compliance_frameworks`, `metrics`), validating compliance framework entries, and adding tampered-manifest regression coverage.
+- Targeted validation passed after the third PR #27 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (35 tests, 96 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the third PR #27 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (475 tests, 1206 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

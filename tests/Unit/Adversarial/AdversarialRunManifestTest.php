@@ -87,6 +87,39 @@ final class AdversarialRunManifestTest extends TestCase
         AdversarialRunManifestEntry::fromJson($payload);
     }
 
+    public function test_entry_rejects_macro_f1_above_one(): void
+    {
+        $payload = AdversarialRunManifestEntry::fromReport($this->report('run.dataset', 1.0, 2.0), 'run-1')->toJson();
+        $payload['macro_f1'] = 1.1;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Adversarial run manifest entry field 'macro_f1' must be in [0, 1].");
+
+        AdversarialRunManifestEntry::fromJson($payload);
+    }
+
+    public function test_entry_rejects_malformed_adversarial_category_shape(): void
+    {
+        $payload = AdversarialRunManifestEntry::fromReport($this->report('run.dataset', 1.0, 2.0), 'run-1')->toJson();
+        $payload['adversarial']['categories'][0]['sample_count'] = '1';
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Adversarial run manifest adversarial.categories[0].sample_count must be a non-negative integer.');
+
+        AdversarialRunManifestEntry::fromJson($payload);
+    }
+
+    public function test_entry_rejects_malformed_adversarial_framework_shape(): void
+    {
+        $payload = AdversarialRunManifestEntry::fromReport($this->report('run.dataset', 1.0, 2.0), 'run-1')->toJson();
+        $payload['adversarial']['compliance_frameworks'][0]['categories'] = ['prompt-injection', ''];
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Adversarial run manifest adversarial.compliance_frameworks[0].categories[1] must be a non-empty string without leading or trailing whitespace.');
+
+        AdversarialRunManifestEntry::fromJson($payload);
+    }
+
     public function test_manifest_records_newest_runs_and_retains_last_n(): void
     {
         $manifest = AdversarialRunManifest::empty('adversarial.security', 1.0)

@@ -66,6 +66,10 @@ final class AdversarialRunManifestEntry
             throw new EvalRunException('Adversarial run manifest entry duration_seconds must match finished_at minus started_at.');
         }
 
+        if ($macroF1 > 1.0) {
+            throw new EvalRunException("Adversarial run manifest entry field 'macro_f1' must be in [0, 1].");
+        }
+
         if ($totalSamples < 0 || $totalFailures < 0) {
             throw new EvalRunException('Adversarial run manifest entry sample/failure counts must be non-negative.');
         }
@@ -209,12 +213,80 @@ final class AdversarialRunManifestEntry
                 throw new EvalRunException(sprintf('Adversarial run manifest adversarial.categories[%d] must be an object.', $index));
             }
 
+            $context = sprintf('adversarial.categories[%d]', $index);
+            $this->assertStringField($category, 'category', $context);
+            $this->assertStringField($category, 'label', $context);
+            $this->assertNullableStringField($category, 'severity', $context);
+            $this->assertNonNegativeIntField($category, 'sample_count', $context);
+            $this->assertStringListField($category, 'compliance_frameworks', $context);
+
             $metrics = $category['metrics'] ?? null;
             if (! is_array($metrics)) {
                 throw new EvalRunException(sprintf('Adversarial run manifest adversarial.categories[%d].metrics must be an object.', $index));
             }
 
             $this->assertMetricAggregates($metrics);
+        }
+
+        foreach ($adversarial['compliance_frameworks'] as $index => $framework) {
+            if (! is_array($framework)) {
+                throw new EvalRunException(sprintf('Adversarial run manifest adversarial.compliance_frameworks[%d] must be an object.', $index));
+            }
+
+            $context = sprintf('adversarial.compliance_frameworks[%d]', $index);
+            $this->assertStringField($framework, 'framework', $context);
+            $this->assertNonNegativeIntField($framework, 'sample_count', $context);
+            $this->assertStringListField($framework, 'categories', $context);
+        }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $payload
+     */
+    private function assertStringField(array $payload, string $field, string $context): void
+    {
+        $value = $payload[$field] ?? null;
+        if (! is_string($value) || $value === '' || $value !== trim($value)) {
+            throw new EvalRunException(sprintf('Adversarial run manifest %s.%s must be a non-empty string without leading or trailing whitespace.', $context, $field));
+        }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $payload
+     */
+    private function assertNullableStringField(array $payload, string $field, string $context): void
+    {
+        $value = $payload[$field] ?? null;
+        if ($value !== null && (! is_string($value) || $value === '' || $value !== trim($value))) {
+            throw new EvalRunException(sprintf('Adversarial run manifest %s.%s must be null or a non-empty string without leading or trailing whitespace.', $context, $field));
+        }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $payload
+     */
+    private function assertNonNegativeIntField(array $payload, string $field, string $context): void
+    {
+        $value = $payload[$field] ?? null;
+        if (! is_int($value) || $value < 0) {
+            throw new EvalRunException(sprintf('Adversarial run manifest %s.%s must be a non-negative integer.', $context, $field));
+        }
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $payload
+     */
+    private function assertStringListField(array $payload, string $field, string $context): void
+    {
+        $value = $payload[$field] ?? null;
+        if (! is_array($value) || ! array_is_list($value)) {
+            throw new EvalRunException(sprintf('Adversarial run manifest %s.%s must be a zero-based list.', $context, $field));
+        }
+
+        foreach ($value as $index => $entry) {
+            if (! is_string($entry) || $entry === '' || $entry !== trim($entry)) {
+                throw new EvalRunException(sprintf('Adversarial run manifest %s.%s[%d] must be a non-empty string without leading or trailing whitespace.', $context, $field, $index));
+            }
         }
     }
 
