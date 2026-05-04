@@ -447,4 +447,44 @@ final class EvalReportTest extends TestCase
         $this->assertSame(1, $summary['reported']['latency_ms']);
         $this->assertSame(42.0, $summary['latency_ms']['mean']);
     }
+
+    public function test_usage_summary_includes_captured_failure_usage_details(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [],
+                ),
+            ],
+            failures: [
+                new SampleFailure(
+                    sampleId: 's1',
+                    metricName: 'llm-as-judge',
+                    error: 'missing score',
+                    details: [
+                        'usage' => [
+                            'prompt_tokens' => 9,
+                            'completion_tokens' => 2,
+                            'total_tokens' => 11,
+                            'latency_ms' => 33.0,
+                        ],
+                    ],
+                ),
+            ],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $summary = $report->usageSummary();
+
+        $this->assertSame(1, $summary['observations']);
+        $this->assertSame(9, $summary['prompt_tokens']);
+        $this->assertSame(2, $summary['completion_tokens']);
+        $this->assertSame(11, $summary['total_tokens']);
+        $this->assertSame(1, $summary['reported']['prompt_tokens']);
+        $this->assertSame(33.0, $summary['latency_ms']['max']);
+    }
 }

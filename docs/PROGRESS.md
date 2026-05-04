@@ -1315,3 +1315,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two report usage tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `428 tests, 983 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `87f4f79` and generated three actionable comments: judge prompt fallbacks should throw on non-JSON-encodable shape-agnostic input, and provider usage from successful HTTP calls should still be summarized when strict metric parsing later fails.
+- Addressed those comments by making `llm-as-judge` and `refusal-quality` prompt fallbacks throw `MetricException` on JSON encoding failures, exposing provider usage through provider-backed metric instances after failures, carrying safe usage details on `SampleFailure`, and aggregating usage from both successful metric scores and captured metric failures.
+- Targeted validation passed after the failure-usage/input-encoding review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Reports/EvalReportTest.php tests/Unit/EvalEngineTest.php` => `OK (90 tests, 204 assertions)`
+- Full local gate passed after the failure-usage/input-encoding review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (433 tests, 1001 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding five review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `433 tests, 1001 assertions` before re-requesting Copilot.

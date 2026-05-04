@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Metrics;
 
 use InvalidArgumentException;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\MetricUsageDetails;
@@ -19,7 +20,7 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
  * then reports their F1. It gives Laravel users a fakeable semantic-overlap
  * signal without hard-coding a Python stack.
  */
-final class BertScoreLikeMetric implements Metric
+final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
 {
     private const int DEFAULT_MAX_TOKENS = 128;
 
@@ -35,6 +36,11 @@ final class BertScoreLikeMetric implements Metric
     public function name(): string
     {
         return 'bertscore-like';
+    }
+
+    public function usageDetails(): array
+    {
+        return MetricUsageDetails::from($this->embeddings);
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore

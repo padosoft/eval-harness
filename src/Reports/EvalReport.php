@@ -198,75 +198,43 @@ final class EvalReport
      */
     public function usageSummary(): array
     {
-        $observations = 0;
-        $promptTokens = 0;
-        $completionTokens = 0;
-        $totalTokens = 0;
-        $costUsd = 0.0;
-        $reportedPromptTokens = 0;
-        $reportedCompletionTokens = 0;
-        $reportedTotalTokens = 0;
-        $reportedCostUsd = 0;
-        $latencyCount = 0;
-        $latencyTotal = 0.0;
-        $latencyMax = 0.0;
+        /** @var array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}} $summary */
+        $summary = [
+            'observations' => 0,
+            'prompt_tokens' => 0,
+            'completion_tokens' => 0,
+            'total_tokens' => 0,
+            'cost_usd' => 0.0,
+            'reported' => [
+                'prompt_tokens' => 0,
+                'completion_tokens' => 0,
+                'total_tokens' => 0,
+                'cost_usd' => 0,
+                'latency_ms' => 0,
+            ],
+            'latency_ms' => [
+                'count' => 0,
+                'total' => 0.0,
+                'mean' => 0.0,
+                'max' => 0.0,
+            ],
+        ];
 
         foreach ($this->sampleResults as $result) {
             foreach ($result->metricScores as $score) {
-                $usage = $this->usageDetails($score->details);
-                if ($usage === null) {
-                    continue;
-                }
-
-                $observations++;
-                if ($usage['prompt_tokens'] !== null) {
-                    $reportedPromptTokens++;
-                    $promptTokens += $usage['prompt_tokens'];
-                }
-
-                if ($usage['completion_tokens'] !== null) {
-                    $reportedCompletionTokens++;
-                    $completionTokens += $usage['completion_tokens'];
-                }
-
-                if ($usage['total_tokens'] !== null) {
-                    $reportedTotalTokens++;
-                    $totalTokens += $usage['total_tokens'];
-                }
-
-                if ($usage['cost_usd'] !== null) {
-                    $reportedCostUsd++;
-                    $costUsd += $usage['cost_usd'];
-                }
-
-                if ($usage['latency_ms'] !== null) {
-                    $latencyCount++;
-                    $latencyTotal += $usage['latency_ms'];
-                    $latencyMax = max($latencyMax, $usage['latency_ms']);
-                }
+                $this->addUsageDetails($summary, $score->details);
             }
         }
 
-        return [
-            'observations' => $observations,
-            'prompt_tokens' => $promptTokens,
-            'completion_tokens' => $completionTokens,
-            'total_tokens' => $totalTokens,
-            'cost_usd' => $costUsd,
-            'reported' => [
-                'prompt_tokens' => $reportedPromptTokens,
-                'completion_tokens' => $reportedCompletionTokens,
-                'total_tokens' => $reportedTotalTokens,
-                'cost_usd' => $reportedCostUsd,
-                'latency_ms' => $latencyCount,
-            ],
-            'latency_ms' => [
-                'count' => $latencyCount,
-                'total' => $latencyTotal,
-                'mean' => $latencyCount > 0 ? $latencyTotal / $latencyCount : 0.0,
-                'max' => $latencyMax,
-            ],
-        ];
+        foreach ($this->failures as $failure) {
+            $this->addUsageDetails($summary, $failure->details);
+        }
+
+        $summary['latency_ms']['mean'] = $summary['latency_ms']['count'] > 0
+            ? $summary['latency_ms']['total'] / $summary['latency_ms']['count']
+            : 0.0;
+
+        return $summary;
     }
 
     /**
@@ -470,6 +438,46 @@ final class EvalReport
             'cost_usd' => $costUsd,
             'latency_ms' => $latencyMs,
         ];
+    }
+
+    /**
+     * @param  array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}}  $summary
+     * @param  array<string, mixed>  $details
+     */
+    private function addUsageDetails(array &$summary, array $details): void
+    {
+        $usage = $this->usageDetails($details);
+        if ($usage === null) {
+            return;
+        }
+
+        $summary['observations']++;
+        if ($usage['prompt_tokens'] !== null) {
+            $summary['reported']['prompt_tokens']++;
+            $summary['prompt_tokens'] += $usage['prompt_tokens'];
+        }
+
+        if ($usage['completion_tokens'] !== null) {
+            $summary['reported']['completion_tokens']++;
+            $summary['completion_tokens'] += $usage['completion_tokens'];
+        }
+
+        if ($usage['total_tokens'] !== null) {
+            $summary['reported']['total_tokens']++;
+            $summary['total_tokens'] += $usage['total_tokens'];
+        }
+
+        if ($usage['cost_usd'] !== null) {
+            $summary['reported']['cost_usd']++;
+            $summary['cost_usd'] += $usage['cost_usd'];
+        }
+
+        if ($usage['latency_ms'] !== null) {
+            $summary['reported']['latency_ms']++;
+            $summary['latency_ms']['count']++;
+            $summary['latency_ms']['total'] += $usage['latency_ms'];
+            $summary['latency_ms']['max'] = max($summary['latency_ms']['max'], $usage['latency_ms']);
+        }
     }
 
     private function nonNegativeInt(mixed $value): ?int

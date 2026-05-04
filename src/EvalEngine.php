@@ -27,6 +27,7 @@ use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
+use Padosoft\EvalHarness\Support\MetricUsageDetails;
 use Padosoft\EvalHarness\Support\RuntimeOptions;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
@@ -330,6 +331,7 @@ final class EvalEngine
                     sampleId: $sample->id,
                     metricName: $metric->name(),
                     error: $e->getMessage(),
+                    details: MetricUsageDetails::append([], $metric),
                 );
             }
         }

@@ -220,3 +220,5 @@
 - Nullable config values need explicit fallback handling before string casting. `prompt_template: null` should mean "use the package default", not cast to an empty prompt.
 - Embedding transports must reject non-finite vector components at the response boundary. `is_numeric('1e309')` is true, but casting it produces `INF`, which later turns metric math errors into confusing score failures.
 - Usage summaries should not synthesize missing fields. Track per-field `reported` counts and render missing Markdown values as `n/a` so latency-only or partial provider usage does not look like real zero token/cost usage.
+- Provider usage can still matter when strict metric parsing fails after a successful HTTP call. Capture safe usage details on `SampleFailure` as well as `MetricScore` so malformed judge/embedding responses do not hide spend in summaries.
+- Shape-agnostic judge prompt fallbacks should fail closed on non-JSON-encodable sample input, including invalid UTF-8, instead of sending a blank prompt to the judge.

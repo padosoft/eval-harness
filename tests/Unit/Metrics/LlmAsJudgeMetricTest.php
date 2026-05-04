@@ -68,6 +68,50 @@ final class LlmAsJudgeMetricTest extends TestCase
         });
     }
 
+    public function test_shape_agnostic_input_encoding_failures_throw_before_judge_call(): void
+    {
+        Http::fake();
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('input must be JSON-encodable for llm-as-judge prompt fallback');
+
+        try {
+            $metric->score(new DatasetSample(id: 'a', input: ['q' => "\xB1\x31"], expectedOutput: 'e'), 'a');
+        } finally {
+            Http::assertNothingSent();
+        }
+    }
+
+    public function test_usage_details_are_available_after_strict_response_failure(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"reason": "missing score"}'],
+                ]],
+                'usage' => [
+                    'prompt_tokens' => 4,
+                    'completion_tokens' => 1,
+                    'total_tokens' => 5,
+                ],
+            ]),
+        ]);
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+
+        try {
+            $metric->score(new DatasetSample(id: 'a', input: ['question' => 'q'], expectedOutput: 'e'), 'a');
+            $this->fail('Expected strict judge response failure.');
+        } catch (MetricException) {
+            $this->assertSame(4, $metric->usageDetails()['prompt_tokens']);
+            $this->assertSame(5, $metric->usageDetails()['total_tokens']);
+        }
+    }
+
     public function test_provider_usage_details_are_attached_to_metric_score(): void
     {
         Http::fake([

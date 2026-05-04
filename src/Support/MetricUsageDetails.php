@@ -17,11 +17,7 @@ final class MetricUsageDetails
      */
     public static function append(array $details, object $provider): array
     {
-        if (! $provider instanceof ProvidesUsageDetails) {
-            return $details;
-        }
-
-        $usage = $provider->usageDetails();
+        $usage = self::from($provider);
         if ($usage === []) {
             return $details;
         }
@@ -29,5 +25,17 @@ final class MetricUsageDetails
         $details['usage'] = $usage;
 
         return $details;
+    }
+
+    /**
+     * @return array<string, int|float>
+     */
+    public static function from(object $provider): array
+    {
+        if (! $provider instanceof ProvidesUsageDetails) {
+            return [];
+        }
+
+        return $provider->usageDetails();
     }
 }

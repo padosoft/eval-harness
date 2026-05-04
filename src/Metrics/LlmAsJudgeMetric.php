@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Metrics;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\MetricUsageDetails;
@@ -31,7 +32,7 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
  * OpenAI-compatible HTTP client by default, while tests and host apps
  * can bind deterministic fakes or Laravel AI-backed clients.
  */
-final class LlmAsJudgeMetric implements Metric
+final class LlmAsJudgeMetric implements Metric, ProvidesUsageDetails
 {
     private const DEFAULT_PROMPT = <<<'PROMPT'
 You are a strict evaluator. Given an EXPECTED golden answer and an ACTUAL system answer, output a JSON object {"score": <float 0..1>, "reason": "<one short sentence>"} grading how well the ACTUAL answers the same question as the EXPECTED.
@@ -57,6 +58,11 @@ PROMPT;
     public function name(): string
     {
         return 'llm-as-judge';
+    }
+
+    public function usageDetails(): array
+    {
+        return MetricUsageDetails::from($this->judge);
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
@@ -116,9 +122,14 @@ PROMPT;
             return $sample->input['question'];
         }
 
-        $encoded = json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return is_string($encoded) ? $encoded : '';
+        try {
+            return json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new MetricException(
+                sprintf("Sample '%s' input must be JSON-encodable for llm-as-judge prompt fallback: %s.", $sample->id, $e->getMessage()),
+                previous: $e,
+            );
+        }
     }
 
     private function renderPrompt(string $expected, string $actual, string $question): string

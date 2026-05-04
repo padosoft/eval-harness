@@ -743,6 +743,39 @@ final class EvalEngineTest extends TestCase
         $this->assertSame('llm-as-judge', $report->failures[0]->metricName);
     }
 
+    public function test_metric_failure_keeps_provider_usage_summary(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"reason": "missing score"}'],
+                ]],
+                'usage' => [
+                    'prompt_tokens' => 6,
+                    'completion_tokens' => 2,
+                    'total_tokens' => 8,
+                ],
+            ]),
+        ]);
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.failing.judge.usage')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['question' => 'q'], expectedOutput: 'e'),
+            ])
+            ->withMetrics(['llm-as-judge'])
+            ->register();
+
+        $report = $engine->run('rag.failing.judge.usage', fn () => 'a');
+
+        $this->assertSame(1, $report->totalFailures());
+        $this->assertSame(6, $report->usageSummary()['prompt_tokens']);
+        $this->assertSame(8, $report->usageSummary()['total_tokens']);
+        $this->assertSame(1, $report->usageSummary()['reported']['prompt_tokens']);
+    }
+
     public function test_metric_failure_can_be_raised_by_runtime_config(): void
     {
         config(['eval-harness.runtime.raise_exceptions' => 'true']);

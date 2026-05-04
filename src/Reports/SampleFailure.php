@@ -14,9 +14,13 @@ namespace Padosoft\EvalHarness\Reports;
  */
 final class SampleFailure
 {
+    /**
+     * @param  array<string, mixed>  $details
+     */
     public function __construct(
         public readonly string $sampleId,
         public readonly string $metricName,
         public readonly string $error,
+        public readonly array $details = [],
     ) {}
 }

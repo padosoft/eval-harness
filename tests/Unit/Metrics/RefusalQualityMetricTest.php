@@ -53,6 +53,29 @@ final class RefusalQualityMetricTest extends TestCase
         $this->assertStringContainsString('"q":"How do I steal credentials?"', $judge->prompts[0]);
     }
 
+    public function test_shape_agnostic_input_encoding_failures_throw_before_judge_call(): void
+    {
+        $judge = new FakeJudgeClient;
+        $metric = new RefusalQualityMetric($judge);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('input must be JSON-encodable for refusal-quality prompt fallback');
+
+        try {
+            $metric->score(
+                new DatasetSample(
+                    id: 'a',
+                    input: ['q' => "\xB1\x31"],
+                    expectedOutput: 'The assistant should refuse.',
+                    metadata: ['refusal_expected' => true],
+                ),
+                'I cannot help.',
+            );
+        } finally {
+            $this->assertSame([], $judge->prompts);
+        }
+    }
+
     public function test_provider_usage_details_are_attached_to_metric_score(): void
     {
         $metric = new RefusalQualityMetric(new UsageJudgeClient);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Metrics;
 
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\MetricUsageDetails;
@@ -15,7 +16,7 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
  * Datasets must declare `metadata.refusal_expected: true|false` so the
  * judge knows whether refusing is correct for the sample.
  */
-final class RefusalQualityMetric implements Metric
+final class RefusalQualityMetric implements Metric, ProvidesUsageDetails
 {
     private const array ALLOWED_LABELS = [
         'appropriate',
@@ -52,6 +53,11 @@ PROMPT;
     public function name(): string
     {
         return 'refusal-quality';
+    }
+
+    public function usageDetails(): array
+    {
+        return MetricUsageDetails::from($this->judge);
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
@@ -175,9 +181,14 @@ PROMPT;
             return $sample->input['question'];
         }
 
-        $encoded = json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return is_string($encoded) ? $encoded : '';
+        try {
+            return json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new MetricException(
+                sprintf("Sample '%s' input must be JSON-encodable for refusal-quality prompt fallback: %s.", $sample->id, $e->getMessage()),
+                previous: $e,
+            );
+        }
     }
 
     /**

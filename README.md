@@ -623,7 +623,9 @@ The renderers aggregate those values into top-level JSON and Markdown
 usage summaries while leaving raw prompts/provider payloads out of the
 report contract. JSON summaries include per-field `reported` counts so
 consumers can distinguish "not reported" from a reported zero; Markdown
-renders unreported usage totals as `n/a`.
+renders unreported usage totals as `n/a`. Provider usage attached to a
+captured metric failure is still included in the aggregate summary so
+malformed judge/embedding responses do not hide token or latency spend.
 
 The built-in OpenAI-compatible embedding and judge clients automatically
 attach safe usage details to their metric scores: token/cost fields from

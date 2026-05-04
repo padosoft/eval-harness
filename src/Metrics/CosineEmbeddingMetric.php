@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Metrics;
 
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\MetricUsageDetails;
@@ -24,7 +25,7 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
  *   - model: model identifier passed in the body.
  *   - timeout_seconds: per-request HTTP timeout.
  */
-final class CosineEmbeddingMetric implements Metric
+final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
 {
     public function __construct(
         private readonly EmbeddingClient $embeddings,
@@ -33,6 +34,11 @@ final class CosineEmbeddingMetric implements Metric
     public function name(): string
     {
         return 'cosine-embedding';
+    }
+
+    public function usageDetails(): array
+    {
+        return MetricUsageDetails::from($this->embeddings);
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
