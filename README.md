@@ -127,7 +127,8 @@ surface small and the offline path fast.
   adversarial category/sample-count slice under tight retention;
   `--regression-gate` fails CI when macro-F1 or configured metric
   aggregates drop, and `--promote-failures` writes failed samples back
-  to a reloadable YAML dataset seed.
+  to a reloadable YAML dataset seed. Scheduler/CI guidance shows how to
+  run the lane continuously without bundling a daemon in this package.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -171,6 +172,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
 | Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
 | Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
+| Scheduled/continuous monitoring | ⚠️ PARTIAL - custom scheduler around eval runs | ✅ YES - hosted monitoring workflows | ⚠️ PARTIAL - custom scheduler around Python metrics | ✅ YES - CLI/CI monitoring workflows | ⚠️ PARTIAL - local runner or hosted platform workflow | **✅ YES - Laravel Scheduler/CI cron guidance with manifests, Horizon queues, gates, and failure promotion** |
 | Failure promotion to datasets | ⚠️ PARTIAL - custom eval scripts | ✅ YES - trace-to-dataset workflows | ⚠️ PARTIAL - custom dataset curation | ✅ YES - failure-driven test cases | ✅ YES - failed test cases can become datasets | **✅ YES - `--promote-failures` exports failed adversarial samples to YAML seeds** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
@@ -691,6 +693,12 @@ security reporting; Markdown reports render the same data under
 the safe adversarial summary, serialize command updates with a lock file,
 and write through a temporary file before replacing the target path.
 
+For recurring safety checks, see
+[`docs/ADVERSARIAL_CONTINUOUS_MONITORING.md`](docs/ADVERSARIAL_CONTINUOUS_MONITORING.md).
+It shows how to run the adversarial lane from Laravel Scheduler or CI cron
+with persistent manifests, Horizon-backed queues, regression gates, and
+failure promotion while keeping this package daemon-free.
+
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with
 `EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS` between attempts. Retries apply
@@ -893,6 +901,9 @@ accidentally and never burns API credits.
   schema, dataset, metric names, and adversarial category/sample-count slice, and
   `--regression-gate` fails the gate when macro-F1 or a configured
   metric aggregate drops more than the allowed percentage points.
+- **Adversarial continuous monitoring** — Scheduler/CI cron guidance is
+  implemented for recurring runs with persistent manifests, Horizon queues,
+  regression gates, and failure promotion without bundling a daemon.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy

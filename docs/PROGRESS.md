@@ -1947,3 +1947,36 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the first PR #29 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #29 again at head `a5a9b14` and generated no new comments. CI was green across PHP 8.3/8.4/8.5 and Laravel 12/13, so PR #29 merged into `task/adversarial-regression` at merge commit `3df1024`.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-continuous-guidance` from updated `task/adversarial-regression`.
+- Implemented scheduled/continuous-monitoring guidance without adding runtime daemon code:
+  - added `docs/ADVERSARIAL_CONTINUOUS_MONITORING.md` with Laravel Scheduler, CI cron, artifact, Horizon queue, and alerting guidance,
+  - linked the guide from README adversarial docs and feature bullets,
+  - added a scheduled/continuous monitoring row to the README comparison table while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes,
+  - marked the roadmap guidance item as implemented.
+- Full local gate passed for the adversarial continuous-monitoring guidance slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after adding continuous-monitoring guidance. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #30 at head `470be2e` and generated four actionable documentation comments:
+  - Scheduler and CI examples used relative `--out` paths without `--raw-path`, so the docs implied filesystem paths while the command would use the configured reports disk/prefix,
+  - alerting guidance omitted the non-zero exit path for captured metric exceptions,
+  - promotion-file alerting guidance did not distinguish runs that enabled `--promote-failures` from runs that never requested a promotion artifact.
+- The connector flagged the same exit-code issue and noted that failure-promotion writes can happen before a non-zero metric-exception exit.
+- Addressed the first PR #30 review round by adding `--raw-path` to literal report artifact examples, documenting reports-disk behavior for relative `--out`, and tightening alerting semantics for metric exceptions plus optional promotion artifacts.
+- Full local gate passed after the first PR #30 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the first PR #30 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #30 again at head `01a7d37` and generated two actionable comments: examples that use `--raw-path` must either create the report parent directory first or use the configured reports disk/prefix path.
+- Addressed the second PR #30 review round by making the Scheduler example use the configured reports disk/prefix path and adding an explicit `mkdir -p storage/eval/reports` step before the CI raw-path report write.
+- Full local gate passed after the second PR #30 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the second PR #30 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

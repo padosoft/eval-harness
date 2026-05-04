@@ -151,7 +151,7 @@ Implement:
 - Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance. Initial seed factory implemented through `AdversarialDatasetFactory`.
 - Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt.
 - Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting. Implemented through safe normalized `adversarial` report summaries.
-- Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon.
+- Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon. Implemented in `docs/ADVERSARIAL_CONTINUOUS_MONITORING.md`.
 - `eval:adversarial` command. Implemented as
   `eval-harness:adversarial` with an `eval:adversarial` alias,
   selected categories/metrics, saved-output scoring, and batch options.
