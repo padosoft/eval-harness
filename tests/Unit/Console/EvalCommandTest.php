@@ -452,6 +452,119 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_smoke_profile_runs_serial_without_explicit_batch_flag(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-smoke')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-smoke',
+            '--batch-profile' => 'smoke',
+        ])->assertExitCode(0);
+    }
+
+    public function test_unknown_profile_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-unknown')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-unknown',
+            '--batch-profile' => 'release',
+        ])
+            ->expectsOutputToContain("Unknown batch profile 'release'")
+            ->assertExitCode(1);
+    }
+
+    public function test_explicit_batch_flag_overrides_profile_mode(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-override')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        // ci defaults to lazy-parallel; explicit --batch=serial should win
+        // and the lazy-parallel-only fields from ci should be silently dropped.
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-override',
+            '--batch-profile' => 'ci',
+            '--batch' => 'serial',
+        ])->assertExitCode(0);
+    }
+
+    public function test_ci_profile_runs_lazy_parallel_under_sync_queue(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-ci')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-ci',
+            '--batch-profile' => 'ci',
+            '--queue' => 'evals',
+        ])->assertExitCode(0);
+    }
+
+    public function test_invalid_chunk_size_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-chunk')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-chunk',
+            '--batch' => 'lazy-parallel',
+            '--chunk-size' => 'abc',
+        ])
+            ->expectsOutputToContain('The --chunk-size option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_mode_rejects_explicit_rate_limit(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('serial-rate-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'serial-rate-limit',
+            '--rate-limit' => '5',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a rate limit.')
+            ->assertExitCode(1);
+    }
+
     /**
      * Regression: --json must surface json_encode failures as a
      * command-level error instead of writing an empty payload + exit 0.

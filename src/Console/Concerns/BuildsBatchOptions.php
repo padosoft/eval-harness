@@ -5,50 +5,168 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Console\Concerns;
 
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\BatchProfile;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 trait BuildsBatchOptions
 {
+    /** @var list<string> */
+    private const LAZY_PARALLEL_ONLY_OPTIONS = [
+        'queue',
+        'timeout',
+        'batch-timeout',
+        'chunk-size',
+        'rate-limit',
+        'rate-window-seconds',
+        'checkpoint-every',
+    ];
+
     private function batchOptions(): BatchOptions
     {
-        $batch = $this->option('batch');
-        $mode = is_string($batch) && $batch !== '' ? $batch : BatchOptions::MODE_SERIAL;
-        $queue = $this->option('queue');
+        $profile = $this->resolveBatchProfile();
+        $mode = $this->resolveBatchMode($profile);
+        $modeIsSerial = $mode === BatchOptions::MODE_SERIAL;
+
+        $concurrency = $this->resolveConcurrency($profile, $modeIsSerial);
+        $queue = $this->resolveQueue($profile, $modeIsSerial);
+        $timeoutSeconds = $this->resolveOptionalPositiveInt('timeout', $profile?->timeoutSeconds, $modeIsSerial);
+        $waitTimeoutSeconds = $this->resolveOptionalPositiveInt('batch-timeout', $profile?->waitTimeoutSeconds, $modeIsSerial);
+        $chunkSize = $this->resolveOptionalPositiveInt('chunk-size', $profile?->chunkSize, $modeIsSerial);
+        $rateLimit = $this->resolveOptionalPositiveInt('rate-limit', $profile?->rateLimit, $modeIsSerial);
+        $rateWindowSeconds = $this->resolveOptionalPositiveInt('rate-window-seconds', $profile?->rateWindowSeconds, $modeIsSerial);
+        $checkpointEvery = $this->resolveOptionalPositiveInt('checkpoint-every', $profile?->checkpointEvery, $modeIsSerial);
 
         return new BatchOptions(
             mode: $mode,
-            concurrency: $this->positiveIntegerOption('concurrency', 1),
-            queue: is_string($queue) && $queue !== '' ? $queue : null,
-            timeoutSeconds: $this->nullablePositiveIntegerOption('timeout'),
-            waitTimeoutSeconds: $this->nullablePositiveIntegerOption('batch-timeout'),
+            concurrency: $concurrency,
+            queue: $queue,
+            timeoutSeconds: $timeoutSeconds,
+            waitTimeoutSeconds: $waitTimeoutSeconds,
+            resultTtlSeconds: $modeIsSerial ? null : $profile?->resultTtlSeconds,
+            profile: $profile?->name,
+            chunkSize: $chunkSize,
+            rateLimit: $rateLimit,
+            rateWindowSeconds: $rateWindowSeconds,
+            checkpointEvery: $checkpointEvery,
         );
     }
 
-    private function positiveIntegerOption(string $name, int $default): int
+    private function resolveBatchProfile(): ?BatchProfile
     {
-        $value = $this->option($name);
-        if ($value === null || $value === '') {
-            return $default;
+        if (! $this->hasOptionDefined('batch-profile')) {
+            return null;
         }
 
-        if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
-            throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
-        }
-
-        return (int) $value;
-    }
-
-    private function nullablePositiveIntegerOption(string $name): ?int
-    {
-        $value = $this->option($name);
+        $value = $this->option('batch-profile');
         if ($value === null || $value === '') {
             return null;
         }
 
+        if (! is_string($value)) {
+            throw new EvalRunException('The --batch-profile option must be a non-empty string.');
+        }
+
+        /** @var BatchProfileResolver $resolver */
+        $resolver = $this->laravel->make(BatchProfileResolver::class);
+
+        return $resolver->resolve($value);
+    }
+
+    private function resolveBatchMode(?BatchProfile $profile): string
+    {
+        if ($this->batchOptionWasProvided('batch')) {
+            $value = $this->option('batch');
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        if ($profile !== null) {
+            return $profile->mode;
+        }
+
+        return BatchOptions::MODE_SERIAL;
+    }
+
+    private function resolveConcurrency(?BatchProfile $profile, bool $modeIsSerial): int
+    {
+        if ($this->batchOptionWasProvided('concurrency')) {
+            $value = $this->option('concurrency');
+            if ($value !== null && $value !== '') {
+                return $this->assertPositiveInt('concurrency', $value);
+            }
+        }
+
+        if ($modeIsSerial) {
+            return 1;
+        }
+
+        if ($profile !== null && $profile->concurrency !== null) {
+            return $profile->concurrency;
+        }
+
+        return 1;
+    }
+
+    private function resolveQueue(?BatchProfile $profile, bool $modeIsSerial): ?string
+    {
+        if ($this->batchOptionWasProvided('queue')) {
+            $value = $this->option('queue');
+            if ($value === null || $value === '') {
+                // Empty: treat as not provided.
+            } else {
+                if (! is_string($value)) {
+                    throw new EvalRunException('The --queue option must be a non-empty string.');
+                }
+
+                return $value;
+            }
+        }
+
+        if ($modeIsSerial) {
+            return null;
+        }
+
+        return $profile?->queue;
+    }
+
+    private function resolveOptionalPositiveInt(string $name, ?int $profileDefault, bool $modeIsSerial): ?int
+    {
+        if ($this->batchOptionWasProvided($name)) {
+            $value = $this->option($name);
+            if ($value !== null && $value !== '') {
+                return $this->assertPositiveInt($name, $value);
+            }
+        }
+
+        if ($modeIsSerial && in_array($name, self::LAZY_PARALLEL_ONLY_OPTIONS, true)) {
+            return null;
+        }
+
+        return $profileDefault;
+    }
+
+    private function assertPositiveInt(string $name, mixed $value): int
+    {
         if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
             throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
         }
 
         return (int) $value;
+    }
+
+    private function batchOptionWasProvided(string $name): bool
+    {
+        if (! $this->hasOptionDefined($name)) {
+            return false;
+        }
+
+        return $this->input->hasParameterOption('--'.$name, true);
+    }
+
+    private function hasOptionDefined(string $name): bool
+    {
+        return $this->getDefinition()->hasOption($name);
     }
 }

@@ -35,6 +35,7 @@ final class LazyParallelBatch
         private readonly ?Container $container = null,
         private readonly int $resultTtlSeconds = self::DEFAULT_RESULT_TTL_SECONDS,
         private readonly int $defaultWaitTimeoutSeconds = self::DEFAULT_WAIT_TIMEOUT_SECONDS,
+        private readonly BatchProgressReporter $progressReporter = new NullBatchProgressReporter,
     ) {
         if ($resultTtlSeconds < 1) {
             throw new EvalRunException('Batch result TTL must be greater than or equal to 1 second.');
@@ -66,10 +67,14 @@ final class LazyParallelBatch
         $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
         $completed = false;
 
+        $rateLimiter = $this->rateLimitWindow($options);
+        $checkpointEvery = $options->checkpointEvery;
+        $samplesCompleted = 0;
+
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         try {
-            foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+            foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 try {
                     $this->dispatchSampleJobs(
                         batchId: $batchId,
@@ -78,6 +83,7 @@ final class LazyParallelBatch
                         runnerClass: $runnerClass,
                         options: $options,
                         resultTtlSeconds: $resultTtlSeconds,
+                        rateLimiter: $rateLimiter,
                     );
                 } catch (Throwable $e) {
                     $this->throwStoredFailureOrDispatchException(
@@ -94,6 +100,9 @@ final class LazyParallelBatch
                     sampleCount: $sampleCount,
                     timeoutSeconds: $waitTimeoutSeconds,
                 );
+
+                $samplesCompleted += count($sampleWindow);
+                $this->reportCheckpointIfDue($batchId, $samplesCompleted, $sampleCount, $checkpointEvery);
             }
 
             ksort($outputsByIndex);
@@ -146,10 +155,11 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
+        $rateLimiter = $this->rateLimitWindow($options);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         try {
-            foreach (array_chunk($samples, $options->concurrency, preserve_keys: true) as $sampleWindow) {
+            foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 $this->dispatchSampleJobs(
                     batchId: $batchId,
                     samples: $sampleWindow,
@@ -157,6 +167,7 @@ final class LazyParallelBatch
                     runnerClass: $runnerClass,
                     options: $options,
                     resultTtlSeconds: $resultTtlSeconds,
+                    rateLimiter: $rateLimiter,
                 );
             }
         } catch (Throwable $e) {
@@ -461,8 +472,11 @@ final class LazyParallelBatch
         string $runnerClass,
         BatchOptions $options,
         int $resultTtlSeconds,
+        ?RateLimitWindow $rateLimiter = null,
     ): void {
         foreach ($samples as $index => $sample) {
+            $this->throttleDispatch($rateLimiter);
+
             $sampleInvocation = $sampleInvocations[$index];
             $job = new EvaluateSampleJob(
                 batchId: $batchId,
@@ -479,7 +493,49 @@ final class LazyParallelBatch
             }
 
             $this->dispatcher->dispatch($job);
+
+            $rateLimiter?->record(microtime(true));
         }
+    }
+
+    private function rateLimitWindow(BatchOptions $options): ?RateLimitWindow
+    {
+        if ($options->rateLimit === null) {
+            return null;
+        }
+
+        return new RateLimitWindow(
+            rateLimit: $options->rateLimit,
+            rateWindowSeconds: $options->rateWindowSeconds ?? 60,
+        );
+    }
+
+    private function throttleDispatch(?RateLimitWindow $rateLimiter): void
+    {
+        if ($rateLimiter === null) {
+            return;
+        }
+
+        $waitMicroseconds = $rateLimiter->nextWaitMicroseconds(microtime(true));
+        if ($waitMicroseconds > 0) {
+            usleep($waitMicroseconds);
+        }
+    }
+
+    private function reportCheckpointIfDue(string $batchId, int $samplesCompleted, int $totalSamples, ?int $checkpointEvery): void
+    {
+        if ($checkpointEvery === null) {
+            return;
+        }
+
+        $atFinalSample = $samplesCompleted >= $totalSamples;
+        $atInterval = $samplesCompleted > 0 && $samplesCompleted % $checkpointEvery === 0;
+
+        if (! $atInterval && ! $atFinalSample) {
+            return;
+        }
+
+        $this->progressReporter->reportCheckpoint($batchId, $samplesCompleted, $totalSamples);
     }
 
     /**

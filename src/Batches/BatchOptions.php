@@ -23,6 +23,8 @@ final class BatchOptions
 
     public readonly ?string $queue;
 
+    public readonly ?string $profile;
+
     public function __construct(
         public readonly string $mode = self::MODE_SERIAL,
         public readonly int $concurrency = 1,
@@ -30,6 +32,11 @@ final class BatchOptions
         public readonly ?int $timeoutSeconds = null,
         public readonly ?int $waitTimeoutSeconds = null,
         public readonly ?int $resultTtlSeconds = null,
+        ?string $profile = null,
+        public readonly ?int $chunkSize = null,
+        public readonly ?int $rateLimit = null,
+        public readonly ?int $rateWindowSeconds = null,
+        public readonly ?int $checkpointEvery = null,
     ) {
         if (! in_array($mode, self::SUPPORTED_MODES, true)) {
             throw new EvalRunException(sprintf(
@@ -50,6 +57,13 @@ final class BatchOptions
 
         $this->queue = $normalizedQueue;
 
+        $normalizedProfile = $profile !== null ? trim($profile) : null;
+        if ($profile !== null && ($normalizedProfile === '' || $normalizedProfile !== $profile)) {
+            throw new EvalRunException('Batch profile name must be null or a non-empty string without leading or trailing whitespace.');
+        }
+
+        $this->profile = $normalizedProfile;
+
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Queued sample timeout must be null or greater than or equal to 1 second.');
         }
@@ -60,6 +74,22 @@ final class BatchOptions
 
         if ($resultTtlSeconds !== null && $resultTtlSeconds < 1) {
             throw new EvalRunException('Batch result TTL must be null or greater than or equal to 1 second.');
+        }
+
+        if ($chunkSize !== null && $chunkSize < 1) {
+            throw new EvalRunException('Batch chunk size must be null or greater than or equal to 1.');
+        }
+
+        if ($rateLimit !== null && $rateLimit < 1) {
+            throw new EvalRunException('Batch rate limit must be null or greater than or equal to 1.');
+        }
+
+        if ($rateWindowSeconds !== null && $rateWindowSeconds < 1) {
+            throw new EvalRunException('Batch rate window seconds must be null or greater than or equal to 1.');
+        }
+
+        if ($checkpointEvery !== null && $checkpointEvery < 1) {
+            throw new EvalRunException('Batch checkpoint interval must be null or greater than or equal to 1.');
         }
 
         if ($mode === self::MODE_SERIAL) {
@@ -82,12 +112,28 @@ final class BatchOptions
             if ($resultTtlSeconds !== null) {
                 throw new EvalRunException('Serial batch mode does not use a result TTL.');
             }
+
+            if ($chunkSize !== null) {
+                throw new EvalRunException('Serial batch mode does not use a chunk size.');
+            }
+
+            if ($rateLimit !== null) {
+                throw new EvalRunException('Serial batch mode does not use a rate limit.');
+            }
+
+            if ($rateWindowSeconds !== null) {
+                throw new EvalRunException('Serial batch mode does not use a rate window.');
+            }
+
+            if ($checkpointEvery !== null) {
+                throw new EvalRunException('Serial batch mode does not use a checkpoint interval.');
+            }
         }
     }
 
-    public static function serial(): self
+    public static function serial(?string $profile = null): self
     {
-        return new self;
+        return new self(profile: $profile);
     }
 
     public static function lazyParallel(
@@ -96,6 +142,11 @@ final class BatchOptions
         ?int $timeoutSeconds = null,
         ?int $waitTimeoutSeconds = null,
         ?int $resultTtlSeconds = null,
+        ?string $profile = null,
+        ?int $chunkSize = null,
+        ?int $rateLimit = null,
+        ?int $rateWindowSeconds = null,
+        ?int $checkpointEvery = null,
     ): self {
         return new self(
             mode: self::MODE_LAZY_PARALLEL,
@@ -104,6 +155,21 @@ final class BatchOptions
             timeoutSeconds: $timeoutSeconds,
             waitTimeoutSeconds: $waitTimeoutSeconds,
             resultTtlSeconds: $resultTtlSeconds,
+            profile: $profile,
+            chunkSize: $chunkSize,
+            rateLimit: $rateLimit,
+            rateWindowSeconds: $rateWindowSeconds,
+            checkpointEvery: $checkpointEvery,
         );
+    }
+
+    /**
+     * Effective producer window size used by lazy-parallel batch runners.
+     *
+     * Defaults to {@see $concurrency} when no explicit chunk size is set.
+     */
+    public function effectiveChunkSize(): int
+    {
+        return $this->chunkSize ?? $this->concurrency;
     }
 }

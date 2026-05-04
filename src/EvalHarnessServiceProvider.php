@@ -14,9 +14,12 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
@@ -111,6 +114,14 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new SerialBatch;
         });
 
+        $this->app->singleton(BatchProfileResolver::class, static function (Container $app): BatchProfileResolver {
+            return new BatchProfileResolver($app->make(ConfigRepository::class));
+        });
+
+        $this->app->singletonIf(BatchProgressReporter::class, static function (): BatchProgressReporter {
+            return new NullBatchProgressReporter;
+        });
+
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);
@@ -140,6 +151,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
                     $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
                     60,
                 ),
+                progressReporter: $app->make(BatchProgressReporter::class),
             );
         });
 

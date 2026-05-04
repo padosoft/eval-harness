@@ -133,6 +133,100 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 - Keep offline metrics and fake LLM/embedding clients in test suites. Live LLM
   calls belong in opt-in live tests only.
 
+## Operational Profiles
+
+`--batch-profile=<name>` applies a named operational preset of batch
+defaults so CI lanes, smoke checks, and nightly runs do not have to
+duplicate `--concurrency / --timeout / --queue / --rate-limit / ...` on
+every invocation. Explicit CLI options always override profile defaults;
+profiles never lock operators in.
+
+Built-in profiles:
+
+| Profile  | Mode          | Concurrency | Chunk size | Rate limit       | Checkpoint every |
+| -------- | ------------- | ----------- | ---------- | ---------------- | ---------------- |
+| `smoke`  | serial        | 1           | n/a        | n/a              | n/a              |
+| `ci`     | lazy-parallel | 4           | 4          | none             | every 25 samples |
+| `nightly`| lazy-parallel | 16          | 16         | 60 / 60s         | every 100        |
+
+Override or register profiles per host app under
+`eval-harness.batches.profiles` in `config/eval-harness.php`:
+
+```php
+'profiles' => [
+    'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+    'release' => [
+        'mode' => 'lazy-parallel',
+        'concurrency' => 24,
+        'queue' => 'evals-release',
+        'timeout_seconds' => 90,
+        'wait_timeout_seconds' => 600,
+        'chunk_size' => 24,
+        'rate_limit' => 90,
+        'rate_window_seconds' => 60,
+        'checkpoint_every' => 50,
+    ],
+],
+```
+
+```bash
+# CI gate: lazy-parallel with sane defaults, no extra knobs.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=ci \
+  --queue=evals \
+  --json --out=evals/ci-rag.json
+
+# Nightly long run: throttled dispatch with checkpoints.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=nightly \
+  --queue=evals-nightly \
+  --json --out=evals/nightly-rag.json
+
+# Smoke check before opening a PR: deterministic in-process serial run.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=smoke
+```
+
+## Backpressure Knobs
+
+Use these flags to keep producer dispatch and SUT/provider QPS within
+operational limits. They apply to lazy-parallel mode only:
+
+- `--chunk-size=N` overrides the producer window size for dispatching
+  jobs before waiting for results. Defaults to `--concurrency` when
+  unset; useful when you want a small dispatch chunk against a much
+  larger queue worker pool.
+- `--rate-limit=N` caps how many sample jobs the producer dispatches per
+  rolling `--rate-window-seconds=W` window (default 60s). The limiter is
+  process-side, so multiple parallel commands compound.
+- `--checkpoint-every=N` emits a structured progress checkpoint every N
+  completed samples plus a final checkpoint at end-of-batch. Bind a
+  `Padosoft\EvalHarness\Batches\BatchProgressReporter` implementation in
+  the container to forward checkpoints to logs, Horizon dashboards, or
+  custom metrics. The default reporter is a no-op so the package stays
+  Horizon-optional.
+
+```php
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
+
+$this->app->singleton(BatchProgressReporter::class, function () {
+    return new class implements BatchProgressReporter {
+        public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+        {
+            \Log::info('eval-harness checkpoint', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+            ]);
+        }
+    };
+});
+```
+
+In tests, the default `NullBatchProgressReporter` is used and Horizon
+is never required. Rate limiting works under the `sync` queue too: the
+producer pauses between samples even when each job runs immediately.
+
 ## References
 
 - Laravel Horizon job timeout and balancing guidance:

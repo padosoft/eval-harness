@@ -2074,3 +2074,41 @@
 - Requested Copilot review via GraphQL fallback; no actionable review comments were posted before merge.
 - CI check suite was green on PHP 8.3/8.4/8.5 and Laravel 12/13.
 - Merged PR #36 into `main` at merge commit `8909663`.
+
+## 2026-05-05
+
+- Started Macro Task 8 (Enterprise Operations And Scalability Add-On) on
+  `task/enterprise-operations-scalability` plus subtask branch
+  `task/enterprise-operations-scalability-batch-profiles` from `main`.
+- Implemented the first macro 8 slice: named operational batch profiles plus
+  backpressure controls.
+  - Added `BatchProfile`, `BatchProfileResolver` with built-in `ci`, `smoke`,
+    `nightly` defaults and optional `eval-harness.batches.profiles.*`
+    overrides.
+  - Extended `BatchOptions` with `profile`, `chunkSize`, `rateLimit`,
+    `rateWindowSeconds`, `checkpointEvery` plus serial-mode rejection of
+    those fields and a `effectiveChunkSize()` helper.
+  - Added `RateLimitWindow` (pure sliding-window math) and a
+    `BatchProgressReporter` interface with a `NullBatchProgressReporter`
+    default. `LazyParallelBatch` now applies the rate limit before each
+    dispatch, uses `effectiveChunkSize()` for the producer window, and
+    emits checkpoints via the reporter at the configured interval (plus
+    one final checkpoint).
+  - Reworked `BuildsBatchOptions` so explicit CLI options always override
+    profile defaults and lazy-parallel-only fields are dropped silently
+    when the resolved mode is serial (without an operator opt-out).
+  - Added `--batch-profile`, `--chunk-size`, `--rate-limit`,
+    `--rate-window-seconds`, `--checkpoint-every` flags to
+    `eval-harness:run` and `eval-harness:adversarial`.
+  - Bound `BatchProfileResolver` and a default `BatchProgressReporter`
+    in the service provider; passed the reporter into `LazyParallelBatch`.
+  - Documented profiles and backpressure in `README.md`,
+    `docs/HORIZON_BATCH_QUEUES.md`, and `docs/ROADMAP_IMPLEMENTATION_PLAN.md`.
+- Targeted validation passed for the new slice:
+  - `vendor/bin/phpunit tests/Unit/Batches tests/Unit/Console/EvalCommandTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` =>
+    `OK (178 tests, 505 assertions)`.
+- Full local gate passed before opening the subtask PR:
+  - `composer validate --strict` => `./composer.json is valid`.
+  - `vendor/bin/phpunit` => `OK (612 tests, 1681 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` => no errors.
+  - `vendor/bin/pint --test` => passed.

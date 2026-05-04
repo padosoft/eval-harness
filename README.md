@@ -516,6 +516,43 @@ metadata and sample outputs alive long enough for delayed collection.
 See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
 Horizon supervisor, cache-store, and timeout sizing guidance.
 
+#### Operational profiles and backpressure
+
+`--batch-profile=ci|smoke|nightly` applies a named operational preset
+of batch defaults; explicit options always win, so profiles never lock
+operators in. CI lanes get sane lazy-parallel defaults, smoke checks
+stay serial, and nightly runs get throttled dispatch with checkpoints.
+
+```bash
+# CI gate: lazy-parallel, 4 concurrent samples, 30s job timeout, checkpoints every 25 samples.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=ci \
+  --queue=evals \
+  --json --out=evals/ci-rag.json
+
+# Nightly long run: 16 concurrent samples, throttled at 60 dispatches/60s.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=nightly \
+  --queue=evals-nightly \
+  --json --out=evals/nightly-rag.json
+```
+
+Backpressure flags work with any lazy-parallel profile or with
+`--batch=lazy-parallel`:
+
+- `--chunk-size=N` overrides the producer dispatch window (defaults to
+  `--concurrency`).
+- `--rate-limit=N --rate-window-seconds=W` throttles producer dispatch
+  to N samples per W-second rolling window.
+- `--checkpoint-every=N` emits structured progress events every N
+  completed samples; bind a custom `BatchProgressReporter` to forward
+  them to logs or dashboards.
+
+Host apps can override or register additional profiles under
+`eval-harness.batches.profiles` in `config/eval-harness.php`.
+See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
+the full profile reference and Horizon tuning recipes.
+
 ### Eval sets and resume manifests
 
 Group registered datasets into an eval set when one CI or release gate

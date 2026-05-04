@@ -319,3 +319,16 @@
   - adversarial command examples with manifest+regression options,
   - report API query/download examples.
 - README `--out` versus `--raw-path`: only switch to literal filesystem paths when required and document that relative `--raw-path` parent directories must exist.
+
+## 2026-05-05
+
+- Operational batch profiles must keep "explicit options win" as their core invariant. Profile defaults that conflict with the resolved batch mode (e.g. a lazy-parallel-only field while the operator forced `--batch=serial`) should drop silently from the profile, while operator-supplied conflicts must still surface as `BatchOptions` validation errors so a typo in CI cannot silently degrade behavior.
+- `BuildsBatchOptions` cannot rely on `$this->option()` defaults to detect "operator did not pass this flag" because Symfony returns the signature default in both cases. Use `$this->input->hasParameterOption('--name', true)` plus a guarded `getDefinition()->hasOption($name)` check so the trait works in both `eval-harness:run` and `eval-harness:adversarial` even when one command exposes more flags than the other.
+- Treat empty-string CLI option values (`--concurrency=`, `--rate-limit=`) as "fall through to profile/baseline default" rather than "explicit zero". Operators routinely pass unset CI variables, and refusing to fall back would force them to wrap every option in shell conditionals.
+- PHPStan `nullsafe.neverNull` fires when `?->property ?? <fallback>` would only ever pick the fallback for the nullsafe-null branch. For value objects whose property is itself non-null, prefer an explicit `if ($obj !== null) { return $obj->prop; } return $fallback;` over `$obj?->prop ?? $fallback`.
+- Rate limiting for queue-backed evals belongs on the producer side (sliding window over dispatch timestamps), not on the worker side. The harness can throttle dispatch deterministically and stay Horizon-agnostic; worker concurrency is a Horizon supervisor concern that must be tuned independently.
+- Keep the rate-limit math pure (`RateLimitWindow` returns the next-wait microseconds without sleeping itself) so unit tests can assert the algorithm with synthetic timestamps and `LazyParallelBatch` keeps the only `usleep()` call.
+- Progress checkpoints should fire both on the configured interval and once at end-of-batch (even when the total is below the interval). Otherwise short batches under tight CI timeouts emit no checkpoint at all and dashboards cannot tell a finished short run apart from a stalled one.
+- Bind `BatchProgressReporter` via `singletonIf()` so host apps can register a custom reporter from their own service provider without fighting the package binding. The default `NullBatchProgressReporter` keeps Horizon and event-stream dependencies optional.
+- Built-in profile defaults must be conservative (CI profile caps concurrency at 4) so a host app that opts into `--batch-profile=ci` without configuring queue capacity does not accidentally ddos its own SUT or provider.
+- Document the precedence rule in both README and Horizon guide: profile sets defaults, explicit CLI overrides win, lazy-parallel-only fields drop silently when the resolved mode is serial. Operators reading either doc alone should not be surprised by the other.

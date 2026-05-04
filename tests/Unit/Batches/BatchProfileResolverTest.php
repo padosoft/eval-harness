@@ -1,0 +1,196 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\EvalHarness\Tests\Unit\Batches;
+
+use Illuminate\Config\Repository;
+use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\BatchProfile;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use PHPUnit\Framework\TestCase;
+
+final class BatchProfileResolverTest extends TestCase
+{
+    public function test_built_in_profiles_are_available_without_config(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $this->assertSame(
+            [BatchProfile::NAME_CI, BatchProfile::NAME_SMOKE, BatchProfile::NAME_NIGHTLY],
+            $resolver->names(),
+        );
+    }
+
+    public function test_ci_profile_targets_lazy_parallel_with_sane_throughput(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $profile = $resolver->resolve(BatchProfile::NAME_CI);
+
+        $this->assertSame(BatchProfile::NAME_CI, $profile->name);
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $profile->mode);
+        $this->assertSame(4, $profile->concurrency);
+        $this->assertSame(30, $profile->timeoutSeconds);
+        $this->assertSame(120, $profile->waitTimeoutSeconds);
+        $this->assertSame(4, $profile->chunkSize);
+        $this->assertNull($profile->rateLimit);
+        $this->assertSame(25, $profile->checkpointEvery);
+    }
+
+    public function test_smoke_profile_stays_serial(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $profile = $resolver->resolve(BatchProfile::NAME_SMOKE);
+
+        $this->assertSame(BatchOptions::MODE_SERIAL, $profile->mode);
+        $this->assertNull($profile->concurrency);
+        $this->assertNull($profile->queue);
+        $this->assertNull($profile->chunkSize);
+        $this->assertNull($profile->rateLimit);
+        $this->assertNull($profile->checkpointEvery);
+    }
+
+    public function test_nightly_profile_includes_rate_limit_defaults(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $profile = $resolver->resolve(BatchProfile::NAME_NIGHTLY);
+
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $profile->mode);
+        $this->assertSame(16, $profile->concurrency);
+        $this->assertSame(120, $profile->timeoutSeconds);
+        $this->assertSame(600, $profile->waitTimeoutSeconds);
+        $this->assertSame(16, $profile->chunkSize);
+        $this->assertSame(60, $profile->rateLimit);
+        $this->assertSame(60, $profile->rateWindowSeconds);
+        $this->assertSame(100, $profile->checkpointEvery);
+    }
+
+    public function test_unknown_profile_lists_available_profiles(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Unknown batch profile 'release'. Available profiles: ci, smoke, nightly.");
+
+        $resolver->resolve('release');
+    }
+
+    public function test_config_overrides_specific_profile_fields(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+                    ],
+                ],
+            ],
+        ]);
+
+        $profile = (new BatchProfileResolver($config))->resolve(BatchProfile::NAME_CI);
+
+        $this->assertSame(8, $profile->concurrency);
+        $this->assertSame(30, $profile->rateLimit);
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $profile->mode);
+        $this->assertSame(120, $profile->waitTimeoutSeconds);
+    }
+
+    public function test_config_can_register_custom_profiles(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'release' => [
+                            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+                            'concurrency' => 24,
+                            'queue' => 'evals-release',
+                            'timeout_seconds' => 90,
+                            'wait_timeout_seconds' => 600,
+                            'chunk_size' => 24,
+                            'rate_limit' => 90,
+                            'rate_window_seconds' => 60,
+                            'checkpoint_every' => 50,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $resolver = new BatchProfileResolver($config);
+
+        $this->assertContains('release', $resolver->names());
+        $profile = $resolver->resolve('release');
+        $this->assertSame(24, $profile->concurrency);
+        $this->assertSame('evals-release', $profile->queue);
+        $this->assertSame(90, $profile->rateLimit);
+    }
+
+    public function test_invalid_profile_field_value_throws(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'ci' => ['concurrency' => 'four'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'ci' concurrency must be a positive integer or null.");
+
+        new BatchProfileResolver($config);
+    }
+
+    public function test_blank_profile_name_in_config_is_rejected(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        ' ' => ['mode' => BatchOptions::MODE_SERIAL],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch profile names must be non-empty strings');
+
+        new BatchProfileResolver($config);
+    }
+
+    public function test_serial_profile_rejects_lazy_parallel_only_field(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'smoke' => ['rate_limit' => 5],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'smoke' uses serial mode and cannot set rate_limit.");
+
+        new BatchProfileResolver($config);
+    }
+
+    public function test_resolve_rejects_blank_name(): void
+    {
+        $resolver = new BatchProfileResolver;
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch profile name must be a non-empty string');
+
+        $resolver->resolve('');
+    }
+}

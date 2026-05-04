@@ -52,10 +52,15 @@ final class AdversarialCommand extends Command
         {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
+        {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults}
         {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
         {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}
+        {--chunk-size= : Producer window size for lazy-parallel dispatch; defaults to --concurrency when unset}
+        {--rate-limit= : Maximum samples dispatched per --rate-window-seconds in lazy-parallel mode}
+        {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}
+        {--checkpoint-every= : Emit a progress checkpoint every N completed samples in lazy-parallel mode}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';

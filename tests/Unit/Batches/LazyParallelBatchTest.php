@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Batches;
 use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Support\Facades\Queue;
 use Padosoft\EvalHarness\Batches\BatchOptions;
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
@@ -786,6 +787,126 @@ final class LazyParallelBatchTest extends TestCase
         return array_map(
             static fn (DatasetSample $sample): SampleInvocation => SampleInvocation::fromDatasetSample($sample),
             $samples,
+        );
+    }
+
+    public function test_dispatch_uses_effective_chunk_size_for_producer_window(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
+            new DatasetSample(id: 's2', input: ['answer' => 'b'], expectedOutput: 'b'),
+            new DatasetSample(id: 's3', input: ['answer' => 'c'], expectedOutput: 'c'),
+            new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
+        ];
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 4,
+                queue: 'evals',
+                chunkSize: 2,
+            ),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, 4);
+    }
+
+    public function test_run_invokes_progress_reporter_at_checkpoint_intervals(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
+            new DatasetSample(id: 's2', input: ['answer' => 'b'], expectedOutput: 'b'),
+            new DatasetSample(id: 's3', input: ['answer' => 'c'], expectedOutput: 'c'),
+            new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
+        ];
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                chunkSize: 2,
+                checkpointEvery: 2,
+            ),
+        );
+
+        $this->assertSame(
+            [
+                ['samples_completed' => 2, 'total' => 4],
+                ['samples_completed' => 4, 'total' => 4],
+            ],
+            $reporter->checkpoints,
+        );
+    }
+
+    public function test_run_emits_final_checkpoint_even_when_total_is_below_interval(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = $this->samples();
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 25,
+            ),
+        );
+
+        $this->assertSame(
+            [['samples_completed' => 2, 'total' => 2]],
+            $reporter->checkpoints,
         );
     }
 }
@@ -1587,5 +1708,19 @@ final class ThrowingAbortBatchResultStore implements BatchResultStore
     public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
     {
         return [];
+    }
+}
+
+final class RecordingBatchProgressReporter implements BatchProgressReporter
+{
+    /** @var list<array{samples_completed: int, total: int}> */
+    public array $checkpoints = [];
+
+    public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+    {
+        $this->checkpoints[] = [
+            'samples_completed' => $samplesCompleted,
+            'total' => $totalSamples,
+        ];
     }
 }

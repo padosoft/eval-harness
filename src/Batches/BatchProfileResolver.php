@@ -1,0 +1,200 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Padosoft\EvalHarness\Batches;
+
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
+
+/**
+ * Resolves named batch profiles ({@see BatchProfile}) from built-in defaults
+ * plus optional `eval-harness.batches.profiles.*` config overrides.
+ *
+ * Profiles are operator presets that fill in defaults for batch options;
+ * explicit CLI/programmatic options always override profile defaults.
+ */
+final class BatchProfileResolver
+{
+    /**
+     * Built-in profiles. Host apps can override individual fields per profile
+     * via `eval-harness.batches.profiles.<name>` config or replace them
+     * entirely via {@see register()} during application boot.
+     *
+     * @var array<string, array{
+     *     mode: string,
+     *     concurrency?: int|null,
+     *     queue?: string|null,
+     *     timeout_seconds?: int|null,
+     *     wait_timeout_seconds?: int|null,
+     *     result_ttl_seconds?: int|null,
+     *     chunk_size?: int|null,
+     *     rate_limit?: int|null,
+     *     rate_window_seconds?: int|null,
+     *     checkpoint_every?: int|null,
+     * }>
+     */
+    public const BUILT_IN_PROFILES = [
+        BatchProfile::NAME_CI => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 4,
+            'timeout_seconds' => 30,
+            'wait_timeout_seconds' => 120,
+            'chunk_size' => 4,
+            'checkpoint_every' => 25,
+        ],
+        BatchProfile::NAME_SMOKE => [
+            'mode' => BatchOptions::MODE_SERIAL,
+        ],
+        BatchProfile::NAME_NIGHTLY => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 16,
+            'timeout_seconds' => 120,
+            'wait_timeout_seconds' => 600,
+            'chunk_size' => 16,
+            'rate_limit' => 60,
+            'rate_window_seconds' => 60,
+            'checkpoint_every' => 100,
+        ],
+    ];
+
+    /**
+     * @var array<string, BatchProfile>
+     */
+    private array $profiles;
+
+    public function __construct(?ConfigRepository $config = null)
+    {
+        $this->profiles = $this->buildProfiles($config);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function names(): array
+    {
+        return array_keys($this->profiles);
+    }
+
+    public function resolve(string $name): BatchProfile
+    {
+        if ($name === '' || trim($name) !== $name) {
+            throw new EvalRunException('Batch profile name must be a non-empty string without leading or trailing whitespace.');
+        }
+
+        if (! array_key_exists($name, $this->profiles)) {
+            throw new EvalRunException(sprintf(
+                "Unknown batch profile '%s'. Available profiles: %s.",
+                $name,
+                implode(', ', $this->names()),
+            ));
+        }
+
+        return $this->profiles[$name];
+    }
+
+    /**
+     * @return array<string, BatchProfile>
+     */
+    private function buildProfiles(?ConfigRepository $config): array
+    {
+        /** @var array<string, mixed> $overrides */
+        $overrides = [];
+        if ($config !== null) {
+            $value = $config->get('eval-harness.batches.profiles');
+            if (is_array($value)) {
+                $overrides = $value;
+            }
+        }
+
+        $merged = self::BUILT_IN_PROFILES;
+        foreach ($overrides as $name => $definition) {
+            if (! is_string($name) || $name === '' || trim($name) !== $name) {
+                throw new EvalRunException('Batch profile names must be non-empty strings without leading or trailing whitespace.');
+            }
+
+            if (! is_array($definition)) {
+                throw new EvalRunException(sprintf("Batch profile '%s' override must be an array.", $name));
+            }
+
+            $existing = $merged[$name] ?? ['mode' => BatchOptions::MODE_SERIAL];
+            $merged[$name] = array_replace($existing, $definition);
+        }
+
+        $resolved = [];
+        foreach ($merged as $name => $definition) {
+            $resolved[$name] = $this->buildProfile((string) $name, $definition);
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param  array<string, mixed>  $definition
+     */
+    private function buildProfile(string $name, array $definition): BatchProfile
+    {
+        $mode = $definition['mode'] ?? BatchOptions::MODE_SERIAL;
+        if (! is_string($mode)) {
+            throw new EvalRunException(sprintf("Batch profile '%s' mode must be a string.", $name));
+        }
+
+        return new BatchProfile(
+            name: $name,
+            mode: $mode,
+            concurrency: $this->normalizePositiveInt($name, 'concurrency', $definition['concurrency'] ?? null),
+            queue: $this->normalizeQueue($name, $definition['queue'] ?? null),
+            timeoutSeconds: $this->normalizePositiveInt($name, 'timeout_seconds', $definition['timeout_seconds'] ?? null),
+            waitTimeoutSeconds: $this->normalizePositiveInt($name, 'wait_timeout_seconds', $definition['wait_timeout_seconds'] ?? null),
+            resultTtlSeconds: $this->normalizePositiveInt($name, 'result_ttl_seconds', $definition['result_ttl_seconds'] ?? null),
+            chunkSize: $this->normalizePositiveInt($name, 'chunk_size', $definition['chunk_size'] ?? null),
+            rateLimit: $this->normalizePositiveInt($name, 'rate_limit', $definition['rate_limit'] ?? null),
+            rateWindowSeconds: $this->normalizePositiveInt($name, 'rate_window_seconds', $definition['rate_window_seconds'] ?? null),
+            checkpointEvery: $this->normalizePositiveInt($name, 'checkpoint_every', $definition['checkpoint_every'] ?? null),
+        );
+    }
+
+    private function normalizePositiveInt(string $profileName, string $field, mixed $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_int($value)) {
+            if ($value < 1) {
+                throw new EvalRunException(sprintf("Batch profile '%s' %s must be a positive integer.", $profileName, $field));
+            }
+
+            return $value;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            $int = (int) $value;
+            if ($int < 1) {
+                throw new EvalRunException(sprintf("Batch profile '%s' %s must be a positive integer.", $profileName, $field));
+            }
+
+            return $int;
+        }
+
+        throw new EvalRunException(sprintf("Batch profile '%s' %s must be a positive integer or null.", $profileName, $field));
+    }
+
+    private function normalizeQueue(string $profileName, mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (! is_string($value)) {
+            throw new EvalRunException(sprintf("Batch profile '%s' queue must be null or a non-empty string.", $profileName));
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            throw new EvalRunException(sprintf("Batch profile '%s' queue must be null or a non-empty string.", $profileName));
+        }
+
+        return $trimmed;
+    }
+}
