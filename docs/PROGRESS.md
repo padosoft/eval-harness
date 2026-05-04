@@ -1872,3 +1872,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twenty-third PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `1e9fa8e` and generated three actionable comments:
+  - plain `--manifest-retain=` fell back to the default retention instead of failing fast,
+  - gated `--manifest-retain=` had the same empty-value hole,
+  - `--regression-max-drop=` fell back to the default threshold instead of rejecting an explicitly empty value.
+- Addressed the twenty-fourth PR #28 review round by making shared positive integer parsing reject empty strings, making `--regression-max-drop=` reject empty strings, and adding plain/gated manifest-retain plus empty max-drop command coverage. Because the integer parser is shared, targeted validation included `EvalCommandTest`.
+- Targeted validation passed after the twenty-fourth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (124 tests, 418 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twenty-fourth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (541 tests, 1472 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twenty-fourth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

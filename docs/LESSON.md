@@ -274,3 +274,4 @@
 - Manifest path validation should reject directory-shaped strings as well as existing directories. A path ending in `/` or `\` is not a JSON file target even if it does not exist yet, and should fail before eval or store filesystem work starts.
 - Manifest CLI preflight has gated and non-gated branches. When a guardrail is shared by `--manifest` and `--regression-gate`, add command coverage for both branches so they cannot drift.
 - README operator guidance should name the exact option being tuned. Retention guidance should say `--manifest-retain`, not only "retention".
+- Empty option values are not the same as omitted options. Numeric CLI options such as `--manifest-retain=` and `--regression-max-drop=` should fail fast so unset CI variables cannot silently fall back to package defaults.

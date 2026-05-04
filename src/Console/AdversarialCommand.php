@@ -367,7 +367,7 @@ final class AdversarialCommand extends Command
     private function regressionMaxDropRatio(): float
     {
         $value = $this->option('regression-max-drop');
-        if ($value === null || $value === '') {
+        if ($value === null) {
             return 0.05;
         }
 

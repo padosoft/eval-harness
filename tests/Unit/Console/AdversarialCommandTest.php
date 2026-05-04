@@ -163,6 +163,49 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_manifest_retention_option_rejects_empty_value_before_running(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '',
+            ])
+                ->expectsOutputToContain('The --manifest-retain option must be a positive integer.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
     public function test_regression_gate_requires_manifest_path(): void
     {
         $sample = $this->adversarialSample('ssrf');
@@ -187,6 +230,40 @@ final class AdversarialCommandTest extends TestCase
                 ->assertExitCode(1);
         } finally {
             @unlink($outputs);
+        }
+    }
+
+    public function test_regression_gate_rejects_empty_manifest_retention_before_running(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '',
+                '--regression-gate' => true,
+            ])
+                ->expectsOutputToContain('The --manifest-retain option must be a positive integer.')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
         }
     }
 
@@ -928,6 +1005,40 @@ final class AdversarialCommandTest extends TestCase
                 '--regression-metric' => ['exact-match:mean'],
             ])
                 ->expectsOutputToContain('The --regression-metric option requires --regression-gate.')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
+    public function test_regression_gate_rejects_empty_max_drop_before_running(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--regression-max-drop' => '',
+            ])
+                ->expectsOutputToContain('The --regression-max-drop option must be a finite percentage in [0, 100].')
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);
