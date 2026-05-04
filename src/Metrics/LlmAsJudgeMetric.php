@@ -50,6 +50,11 @@ ACTUAL: {actual}
 Return ONLY the JSON object. No prose, no code fences.
 PROMPT;
 
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(
         private readonly JudgeClient $judge,
         private readonly ConfigRepository $config,
@@ -62,26 +67,24 @@ PROMPT;
 
     public function usageDetails(): array
     {
-        return MetricUsageDetails::from($this->judge);
+        return $this->usageDetails;
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
     {
-        if (is_string($sample->expectedOutput)) {
-            $expected = $sample->expectedOutput;
-        } else {
-            $encoded = json_encode($sample->expectedOutput, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-            // json_encode returns false on encoding failure (NAN, INF,
-            // recursive object). Fall back to empty string so the
-            // judge sees a sentinel rather than a literal "false".
-            $expected = is_string($encoded) ? $encoded : '';
-        }
+        $this->usageDetails = [];
 
+        $expected = $this->expectedOutput($sample);
         $question = $this->promptInput($sample);
 
         $prompt = $this->renderPrompt($expected, $actualOutput, $question);
 
-        $rawJson = $this->judge->judge($prompt);
+        try {
+            $rawJson = $this->judge->judge($prompt);
+        } finally {
+            $this->usageDetails = MetricUsageDetails::from($this->judge);
+        }
+
         $decoded = $this->decodeStrictJson($rawJson, $sample->id);
 
         $rawScore = $decoded['score'];
@@ -111,9 +114,25 @@ PROMPT;
             'judge_reason' => is_string($decoded['reason'] ?? null) ? $decoded['reason'] : null,
             'prompt_chars' => strlen($prompt),
             'response_chars' => strlen($rawJson),
-        ], $this->judge);
+        ], $this);
 
         return new MetricScore(score: $score, details: $details);
+    }
+
+    private function expectedOutput(DatasetSample $sample): string
+    {
+        if (is_string($sample->expectedOutput)) {
+            return $sample->expectedOutput;
+        }
+
+        try {
+            return json_encode($sample->expectedOutput, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new MetricException(
+                sprintf("Sample '%s' expected_output must be JSON-encodable for llm-as-judge metric: %s.", $sample->id, $e->getMessage()),
+                previous: $e,
+            );
+        }
     }
 
     private function promptInput(DatasetSample $sample): string

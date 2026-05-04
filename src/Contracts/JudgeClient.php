@@ -15,8 +15,10 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
 interface JudgeClient
 {
     /**
-     * @throws MetricException when the provider fails or does not return
-     *                         a usable message content string.
+     * @throws MetricException when the provider returns a failed HTTP
+     *                         response or no usable message content string.
+     * @throws \Throwable for unexpected request/configuration/programming
+     *                    failures that should not be retried or wrapped.
      */
     public function judge(string $prompt): string;
 }

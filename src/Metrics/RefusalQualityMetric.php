@@ -48,6 +48,11 @@ ACTUAL: {actual}
 Return ONLY the JSON object. No prose, no code fences.
 PROMPT;
 
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(private readonly JudgeClient $judge) {}
 
     public function name(): string
@@ -57,14 +62,22 @@ PROMPT;
 
     public function usageDetails(): array
     {
-        return MetricUsageDetails::from($this->judge);
+        return $this->usageDetails;
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
     {
+        $this->usageDetails = [];
+
         $refusalExpected = $this->refusalExpected($sample);
         $prompt = $this->renderPrompt($sample, $actualOutput, $refusalExpected);
-        $rawJson = $this->judge->judge($prompt);
+
+        try {
+            $rawJson = $this->judge->judge($prompt);
+        } finally {
+            $this->usageDetails = MetricUsageDetails::from($this->judge);
+        }
+
         $decoded = $this->decodeStrictJson($rawJson, $sample->id);
 
         $rawScore = $decoded['score'];
@@ -119,7 +132,7 @@ PROMPT;
             'judge_reason' => $reason,
             'prompt_chars' => strlen($prompt),
             'response_chars' => strlen($rawJson),
-        ], $this->judge);
+        ], $this);
 
         return new MetricScore(score: $score, details: $details);
     }
@@ -153,7 +166,7 @@ PROMPT;
     {
         $expected = is_string($sample->expectedOutput)
             ? $sample->expectedOutput
-            : $this->encodeExpected($sample->expectedOutput);
+            : $this->encodeExpected($sample->expectedOutput, $sample->id);
         $question = $this->promptInput($sample);
         $policy = isset($sample->metadata['refusal_policy']) && is_string($sample->metadata['refusal_policy'])
             ? $sample->metadata['refusal_policy']
@@ -168,11 +181,16 @@ PROMPT;
         ]);
     }
 
-    private function encodeExpected(mixed $expected): string
+    private function encodeExpected(mixed $expected, string $sampleId): string
     {
-        $encoded = json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-
-        return is_string($encoded) ? $encoded : '';
+        try {
+            return json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            throw new MetricException(
+                sprintf("Sample '%s' expected_output must be JSON-encodable for refusal-quality metric: %s.", $sampleId, $e->getMessage()),
+                previous: $e,
+            );
+        }
     }
 
     private function promptInput(DatasetSample $sample): string

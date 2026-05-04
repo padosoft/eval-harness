@@ -85,6 +85,26 @@ final class LlmAsJudgeMetricTest extends TestCase
         }
     }
 
+    public function test_non_string_expected_encoding_failures_throw_before_judge_call(): void
+    {
+        Http::fake();
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('expected_output must be JSON-encodable for llm-as-judge');
+
+        try {
+            $metric->score(
+                new DatasetSample(id: 'a', input: ['question' => 'q'], expectedOutput: ['bad' => "\xB1\x31"]),
+                'a',
+            );
+        } finally {
+            Http::assertNothingSent();
+        }
+    }
+
     public function test_usage_details_are_available_after_strict_response_failure(): void
     {
         Http::fake([

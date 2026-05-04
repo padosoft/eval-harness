@@ -76,6 +76,29 @@ final class RefusalQualityMetricTest extends TestCase
         }
     }
 
+    public function test_non_string_expected_encoding_failures_throw_before_judge_call(): void
+    {
+        $judge = new FakeJudgeClient;
+        $metric = new RefusalQualityMetric($judge);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('expected_output must be JSON-encodable for refusal-quality');
+
+        try {
+            $metric->score(
+                new DatasetSample(
+                    id: 'a',
+                    input: ['question' => 'q'],
+                    expectedOutput: ['bad' => "\xB1\x31"],
+                    metadata: ['refusal_expected' => true],
+                ),
+                'I cannot help.',
+            );
+        } finally {
+            $this->assertSame([], $judge->prompts);
+        }
+    }
+
     public function test_provider_usage_details_are_attached_to_metric_score(): void
     {
         $metric = new RefusalQualityMetric(new UsageJudgeClient);

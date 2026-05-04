@@ -222,3 +222,5 @@
 - Usage summaries should not synthesize missing fields. Track per-field `reported` counts and render missing Markdown values as `n/a` so latency-only or partial provider usage does not look like real zero token/cost usage.
 - Provider usage can still matter when strict metric parsing fails after a successful HTTP call. Capture safe usage details on `SampleFailure` as well as `MetricScore` so malformed judge/embedding responses do not hide spend in summaries.
 - Shape-agnostic judge prompt fallbacks should fail closed on non-JSON-encodable sample input, including invalid UTF-8, instead of sending a blank prompt to the judge.
+- Provider-backed metrics should clear their captured usage at the start of each score attempt and copy provider usage in a `finally` block around the provider call. Otherwise an early validation failure on a later sample can reuse the previous sample's singleton client usage.
+- Judge metrics should fail closed when non-string `expected_output` cannot be JSON-encoded; an empty EXPECTED field lets dataset encoding bugs become scored judge prompts.

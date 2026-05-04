@@ -21,8 +21,10 @@ interface EmbeddingClient
      * @param  list<string>  $texts
      * @return list<list<float>>
      *
-     * @throws MetricException when the provider fails or returns an
-     *                         unusable embedding payload.
+     * @throws MetricException when the provider returns a failed HTTP
+     *                         response or an unusable embedding payload.
+     * @throws \Throwable for unexpected request/configuration/programming
+     *                    failures that should not be retried or wrapped.
      */
     public function embedMany(array $texts): array;
 }

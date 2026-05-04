@@ -27,6 +27,11 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
  */
 final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
 {
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(
         private readonly EmbeddingClient $embeddings,
     ) {}
@@ -38,11 +43,13 @@ final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
 
     public function usageDetails(): array
     {
-        return MetricUsageDetails::from($this->embeddings);
+        return $this->usageDetails;
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
     {
+        $this->usageDetails = [];
+
         if (! is_string($sample->expectedOutput)) {
             throw new MetricException(
                 sprintf(
@@ -53,7 +60,12 @@ final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
             );
         }
 
-        $vectors = $this->embeddings->embedMany([$sample->expectedOutput, $actualOutput]);
+        try {
+            $vectors = $this->embeddings->embedMany([$sample->expectedOutput, $actualOutput]);
+        } finally {
+            $this->usageDetails = MetricUsageDetails::from($this->embeddings);
+        }
+
         if (count($vectors) !== 2) {
             throw new MetricException(
                 sprintf('Cosine embedding client returned %d vector(s); expected 2.', count($vectors)),
@@ -71,7 +83,7 @@ final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
             'actual_dim' => count($actualVec),
             'cosine_similarity' => $similarity,
             'clamped_score' => $clamped,
-        ], $this->embeddings);
+        ], $this);
 
         return new MetricScore(score: $clamped, details: $details);
     }

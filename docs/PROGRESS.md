@@ -1325,3 +1325,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding five review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `433 tests, 1001 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `b4cd1dc` and generated four actionable comments: refusal expected-output JSON encoding should fail closed, contract docblocks needed to mention unexpected request/configuration throwables, and captured failure usage could reuse stale singleton provider usage when a later sample failed before a provider call.
+- Addressed those comments by failing closed on non-string expected-output JSON encoding failures for judge metrics, documenting the broader unexpected throwable surface on `EmbeddingClient`/`JudgeClient`, and moving provider-backed metrics to per-score usage snapshots cleared before validation and copied from providers in `finally` blocks.
+- Targeted validation passed after the expected-output/stale-usage review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Reports/EvalReportTest.php tests/Unit/EvalEngineTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php` => `OK (114 tests, 256 assertions)`
+- Full local gate passed after the expected-output/stale-usage review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (436 tests, 1011 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `436 tests, 1011 assertions` before re-requesting Copilot.

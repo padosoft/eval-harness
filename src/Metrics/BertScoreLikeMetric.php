@@ -24,6 +24,11 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
 {
     private const int DEFAULT_MAX_TOKENS = 128;
 
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(
         private readonly EmbeddingClient $embeddings,
         private readonly int $maxTokens = self::DEFAULT_MAX_TOKENS,
@@ -40,11 +45,13 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
 
     public function usageDetails(): array
     {
-        return MetricUsageDetails::from($this->embeddings);
+        return $this->usageDetails;
     }
 
     public function score(DatasetSample $sample, string $actualOutput): MetricScore
     {
+        $this->usageDetails = [];
+
         if (! is_string($sample->expectedOutput)) {
             throw new MetricException(
                 sprintf(
@@ -80,7 +87,12 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
             ]);
         }
 
-        $vectors = $this->embeddings->embedMany([...$expectedTokens, ...$actualTokens]);
+        try {
+            $vectors = $this->embeddings->embedMany([...$expectedTokens, ...$actualTokens]);
+        } finally {
+            $this->usageDetails = MetricUsageDetails::from($this->embeddings);
+        }
+
         $expectedCount = count($expectedTokens);
 
         if (count($vectors) !== $expectedCount + count($actualTokens)) {
@@ -110,7 +122,7 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
             'recall' => $recall,
             'raw_score' => $rawScore,
             'clamped_score' => $clampedScore,
-        ], $this->embeddings);
+        ], $this);
 
         return new MetricScore(score: $clampedScore, details: $details);
     }

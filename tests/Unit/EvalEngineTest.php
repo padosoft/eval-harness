@@ -776,6 +776,40 @@ final class EvalEngineTest extends TestCase
         $this->assertSame(1, $report->usageSummary()['reported']['prompt_tokens']);
     }
 
+    public function test_metric_failure_before_provider_call_does_not_reuse_previous_usage(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"reason": "missing score"}'],
+                ]],
+                'usage' => [
+                    'prompt_tokens' => 6,
+                    'completion_tokens' => 2,
+                    'total_tokens' => 8,
+                ],
+            ]),
+        ]);
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+
+        $engine->dataset('rag.failing.judge.no-stale-usage')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: ['question' => 'q'], expectedOutput: 'e'),
+                new DatasetSample(id: 's2', input: ['q' => "\xB1\x31"], expectedOutput: 'e'),
+            ])
+            ->withMetrics(['llm-as-judge'])
+            ->register();
+
+        $report = $engine->run('rag.failing.judge.no-stale-usage', fn () => 'a');
+
+        $this->assertSame(2, $report->totalFailures());
+        $this->assertSame(1, $report->usageSummary()['observations']);
+        $this->assertSame(6, $report->usageSummary()['prompt_tokens']);
+        Http::assertSentCount(1);
+    }
+
     public function test_metric_failure_can_be_raised_by_runtime_config(): void
     {
         config(['eval-harness.runtime.raise_exceptions' => 'true']);
