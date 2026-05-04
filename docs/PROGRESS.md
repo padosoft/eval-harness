@@ -1335,3 +1335,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding three review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `436 tests, 1011 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `8ceedae` and generated two actionable comments: `ProvidesUsageDetails` needed current-attempt reset semantics for third-party implementers, and `bertscore-like` should avoid re-embedding duplicate context-free tokens.
+- Addressed those comments by documenting the usage reset/empty-current-attempt contract, deduplicating BERTScore-like tokens before `EmbeddingClient::embedMany()`, reusing vectors per occurrence for precision/recall scoring, and reporting `embedded_tokens` in metric details.
+- Targeted validation passed after the usage-contract/token-deduplication review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/BertScoreLikeMetricTest.php` => `OK (12 tests, 27 assertions)`
+- Full local gate passed after the usage-contract/token-deduplication review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (437 tests, 1015 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding one BERTScore-like regression test. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `437 tests, 1015 assertions` before re-requesting Copilot.

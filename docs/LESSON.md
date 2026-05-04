@@ -224,3 +224,5 @@
 - Shape-agnostic judge prompt fallbacks should fail closed on non-JSON-encodable sample input, including invalid UTF-8, instead of sending a blank prompt to the judge.
 - Provider-backed metrics should clear their captured usage at the start of each score attempt and copy provider usage in a `finally` block around the provider call. Otherwise an early validation failure on a later sample can reuse the previous sample's singleton client usage.
 - Judge metrics should fail closed when non-string `expected_output` cannot be JSON-encoded; an empty EXPECTED field lets dataset encoding bugs become scored judge prompts.
+- `ProvidesUsageDetails` implementations must reset usage before every request or score attempt. `EvalEngine` can snapshot usage from failures, so a third-party provider that keeps stale usage after an early throw can corrupt failure spend summaries.
+- `bertscore-like` uses context-free token embeddings, so duplicate normalized tokens should be embedded once per sample and then reused per occurrence. Re-embedding repeated tokens only adds provider cost and latency without changing the score.

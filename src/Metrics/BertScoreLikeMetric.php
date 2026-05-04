@@ -87,26 +87,40 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
             ]);
         }
 
+        $tokensToEmbed = array_values(array_unique([...$expectedTokens, ...$actualTokens]));
+
         try {
-            $vectors = $this->embeddings->embedMany([...$expectedTokens, ...$actualTokens]);
+            $vectors = $this->embeddings->embedMany($tokensToEmbed);
         } finally {
             $this->usageDetails = MetricUsageDetails::from($this->embeddings);
         }
 
         $expectedCount = count($expectedTokens);
 
-        if (count($vectors) !== $expectedCount + count($actualTokens)) {
+        if (count($vectors) !== count($tokensToEmbed)) {
             throw new MetricException(
                 sprintf(
                     'BERTScore-like embedding client returned %d vector(s); expected %d.',
                     count($vectors),
-                    $expectedCount + count($actualTokens),
+                    count($tokensToEmbed),
                 ),
             );
         }
 
-        $expectedVectors = array_slice($vectors, 0, $expectedCount);
-        $actualVectors = array_slice($vectors, $expectedCount);
+        /** @var array<string, list<float>> $vectorsByToken */
+        $vectorsByToken = [];
+        foreach ($tokensToEmbed as $index => $token) {
+            $vectorsByToken[$token] = $vectors[$index];
+        }
+
+        $expectedVectors = array_map(
+            static fn (string $token): array => $vectorsByToken[$token],
+            $expectedTokens,
+        );
+        $actualVectors = array_map(
+            static fn (string $token): array => $vectorsByToken[$token],
+            $actualTokens,
+        );
 
         $precision = $this->averageBestSimilarity($actualVectors, $expectedVectors);
         $recall = $this->averageBestSimilarity($expectedVectors, $actualVectors);
@@ -118,6 +132,7 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
         $details = MetricUsageDetails::append([
             'expected_tokens' => $expectedCount,
             'actual_tokens' => count($actualTokens),
+            'embedded_tokens' => count($tokensToEmbed),
             'precision' => $precision,
             'recall' => $recall,
             'raw_score' => $rawScore,

@@ -35,9 +35,27 @@ final class BertScoreLikeMetricTest extends TestCase
         );
 
         $this->assertSame(1.0, $score->score);
-        $this->assertSame(['cat', 'sat', 'feline', 'sat'], $client->requests[0]);
+        $this->assertSame(['cat', 'sat', 'feline'], $client->requests[0]);
         $this->assertSame(2, $score->details['expected_tokens']);
         $this->assertSame(2, $score->details['actual_tokens']);
+        $this->assertSame(3, $score->details['embedded_tokens']);
+    }
+
+    public function test_duplicate_tokens_are_embedded_once_and_reused(): void
+    {
+        $client = new FakeEmbeddingClient([
+            'cat' => [1.0],
+        ]);
+        $metric = new BertScoreLikeMetric($client);
+
+        $score = $metric->score(
+            new DatasetSample(id: 'a', input: [], expectedOutput: 'cat cat'),
+            'cat cat',
+        );
+
+        $this->assertSame(1.0, $score->score);
+        $this->assertSame([['cat']], $client->requests);
+        $this->assertSame(1, $score->details['embedded_tokens']);
     }
 
     public function test_provider_usage_details_are_attached_to_metric_score(): void
