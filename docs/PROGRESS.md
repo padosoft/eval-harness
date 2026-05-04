@@ -1756,3 +1756,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the fifteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `4188f8b` and generated two actionable comments:
+  - compatibility signatures also needed `report_schema_version` so manifests carried across report-schema changes do not gate against incompatible aggregates,
+  - baseline lookup should skip a historical manifest entry with the same `run_id` as the current entry so reruns do not compare against their own stale version.
+- Addressed the sixteenth PR #28 review round by adding `report_schema_version` to `AdversarialRunSliceSignature`, skipping same-`run_id` entries in `latestCompatibleBaseline()`, documenting the expanded compatibility rule, and adding regression coverage for old-schema baselines plus reruns that reuse run IDs.
+- Targeted validation passed after the sixteenth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (83 tests, 275 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the sixteenth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (523 tests, 1385 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the sixteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

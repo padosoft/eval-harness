@@ -579,6 +579,88 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_skips_regression_baseline_with_different_report_schema_version(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->save($path, new AdversarialRunManifest(
+                name: 'run.dataset',
+                runs: [
+                    $this->entryWithReportSchema(
+                        report: $this->report('run.dataset', 1.0, 2.0, 1.0),
+                        runId: 'run-old-schema',
+                        reportSchemaVersion: 'eval-harness.report.v0',
+                    ),
+                ],
+                updatedAt: 2.0,
+            ));
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 3.0, 4.0, 0.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-current-schema',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertNull($result->baselineRunId);
+            $this->assertTrue($result->recorded);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_skips_existing_current_run_id_as_regression_baseline(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0),
+                maxRuns: 3,
+                runId: 'run-baseline',
+            );
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 1.0),
+                maxRuns: 3,
+                runId: 'run-current',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 4.0, 5.0, 0.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-baseline', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_does_not_record_regression_gate_run_when_configured_metric_is_missing(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -1043,6 +1125,17 @@ final class AdversarialRunManifestTest extends TestCase
             startedAt: $startedAt,
             finishedAt: $finishedAt,
         );
+    }
+
+    private function entryWithReportSchema(
+        EvalReport $report,
+        string $runId,
+        string $reportSchemaVersion,
+    ): AdversarialRunManifestEntry {
+        $payload = AdversarialRunManifestEntry::fromReport($report, $runId)->toJson();
+        $payload['report_schema_version'] = $reportSchemaVersion;
+
+        return AdversarialRunManifestEntry::fromJson($payload);
     }
 
     private function sample(string $category = 'prompt-injection', ?string $id = null): DatasetSample

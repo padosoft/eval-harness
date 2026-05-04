@@ -14,6 +14,7 @@ final class AdversarialRunSliceSignature
     public static function fromEntry(AdversarialRunManifestEntry $entry): string
     {
         return serialize([
+            'report_schema_version' => $entry->reportSchemaVersion,
             'dataset' => $entry->datasetName,
             'metrics' => self::metricSignature($entry),
             'adversarial' => self::adversarialSliceSignature($entry),

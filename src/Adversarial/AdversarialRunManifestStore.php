@@ -264,6 +264,10 @@ final class AdversarialRunManifestStore
         $currentSignature = AdversarialRunSliceSignature::fromEntry($current);
 
         foreach ($manifest->runs as $baseline) {
+            if ($baseline->runId === $current->runId) {
+                continue;
+            }
+
             if ($baseline->totalFailures > 0) {
                 continue;
             }
