@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use JsonException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class ReportArtifactController
@@ -28,9 +29,14 @@ final class ReportArtifactController
     {
         try {
             $artifact = $reports->find($id);
-            $contents = $reports->contents($artifact);
         } catch (EvalRunException $e) {
             throw new NotFoundHttpException($e->getMessage(), $e);
+        }
+
+        try {
+            $contents = $reports->contents($artifact);
+        } catch (EvalRunException $e) {
+            throw new ServiceUnavailableHttpException(null, 'Report artifact contents could not be read.', $e);
         }
 
         return new JsonResponse([

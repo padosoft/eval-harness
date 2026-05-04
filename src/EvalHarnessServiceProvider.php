@@ -8,8 +8,8 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Http\Client\Factory;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
@@ -179,13 +179,16 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return;
         }
 
-        $prefix = $this->apiRoutePrefix($config);
-        $middleware = $this->apiRouteMiddleware($config);
+        if (! $this->app->bound(Registrar::class)) {
+            return;
+        }
 
-        Route::prefix($prefix)
-            ->middleware($middleware)
-            ->as('eval-harness.api.')
-            ->group(__DIR__.'/../routes/eval-harness-api.php');
+        $router = $this->app->make(Registrar::class);
+        $router->group([
+            'prefix' => $this->apiRoutePrefix($config),
+            'middleware' => $this->apiRouteMiddleware($config),
+            'as' => 'eval-harness.api.',
+        ], __DIR__.'/../routes/eval-harness-api.php');
     }
 
     private function apiRoutePrefix(ConfigRepository $config): string

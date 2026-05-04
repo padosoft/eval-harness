@@ -2020,3 +2020,5 @@
   - `vendor/bin/pint --test`
 - Copilot left one new actionable review comment after the first PR #32 re-review: `all()` should not look like it pays per-file metadata reads, and `registerReportApiRoutes()` should not hard-reference `Illuminate\Foundation\Application`.
 - Addressed that second PR #32 review round by splitting report artifacts into explicit summary/detail builders and by guarding `routesAreCached()` with `method_exists()` instead of an `Application` type check.
+- Copilot then flagged three more issues on the refreshed PR #32 review: the summary builder carried an unused disk parameter, `registerReportApiRoutes()` should avoid the `Route` facade in component-only installs, and `show()` should surface content-read failures as 5xx instead of 404.
+- Addressed those follow-up comments by removing the unused summary-builder parameter, switching route registration to the container `Registrar`, and splitting `show()` into 404 not-found handling plus 503 content-read failure handling.

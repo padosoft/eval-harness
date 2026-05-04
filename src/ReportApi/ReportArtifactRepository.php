@@ -40,7 +40,7 @@ final class ReportArtifactRepository
                 continue;
             }
 
-            $artifacts[] = $this->summaryArtifactFor($disk, $relativePath);
+            $artifacts[] = $this->summaryArtifactFor($relativePath);
         }
 
         usort($artifacts, static fn (ReportArtifact $left, ReportArtifact $right): int => strcmp($left->path, $right->path));
@@ -98,7 +98,7 @@ final class ReportArtifactRepository
         return $prefix === '' ? $relativePath : $prefix.'/'.$relativePath;
     }
 
-    private function summaryArtifactFor(Filesystem $disk, string $relativePath): ReportArtifact
+    private function summaryArtifactFor(string $relativePath): ReportArtifact
     {
         ReportArtifactId::assertValidRelativePath($relativePath);
 
