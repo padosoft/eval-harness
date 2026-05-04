@@ -150,6 +150,29 @@ final class AdversarialRunManifestTest extends TestCase
         $manifest->record(AdversarialRunManifestEntry::fromReport($this->report('run.dataset', 1.0, 2.0), 'run-1'), maxRuns: 0);
     }
 
+    public function test_manifest_rejects_run_id_reuse_for_different_slice(): void
+    {
+        $manifest = AdversarialRunManifest::empty('shared.adversarial', 1.0)
+            ->record(
+                AdversarialRunManifestEntry::fromReport(
+                    $this->report('run.dataset', 1.0, 2.0, category: 'prompt-injection'),
+                    'run-shared',
+                ),
+                maxRuns: 2,
+            );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("already contains run_id 'run-shared' for a different report schema, dataset, metric set, or adversarial slice");
+
+        $manifest->record(
+            AdversarialRunManifestEntry::fromReport(
+                $this->report('run.dataset', 3.0, 4.0, category: 'ssrf'),
+                'run-shared',
+            ),
+            maxRuns: 2,
+        );
+    }
+
     public function test_store_writes_loads_and_retains_manifest_runs(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -175,6 +198,28 @@ final class AdversarialRunManifestTest extends TestCase
             @unlink($path.'.lock');
             if (is_dir($directory)) {
                 @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_rejects_existing_directory_manifest_path(): void
+    {
+        $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-dir-'.uniqid('', true);
+        mkdir($path);
+
+        try {
+            $this->expectException(EvalRunException::class);
+            $this->expectExceptionMessage('path must point to a file path, not an existing directory');
+
+            (new AdversarialRunManifestStore)->record(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0),
+                runId: 'run-directory-path',
+            );
+        } finally {
+            @unlink($path.'.lock');
+            if (is_dir($path)) {
+                @rmdir($path);
             }
         }
     }
@@ -231,6 +276,52 @@ final class AdversarialRunManifestTest extends TestCase
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
                 $store->load($path)?->runs ?? [],
             ));
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_rejects_gated_run_id_collision_for_different_slice(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, category: 'prompt-injection'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 2,
+                runId: 'run-shared',
+            );
+
+            try {
+                $store->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('run.dataset', 3.0, 4.0, category: 'ssrf'),
+                    gate: $gate,
+                    maxDrop: 0.05,
+                    maxRuns: 2,
+                    runId: 'run-shared',
+                );
+
+                $this->fail('Expected shared run_id on a different slice to fail.');
+            } catch (EvalRunException $e) {
+                $this->assertStringContainsString("already contains run_id 'run-shared' for a different report schema, dataset, metric set, or adversarial slice", $e->getMessage());
+            }
+
+            $this->assertSame(['run-shared'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+            $this->assertSame('prompt-injection', $store->load($path)?->runs[0]->adversarial['categories'][0]['category'] ?? null);
         } finally {
             @unlink($path);
             @unlink($path.'.lock');

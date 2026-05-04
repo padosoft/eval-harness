@@ -1830,3 +1830,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twentieth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `d48a075` and generated two actionable comments:
+  - shared manifests still allowed caller-supplied `run_id` reuse across different report schemas, datasets, metric sets, or adversarial slices, replacing unrelated history,
+  - `--manifest` directory paths were not rejected during command preflight, so the eval could run before the store failed while replacing the directory with JSON.
+- Addressed the twenty-first PR #28 review round by rejecting `run_id` collisions unless the existing and new entries share the same compatibility signature, rejecting existing directory manifest paths in both the CLI preflight and store path validation, and adding direct manifest/store plus command regression coverage.
+- Targeted validation passed after the twenty-first PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (94 tests, 323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twenty-first PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (534 tests, 1433 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twenty-first PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

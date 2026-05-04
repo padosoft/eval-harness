@@ -216,6 +216,10 @@ final class AdversarialCommand extends Command
             throw new EvalRunException('The --manifest option requires a non-empty file path without leading or trailing whitespace.');
         }
 
+        if (is_dir($manifestPath)) {
+            throw new EvalRunException('The --manifest option must point to a JSON file path, not an existing directory.');
+        }
+
         return $manifestPath;
     }
 

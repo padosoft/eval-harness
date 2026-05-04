@@ -269,3 +269,5 @@
 - Keep adversarial regression gate states three-valued. `missing-baseline` is non-failing first-run/seeding guidance, but `passed()` should mean only an actual comparison pass.
 - Distinguish omitted required CLI options from explicitly empty values. For `--regression-gate`, no `--manifest` should explain the required manifest/seeding contract, while `--manifest=""` should fail the generic non-empty path preflight.
 - Command-level regression gate tests should cover the retained success diagnostic, not only failure, missing-baseline, and non-recorded pass branches.
+- Shared adversarial manifests cannot treat `run_id` as the only replacement key. Allow same-`run_id` updates only for the same report schema, dataset, metric set, and adversarial slice signature; reject collisions across different slices.
+- Existing directories are invalid manifest paths. CLI preflight should reject `--manifest=<directory>` before running evals, and the public store should reject the same path shape before opening lock files or writing JSON.

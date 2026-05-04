@@ -128,9 +128,20 @@ final class AdversarialRunManifest
         }
 
         $runs = [$entry];
+        $entrySignature = AdversarialRunSliceSignature::fromEntry($entry);
         foreach ($this->runs as $run) {
             if ($run->runId !== $entry->runId) {
                 $runs[] = $run;
+
+                continue;
+            }
+
+            if (AdversarialRunSliceSignature::fromEntry($run) !== $entrySignature) {
+                throw new EvalRunException(sprintf(
+                    "Adversarial run manifest '%s' already contains run_id '%s' for a different report schema, dataset, metric set, or adversarial slice.",
+                    $this->name,
+                    $entry->runId,
+                ));
             }
         }
 

@@ -203,6 +203,10 @@ final class AdversarialRunManifestStore
         if ($path === '' || $path !== trim($path)) {
             throw new EvalRunException('Adversarial run manifest path must be a non-empty string without leading or trailing whitespace.');
         }
+
+        if (is_dir($path)) {
+            throw new EvalRunException('Adversarial run manifest path must point to a file path, not an existing directory.');
+        }
     }
 
     private function assertManifestName(string $manifestName): void
