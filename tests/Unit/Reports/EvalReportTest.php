@@ -321,4 +321,170 @@ final class EvalReportTest extends TestCase
         $this->assertSame(0, $histogram[0]['count']);
         $this->assertSame(1, $histogram[1]['count']);
     }
+
+    public function test_usage_summary_aggregates_structured_metric_details(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [
+                        'llm-as-judge' => new MetricScore(1.0, [
+                            'usage' => [
+                                'prompt_tokens' => 10,
+                                'completion_tokens' => 4,
+                                'total_tokens' => 14,
+                                'cost_usd' => 0.001,
+                                'latency_ms' => 120.5,
+                            ],
+                        ]),
+                    ],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(id: 's2', input: [], expectedOutput: 'b'),
+                    actualOutput: 'b',
+                    metricScores: [
+                        'refusal-quality' => new MetricScore(1.0, [
+                            'usage' => [
+                                'prompt_tokens' => '8',
+                                'completion_tokens' => '2',
+                                'total_cost_usd' => '0.0005',
+                                'latency_ms' => 80,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $this->assertSame([
+            'observations' => 2,
+            'prompt_tokens' => 18,
+            'completion_tokens' => 6,
+            'total_tokens' => 14,
+            'cost_usd' => 0.0015,
+            'reported' => [
+                'prompt_tokens' => 2,
+                'completion_tokens' => 2,
+                'total_tokens' => 1,
+                'cost_usd' => 2,
+                'latency_ms' => 2,
+            ],
+            'latency_ms' => [
+                'count' => 2,
+                'total' => 200.5,
+                'mean' => 100.25,
+                'max' => 120.5,
+            ],
+        ], $report->usageSummary());
+    }
+
+    public function test_usage_summary_ignores_malformed_usage_details(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [
+                        'custom' => new MetricScore(1.0, [
+                            'usage' => [
+                                'prompt_tokens' => -1,
+                                'completion_tokens' => 'nan',
+                                'cost_usd' => '1e309',
+                                'latency_ms' => INF,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $this->assertSame(0, $report->usageSummary()['observations']);
+    }
+
+    public function test_usage_summary_distinguishes_unreported_fields_from_reported_zeroes(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [
+                        'custom' => new MetricScore(1.0, [
+                            'usage' => [
+                                'completion_tokens' => 0,
+                                'latency_ms' => 42.0,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $summary = $report->usageSummary();
+
+        $this->assertSame(1, $summary['observations']);
+        $this->assertSame(0, $summary['prompt_tokens']);
+        $this->assertSame(0, $summary['completion_tokens']);
+        $this->assertSame(0, $summary['total_tokens']);
+        $this->assertSame(0, $summary['reported']['prompt_tokens']);
+        $this->assertSame(1, $summary['reported']['completion_tokens']);
+        $this->assertSame(0, $summary['reported']['total_tokens']);
+        $this->assertSame(1, $summary['reported']['latency_ms']);
+        $this->assertSame(42.0, $summary['latency_ms']['mean']);
+    }
+
+    public function test_usage_summary_includes_captured_failure_usage_details(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [],
+                ),
+            ],
+            failures: [
+                new SampleFailure(
+                    sampleId: 's1',
+                    metricName: 'llm-as-judge',
+                    error: 'missing score',
+                    details: [
+                        'usage' => [
+                            'prompt_tokens' => 9,
+                            'completion_tokens' => 2,
+                            'total_tokens' => 11,
+                            'latency_ms' => 33.0,
+                        ],
+                    ],
+                ),
+            ],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $summary = $report->usageSummary();
+
+        $this->assertSame(1, $summary['observations']);
+        $this->assertSame(9, $summary['prompt_tokens']);
+        $this->assertSame(2, $summary['completion_tokens']);
+        $this->assertSame(11, $summary['total_tokens']);
+        $this->assertSame(1, $summary['reported']['prompt_tokens']);
+        $this->assertSame(33.0, $summary['latency_ms']['max']);
+    }
 }

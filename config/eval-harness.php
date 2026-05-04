@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 return [
@@ -10,7 +11,7 @@ return [
     | Default provider transport
     |--------------------------------------------------------------------------
     |
-    | The eval-harness ships LLM-as-judge and cosine-embedding metrics that
+    | The eval-harness ships LLM-as-judge and embedding-backed metrics that
     | call out to an external provider via raw `Http::`. The defaults below
     | match OpenAI's wire format; OpenRouter / Regolo / any OpenAI-compatible
     | endpoint works with only an env-var change.
@@ -36,6 +37,7 @@ return [
             ),
         ],
 
+        // Shared by `llm-as-judge` and `refusal-quality`.
         'llm_as_judge' => [
             'endpoint' => env(
                 'EVAL_HARNESS_JUDGE_ENDPOINT',
@@ -56,6 +58,34 @@ return [
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Runtime guardrails
+    |--------------------------------------------------------------------------
+    |
+    | Metric failures are captured into reports by default. Enable
+    | `raise_exceptions` for strict CI lanes that should abort on the first
+    | MetricException/provider contract errors instead. Provider retries are
+    | extra attempts after the initial request and only apply to Laravel HTTP
+    | connection failures, HTTP 429, and 5xx responses.
+    |
+    */
+
+    'runtime' => [
+        'raise_exceptions' => RuntimeOptions::normalizeBoolean(
+            env('EVAL_HARNESS_RAISE_EXCEPTIONS'),
+            false,
+        ),
+        'provider_retry_attempts' => RuntimeOptions::normalizeNonNegativeInt(
+            env('EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS'),
+            0,
+        ),
+        'provider_retry_sleep_milliseconds' => RuntimeOptions::normalizeNonNegativeInt(
+            env('EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS'),
+            100,
+        ),
     ],
 
     /*

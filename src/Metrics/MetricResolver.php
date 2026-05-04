@@ -20,7 +20,7 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  *      dependencies (HTTP client, config) are auto-wired.
  *   3. Built-in alias string ('exact-match', 'contains', 'regex',
  *      'rouge-l', 'citation-groundedness', 'cosine-embedding',
- *      'llm-as-judge') — looked up against the static map below
+ *      'bertscore-like', 'llm-as-judge', 'refusal-quality') — looked up against the static map below
  *      and then resolved through the container.
  *   4. Container alias / abstract — any string the container can
  *      `make()` (e.g. an `$app->bind('my-metric', MyMetric::class)`
@@ -50,7 +50,9 @@ final class MetricResolver
         'rouge-l' => RougeLMetric::class,
         'citation-groundedness' => CitationGroundednessMetric::class,
         'cosine-embedding' => CosineEmbeddingMetric::class,
+        'bertscore-like' => BertScoreLikeMetric::class,
         'llm-as-judge' => LlmAsJudgeMetric::class,
+        'refusal-quality' => RefusalQualityMetric::class,
     ];
 
     public function __construct(private readonly Container $container) {}

@@ -1195,3 +1195,183 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two dispatch/infrastructure tests. README has no numeric PHPUnit test-count claim; PR #17 body was updated to `354 tests, 770 assertions` through the GitHub REST API because `gh pr edit` remains blocked by missing `read:project`.
+- Copilot work started for PR #17 at head `32b7637`; no new official Copilot review or comments were published after the request, and no recent top-level/inline comments were present. CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, merge state was `CLEAN`, and PR #17 merged into `main` at `3f73af8`.
+- Started Macro Task 4 from updated `main` on `task/advanced-metrics`, pushed the macro branch, and created subtask branch `task/advanced-metrics-embedding-bertscore`.
+- Implemented the first Macro Task 4 slice: a fakeable `EmbeddingClient` contract, default `OpenAiCompatibleEmbeddingClient`, `CosineEmbeddingMetric` refactor through the contract, and new `bertscore-like` metric alias with token-level embedding precision/recall/F1.
+- Updated README's comparison matrix per user request by keeping explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell and adding an embedding semantic-overlap row for the new fakeable metric support.
+- Targeted validation passed for the embedding/BERTScore-like slice:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php tests/Unit/Metrics/MetricResolverTest.php tests/Unit/ServiceProviderTest.php` => `OK (51 tests, 87 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the embedding/BERTScore-like slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (371 tests, 803 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding embedding metric tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #18 (`task/advanced-metrics-embedding-bertscore` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 18 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #18 merged into `task/advanced-metrics` at `b7fa442`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-refusal-quality` from `task/advanced-metrics`.
+- Implemented the refusal-quality slice: a fakeable `JudgeClient` contract, default `OpenAiCompatibleJudgeClient`, `LlmAsJudgeMetric` refactor through the shared judge client, and new `refusal-quality` metric alias requiring `metadata.refusal_expected` plus strict `score`/`refusal` JSON validation.
+- Updated README's comparison matrix with a refusal-quality/safety-judge row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the refusal-quality slice:
+  - `vendor/bin/phpunit tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Metrics/MetricResolverTest.php tests/Unit/ServiceProviderTest.php` => `OK (55 tests, 96 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the refusal-quality slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (390 tests, 842 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding refusal-quality tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #19 (`task/advanced-metrics-refusal-quality` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 19 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #19 merged into `task/advanced-metrics` at `e4af70b`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-citation-spans` from `task/advanced-metrics`.
+- Implemented the advanced citation groundedness slice by extending `citation-groundedness` with `metadata.citation_evidence` spans. Evidence spans require an exact citation marker plus normalized quote match, expose count-only details, and preserve baseline `metadata.citations` behavior.
+- Updated README's comparison matrix with a citation evidence-spans row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the citation evidence slice:
+  - `vendor/bin/phpunit tests/Unit/Metrics/CitationGroundednessMetricTest.php` => `OK (10 tests, 31 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the citation evidence slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (397 tests, 863 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding citation evidence tests. README has no numeric PHPUnit test-count claim to update.
+- Opened PR #20 (`task/advanced-metrics-citation-spans` -> `task/advanced-metrics`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 20 --add-reviewer copilot` was blocked by missing `read:project`. CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot work started but did not publish a review record or comments; review requests, top-level comments, and inline comments were empty after waiting. PR #20 merged into `task/advanced-metrics` at `0265a6f`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-usage-summaries` from `task/advanced-metrics`.
+- Implemented usage/cost/latency report summaries by aggregating structured `MetricScore.details['usage']` values into `EvalReport::usageSummary()`, JSON report top-level `usage`, and a Markdown "Usage summary" section.
+- Updated README's comparison matrix with a cost/token/latency summaries row and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the usage summary slice:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (34 tests, 124 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the usage summary slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (401 tests, 877 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding usage summary tests. README has no numeric PHPUnit test-count claim to update.
+- Copilot reviewed PR #21 and generated one actionable comment: usage summary float parsing accepted non-finite overflow values such as `1e309`/`INF`, which could leak infinities into JSON/Markdown report summaries.
+- Addressed the PR #21 Copilot comment by rejecting `is_infinite()` values in usage float parsing and adding regression coverage for overflow/INF usage details.
+- Full local gate passed after the PR #21 non-finite usage fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (401 tests, 877 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #21 again at head `73b3bcb` after the non-finite usage fix; CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, and PR #21 merged into `task/advanced-metrics` at `13ac58b`.
+- Started the next Macro Task 4 subtask branch `task/advanced-metrics-runtime-options` from `task/advanced-metrics`.
+- Implemented runtime guardrails: normalized runtime config for `raise_exceptions` and provider retries, opt-in retry loops for OpenAI-compatible embedding/judge clients on transport errors/HTTP 429/5xx, and strict metric exception propagation when configured.
+- Updated README's comparison matrix with runtime retry/strict exception controls and kept explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the runtime guardrail slice:
+  - `vendor/bin/phpunit tests/Unit/Support/RuntimeOptionsTest.php tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/EvalEngineTest.php tests/Unit/ServiceProviderTest.php` => `OK (67 tests, 149 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the runtime guardrail slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (412 tests, 918 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Opened PR #22 (`task/advanced-metrics-runtime-options` -> `task/advanced-metrics`) for the runtime guardrail slice with summary, guardrails, validation, and README comparison prefix check in the PR body.
+- Copilot reviewed PR #22 at head `4689769` and generated two actionable comments:
+  - provider retries should catch only transport-level exceptions, not every `Throwable`,
+  - strict metric exception mode should either rethrow only `MetricException` or be renamed to make all-throwable propagation explicit.
+- Addressed the PR #22 Copilot comments by limiting provider retry wrapping to Laravel HTTP `ConnectionException`, letting unexpected request throwables bubble immediately, and making strict mode rethrow only `MetricException` while unexpected metric bugs remain captured as report failures.
+- Full local gate passed after the PR #22 Copilot fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (414 tests, 923 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot reviewed PR #22 again at head `6940d86` and generated no new comments. CI was green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, all PR #22 review threads were resolved, and PR #22 merged into `task/advanced-metrics` at `d3b5b45`.
+- Macro Task 4 implementation scope is now complete on the macro branch: fakeable embedding/judge provider contracts, BERTScore-like/refusal-quality metrics, citation evidence spans, usage summaries, and runtime retry/strict exception guardrails.
+- Macro Task 4 macro branch gate passed before opening the PR to `main`:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (414 tests, 923 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Verified `origin/main` had not advanced relative to the Macro Task 4 branch before opening the macro PR (`git rev-list --left-right --count origin/main...HEAD` => `0 14`).
+- Opened Macro Task 4 PR #23 (`task/advanced-metrics` -> `main`) with summary, subtask PR list, guardrails, validation, and README comparison prefix check in the PR body.
+- The Codex connector review on PR #23 raised an actionable embedding transport edge case: provider responses can serialize `data[].index` as digit strings, causing out-of-order vectors to skip reordering. Fixed this by normalizing digit-string indexes, rejecting invalid/partial index payloads, and adding regression coverage.
+- Full local gate passed after the PR #23 embedding index fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (417 tests, 928 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+
+## 2026-05-04
+
+- Copilot reviewed Macro Task 4 PR #23 at head `0acb0b24` and generated five actionable comments: merge-safe `AGENTS.md` handoff text, shape-agnostic refusal prompt input, provider usage channels for embedding/judge metrics, and non-finite embedding component rejection.
+- Addressed those comments by making the current-priority handoff branch-neutral, adding the optional `ProvidesUsageDetails` usage channel, propagating built-in provider usage into metric details, falling back to JSON-encoded sample input for judge prompts without `question`, preserving the default judge prompt when `prompt_template` is null, and rejecting `INF`/`NaN` embedding components at the transport boundary.
+- Updated README usage/comparison documentation while preserving explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` status prefixes in the comparison matrix.
+- Targeted validation passed for the PR #23 Copilot fix round:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php` => `OK (68 tests, 153 assertions)`
+- Full local gate passed after the PR #23 Copilot fix round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (426 tests, 968 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding provider-usage and prompt fallback tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `426 tests, 968 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `2268271` and generated one actionable usage-summary comment: missing usage fields were normalized to zero and `total_tokens` was synthesized from partial provider data, making partial usage look like real zeroes in JSON/Markdown summaries.
+- Addressed the usage-summary comment by adding per-field `reported` counts, aggregating only explicitly reported token/cost fields, rendering unreported Markdown usage cells as `n/a`, and adding regression coverage for partial/latency-only usage details.
+- Targeted validation passed after the usage-summary review fix:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (36 tests, 139 assertions)`
+- Full local gate passed after the usage-summary review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (428 tests, 983 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two report usage tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `428 tests, 983 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `87f4f79` and generated three actionable comments: judge prompt fallbacks should throw on non-JSON-encodable shape-agnostic input, and provider usage from successful HTTP calls should still be summarized when strict metric parsing later fails.
+- Addressed those comments by making `llm-as-judge` and `refusal-quality` prompt fallbacks throw `MetricException` on JSON encoding failures, exposing provider usage through provider-backed metric instances after failures, carrying safe usage details on `SampleFailure`, and aggregating usage from both successful metric scores and captured metric failures.
+- Targeted validation passed after the failure-usage/input-encoding review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Reports/EvalReportTest.php tests/Unit/EvalEngineTest.php` => `OK (90 tests, 204 assertions)`
+- Full local gate passed after the failure-usage/input-encoding review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (433 tests, 1001 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding five review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `433 tests, 1001 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `b4cd1dc` and generated four actionable comments: refusal expected-output JSON encoding should fail closed, contract docblocks needed to mention unexpected request/configuration throwables, and captured failure usage could reuse stale singleton provider usage when a later sample failed before a provider call.
+- Addressed those comments by failing closed on non-string expected-output JSON encoding failures for judge metrics, documenting the broader unexpected throwable surface on `EmbeddingClient`/`JudgeClient`, and moving provider-backed metrics to per-score usage snapshots cleared before validation and copied from providers in `finally` blocks.
+- Targeted validation passed after the expected-output/stale-usage review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php tests/Unit/Reports/EvalReportTest.php tests/Unit/EvalEngineTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php` => `OK (114 tests, 256 assertions)`
+- Full local gate passed after the expected-output/stale-usage review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (436 tests, 1011 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three review regression tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `436 tests, 1011 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `8ceedae` and generated two actionable comments: `ProvidesUsageDetails` needed current-attempt reset semantics for third-party implementers, and `bertscore-like` should avoid re-embedding duplicate context-free tokens.
+- Addressed those comments by documenting the usage reset/empty-current-attempt contract, deduplicating BERTScore-like tokens before `EmbeddingClient::embedMany()`, reusing vectors per occurrence for precision/recall scoring, and reporting `embedded_tokens` in metric details.
+- Targeted validation passed after the usage-contract/token-deduplication review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/BertScoreLikeMetricTest.php` => `OK (12 tests, 27 assertions)`
+- Full local gate passed after the usage-contract/token-deduplication review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (437 tests, 1015 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding one BERTScore-like regression test. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `437 tests, 1015 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `dfcde87` and generated five actionable comments: built-in provider clients should not synthesize wall-clock `latency_ms`, the README architecture diagram named non-existent renderer classes, and provider/judge error messages should not serialize raw HTTP bodies or malformed judge responses into report failures.
+- Addressed those comments by propagating only explicit provider-reported/custom-client latency fields, renaming the README diagram renderers to `MarkdownReportRenderer` and `JsonReportRenderer`, removing raw provider bodies from HTTP failure exceptions, removing raw judge responses from malformed response exceptions in both judge-backed metrics, and adding leakage regression tests.
+- Targeted validation passed after the latency/redaction/README review fix:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php` => `OK (66 tests, 150 assertions)`
+- Full local gate passed after the latency/redaction/README review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (441 tests, 1021 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding four review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `441 tests, 1021 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `f2081ac` and generated two actionable comments: `metadata.citation_evidence[].quotes` entries should fail closed when malformed instead of being silently discarded, and embedding response indexes should normalize zero-padded digit strings such as `"01"`.
+- Addressed those comments by validating every alternate quote as a non-empty string, rejecting malformed `quotes` containers, normalizing leading zeroes before embedding index integer validation, and adding regression coverage for both paths.
+- Targeted validation passed after the citation/zero-padded-index review fix:
+  - `vendor/bin/phpunit tests/Unit/Metrics/CitationGroundednessMetricTest.php tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php` => `OK (27 tests, 71 assertions)`
+- Full local gate passed after the citation/zero-padded-index review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (443 tests, 1024 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1024 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `f39951c` and generated one actionable comment: `RuntimeOptions::normalizeNonNegativeInt()` let oversized digit strings fall through to float parsing and cast to `PHP_INT_MAX`.
+- Addressed that comment by normalizing digit-only strings before float parsing, falling back to defaults on integer overflow, guarding oversized floats before int casts, and adding regression coverage.
+- Targeted validation passed after the runtime integer-normalizer review fix:
+  - `vendor/bin/phpunit tests/Unit/Support/RuntimeOptionsTest.php` => `OK (5 tests, 29 assertions)`
+- Full local gate passed after the runtime integer-normalizer review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (443 tests, 1027 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding runtime normalizer assertions. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1027 assertions` before re-requesting Copilot.

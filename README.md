@@ -80,11 +80,13 @@ The package is opinionated. Three decisions matter most:
    wipes. The package never stores datasets in your DB — they live in
    `eval/golden/*.yml` next to your code.
 
-**3. Failures are captured, not thrown.** A timeout on sample 47
+**3. Failures are captured by default.** A timeout on sample 47
    should not mask the macro-F1 score across 200 valid samples. Every
    metric exception is recorded against `(sample, metric)` and
    surfaced in the final report so the operator can investigate, not
-   re-run the whole 30-minute suite.
+   re-run the whole 30-minute suite. Strict CI lanes can opt into
+   `EVAL_HARNESS_RAISE_EXCEPTIONS=true` to abort on the first
+   `MetricException` provider/metric contract error.
 
 These decisions cost some flexibility (you can't dispatch metrics
 across multiple processes yet — see Roadmap) but they keep the public
@@ -96,9 +98,10 @@ surface small and the offline path fast.
 
 ## Features
 
-- **Seven metrics out of the box** — `exact-match`, `contains`,
+- **Nine metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
-  `cosine-embedding`, `llm-as-judge` — and a clean `Metric`
+  `cosine-embedding`, `bertscore-like`, `llm-as-judge`,
+  `refusal-quality` — and a clean `Metric`
   interface for adding more.
 - **Strict-schema YAML loader** — versioned dataset contracts and
   actionable validation errors for malformed samples.
@@ -111,9 +114,18 @@ surface small and the offline path fast.
 - **Cohort-ready report data** — JSON and Markdown reports aggregate
   scores by `metadata.tags`, expose an explicit untagged bucket, and
   include per-metric score histograms for dashboards.
+- **Citation evidence checks** — `citation-groundedness` can score
+  simple citation markers or stricter `metadata.citation_evidence`
+  spans that require both citation markers and quote text.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
+- **Usage summaries** — JSON and Markdown reports aggregate structured
+  `usage` details for provider token counts, cost USD, and latency.
+- **Runtime guardrails** — provider timeouts are normalized, optional
+  retries cover Laravel HTTP connection failures plus HTTP 429/5xx,
+  and strict mode can rethrow `MetricException` failures instead of
+  capturing them.
 - **Batch execution modes** — SUT runs flow through deterministic
   `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
   `--batch=lazy-parallel` for Laravel queue/Horizon workers.
@@ -138,9 +150,14 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
 | Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
 | Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
-| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/judge** |
+| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/BERTScore-like/judge/refusal** |
+| Embedding semantic overlap | ⚠️ PARTIAL - custom embedding eval code | ⚠️ PARTIAL - SDK evaluator path | ✅ YES - RAG embedding metrics | ⚠️ PARTIAL - provider-backed similarity assertions | ✅ YES - semantic metrics | **✅ YES - cosine-embedding + bertscore-like via fakeable EmbeddingClient** |
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
-| LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge** |
+| LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
+| Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
+| Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
+| Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
+| Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
 | Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
 | CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
 | Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
@@ -496,6 +513,7 @@ file_put_contents(
 `config/eval-harness.php` (after `vendor:publish`):
 
 ```php
+use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 return [
@@ -516,6 +534,12 @@ return [
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
+    ],
+
+    'runtime' => [
+        'raise_exceptions' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_RAISE_EXCEPTIONS'), false),
+        'provider_retry_attempts' => RuntimeOptions::normalizeNonNegativeInt(env('EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS'), 0),
+        'provider_retry_sleep_milliseconds' => RuntimeOptions::normalizeNonNegativeInt(env('EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS'), 100),
     ],
 
     'reports' => [
@@ -547,9 +571,67 @@ EVAL_HARNESS_JUDGE_API_KEY=rgl-your-key
 EVAL_HARNESS_JUDGE_MODEL=mistral-large
 ```
 
-The cosine-embedding metric only works against an embeddings endpoint
-returning the OpenAI shape (`data[0].embedding`), but most providers
-already implement that contract.
+The embedding-backed metrics (`cosine-embedding`, `bertscore-like`)
+use the same OpenAI-compatible embeddings endpoint (`data[].embedding`).
+Most providers already implement that contract. Host apps can also bind
+`Padosoft\EvalHarness\Contracts\EmbeddingClient` to route embeddings
+through Laravel AI or deterministic fakes.
+
+The judge-backed metrics (`llm-as-judge`, `refusal-quality`) share the
+same chat-completions settings. `refusal-quality` requires each sample
+to declare `metadata.refusal_expected: true|false` so safety/refusal
+behavior is explicit in the dataset contract.
+
+Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
+means two extra attempts after the initial request, with
+`EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS` between attempts. Retries apply
+only to Laravel HTTP connection failures, HTTP 429, and 5xx responses.
+Malformed successful responses still fail closed. By default, metric
+failures are captured in the report; set
+`EVAL_HARNESS_RAISE_EXCEPTIONS=true` when a strict CI lane should abort
+on the first `MetricException` provider/metric contract error.
+
+For stricter RAG groundedness, `citation-groundedness` accepts
+`metadata.citation_evidence`:
+
+```yaml
+metadata:
+  citation_evidence:
+    - citation: "[policy:refunds]"
+      quote: "Refunds are available within 30 days."
+```
+
+Each evidence span scores only when the actual output contains both
+the citation marker and the quoted evidence text. Report details expose
+counts only, not raw citation or quote strings.
+
+Metrics that expose provider usage can add a structured `usage` detail:
+
+```php
+new MetricScore(1.0, [
+    'usage' => [
+        'prompt_tokens' => 120,
+        'completion_tokens' => 40,
+        'total_tokens' => 160,
+        'cost_usd' => 0.0024,
+        'latency_ms' => 850,
+    ],
+]);
+```
+
+The renderers aggregate those values into top-level JSON and Markdown
+usage summaries while leaving raw prompts/provider payloads out of the
+report contract. JSON summaries include per-field `reported` counts so
+consumers can distinguish "not reported" from a reported zero; Markdown
+renders unreported usage totals as `n/a`. Provider usage attached to a
+captured metric failure is still included in the aggregate summary so
+malformed judge/embedding responses do not hide token or latency spend.
+
+The built-in OpenAI-compatible embedding and judge clients automatically
+attach safe usage details to their metric scores: token/cost fields from
+the provider's `usage` object when present, including provider-reported
+`latency_ms` when the backend returns it. They do not synthesize local
+wall-clock latency, keeping reports diff-friendly across repeated runs.
 
 ---
 
@@ -580,9 +662,10 @@ already implement that contract.
 ┌────────────────────────────┐       ┌────────────────────────────┐
 │  Metrics                   │       │  Reports                   │
 │  - ExactMatchMetric        │       │  - EvalReport              │
-│  - CosineEmbeddingMetric   │       │  - MarkdownRenderer        │
-│  - LlmAsJudgeMetric        │       │  - JsonRenderer            │
-│  (Http::-backed)           │       │  - macroF1, p50, p95, mean │
+│  - CosineEmbeddingMetric   │       │  - MarkdownReportRenderer  │
+│  - BertScoreLikeMetric     │       │  - JsonReportRenderer      │
+│  - LlmAsJudgeMetric        │       │  - cohorts + histograms    │
+│  - RefusalQualityMetric    │       │  - macroF1, p50, p95, mean │
 └────────────────────────────┘       └────────────────────────────┘
 ```
 
@@ -591,7 +674,9 @@ already implement that contract.
 `MetricResolver` accepts:
 1. A `Metric` instance (full control).
 2. An FQCN string (resolved through the container).
-3. A built-in alias: `exact-match`, `cosine-embedding`, `llm-as-judge`.
+3. A built-in alias: `exact-match`, `contains`, `regex`, `rouge-l`,
+   `citation-groundedness`, `cosine-embedding`, `bertscore-like`,
+   `llm-as-judge`, `refusal-quality`.
 
 Every resolved class is asserted to implement `Metric` so a typo'd
 FQCN fails with a clear error instead of producing a runtime
@@ -680,11 +765,13 @@ accidentally and never burns API credits.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   without invoking an agent, closing the Promptfoo-style CI workflow
   gap. Implemented through `Eval::scoreOutputs()` and `--outputs`.
-- **More built-in metrics**: ROUGE-L and citation-groundedness
-  baseline are implemented; BERTScore (via embeddings) and
-  refusal-quality (LLM-as-judge specialised prompt) remain planned.
-- **Usage summaries** — token, cost, and latency fields when metric
-  providers expose usage.
+- **More built-in metrics**: ROUGE-L, citation-groundedness baseline
+  plus citation evidence spans, a fakeable embedding-backed BERTScore-like
+  metric, and strict-schema refusal-quality judging are implemented.
+- **Usage summaries** — token, cost, and latency totals are aggregated
+  from structured metric `usage` details in JSON and Markdown reports.
+- **Runtime guardrails** — provider retry/timeout config and optional
+  strict metric exception propagation are implemented.
 
 ### v0.3 (planned)
 

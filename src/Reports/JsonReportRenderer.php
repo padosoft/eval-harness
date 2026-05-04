@@ -23,6 +23,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   "metric_distributions": {
  *     "exact-match": [{"min": 0.0, "max": 0.1, "count": 2}]
  *   },
+ *   "usage": {"observations": 1, "prompt_tokens": 10, "completion_tokens": 4, "total_tokens": 14, "cost_usd": 0.0012, "latency_ms": {...}},
  *   "cohorts": [
  *     {"name": "geography", "label": "geography", "is_untagged": false, "sample_count": 4, "metrics": {...}},
  *     {"name": null, "label": "(untagged)", "is_untagged": true, "sample_count": 1, "metrics": {...}}
@@ -88,6 +89,7 @@ final class JsonReportRenderer
             'total_failures' => $report->totalFailures(),
             'metrics' => $metrics,
             'metric_distributions' => $report->metricDistributions(),
+            'usage' => $report->usageSummary(),
             'cohorts' => $report->cohortSummaries(),
             'macro_f1' => $report->macroF1(),
             'samples' => $samples,

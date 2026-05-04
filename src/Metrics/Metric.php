@@ -16,9 +16,11 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *   - {@see RougeLMetric} — offline ROUGE-L F1.
  *   - {@see CitationGroundednessMetric} — baseline citation presence.
  *   - {@see CosineEmbeddingMetric} — semantic similarity via
- *     embeddings (transport: raw Http:: against any OpenAI-compatible
- *     embeddings endpoint).
+ *     embeddings.
+ *   - {@see BertScoreLikeMetric} — token-level semantic overlap via
+ *     the configured embedding client.
  *   - {@see LlmAsJudgeMetric} — strict-JSON LLM grading.
+ *   - {@see RefusalQualityMetric} — strict-JSON refusal behavior grading.
  *
  * Adding a new metric:
  *   1. Implement this interface.

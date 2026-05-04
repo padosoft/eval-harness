@@ -24,7 +24,10 @@ final class CosineEmbeddingMetricTest extends TestCase
         // Both calls return the same vector → cosine similarity = 1.
         Http::fake([
             '*' => Http::response([
-                'data' => [['embedding' => [1.0, 0.0, 0.0]]],
+                'data' => [
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                ],
             ]),
         ]);
 
@@ -39,14 +42,48 @@ final class CosineEmbeddingMetricTest extends TestCase
         $this->assertSame(3, $score->details['actual_dim']);
     }
 
+    public function test_provider_usage_details_are_attached_to_metric_score(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [1.0]],
+                    ['embedding' => [1.0]],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 4,
+                    'total_tokens' => 4,
+                    'cost_usd' => '0.0004',
+                    'latency_ms' => '12.75',
+                ],
+            ]),
+        ]);
+
+        /** @var CosineEmbeddingMetric $metric */
+        $metric = $this->app->make(CosineEmbeddingMetric::class);
+        $score = $metric->score(
+            new DatasetSample(id: 'a', input: [], expectedOutput: 'expected'),
+            'actual',
+        );
+
+        $this->assertSame(4, $score->details['usage']['prompt_tokens']);
+        $this->assertSame(4, $score->details['usage']['total_tokens']);
+        $this->assertSame(0.0004, $score->details['usage']['cost_usd']);
+        $this->assertSame(12.75, $score->details['usage']['latency_ms']);
+    }
+
     public function test_orthogonal_vectors_score_zero(): void
     {
-        // Sequenced fakes: first call returns [1,0,0], second [0,1,0].
-        // Cosine similarity is 0.0 — actually exactly the lower bound;
-        // clamped to 0.0 by the metric.
-        Http::fakeSequence()
-            ->push(['data' => [['embedding' => [1.0, 0.0, 0.0]]]])
-            ->push(['data' => [['embedding' => [0.0, 1.0, 0.0]]]]);
+        // First embedded text returns [1,0,0], second [0,1,0].
+        // Cosine similarity is exactly the lower bound and clamps to 0.0.
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                    ['embedding' => [0.0, 1.0, 0.0]],
+                ],
+            ]),
+        ]);
 
         /** @var CosineEmbeddingMetric $metric */
         $metric = $this->app->make(CosineEmbeddingMetric::class);
@@ -60,9 +97,14 @@ final class CosineEmbeddingMetricTest extends TestCase
     public function test_partial_overlap_scores_in_between(): void
     {
         // Cosine([1,1,0], [1,0,0]) = 1 / sqrt(2) ≈ 0.7071.
-        Http::fakeSequence()
-            ->push(['data' => [['embedding' => [1.0, 1.0, 0.0]]]])
-            ->push(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]);
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [1.0, 1.0, 0.0]],
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                ],
+            ]),
+        ]);
 
         /** @var CosineEmbeddingMetric $metric */
         $metric = $this->app->make(CosineEmbeddingMetric::class);
@@ -75,9 +117,14 @@ final class CosineEmbeddingMetricTest extends TestCase
 
     public function test_zero_vector_returns_zero_not_nan(): void
     {
-        Http::fakeSequence()
-            ->push(['data' => [['embedding' => [0.0, 0.0, 0.0]]]])
-            ->push(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]);
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [0.0, 0.0, 0.0]],
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                ],
+            ]),
+        ]);
 
         /** @var CosineEmbeddingMetric $metric */
         $metric = $this->app->make(CosineEmbeddingMetric::class);
@@ -115,16 +162,21 @@ final class CosineEmbeddingMetricTest extends TestCase
         $sample = new DatasetSample(id: 'a', input: [], expectedOutput: 'foo');
 
         $this->expectException(MetricException::class);
-        $this->expectExceptionMessage('missing data[0].embedding');
+        $this->expectExceptionMessage('returned 0 vector(s)');
 
         $metric->score($sample, 'bar');
     }
 
     public function test_dimensionality_mismatch_throws(): void
     {
-        Http::fakeSequence()
-            ->push(['data' => [['embedding' => [1.0, 0.0]]]])
-            ->push(['data' => [['embedding' => [1.0, 0.0, 0.0]]]]);
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [1.0, 0.0]],
+                    ['embedding' => [1.0, 0.0, 0.0]],
+                ],
+            ]),
+        ]);
 
         /** @var CosineEmbeddingMetric $metric */
         $metric = $this->app->make(CosineEmbeddingMetric::class);

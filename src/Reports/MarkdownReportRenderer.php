@@ -11,6 +11,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   - H1 with dataset name.
  *   - Summary table: total samples, total failures, duration.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
+ *   - Usage summary when metric providers expose token/cost/latency data.
  *   - Cohort table by metadata.tags.
  *   - Per-metric score histograms.
  *   - Failure list (if any).
@@ -66,6 +67,25 @@ final class MarkdownReportRenderer
         $lines[] = '';
         $lines[] = sprintf('## Macro-F1 (avg pass-rate across all metrics): %.4f', $report->macroF1());
         $lines[] = '';
+
+        $usage = $report->usageSummary();
+        if ($usage['observations'] > 0) {
+            $lines[] = '## Usage summary';
+            $lines[] = '';
+            $lines[] = '| observations | prompt tokens | completion tokens | total tokens | cost USD | mean latency ms | max latency ms |';
+            $lines[] = '| --- | --- | --- | --- | --- | --- | --- |';
+            $lines[] = sprintf(
+                '| %d | %s | %s | %s | %s | %s | %s |',
+                $usage['observations'],
+                $this->usageIntCell($usage, 'prompt_tokens'),
+                $this->usageIntCell($usage, 'completion_tokens'),
+                $this->usageIntCell($usage, 'total_tokens'),
+                $this->usageCostCell($usage),
+                $this->usageLatencyCell($usage, 'mean'),
+                $this->usageLatencyCell($usage, 'max'),
+            );
+            $lines[] = '';
+        }
 
         $cohorts = $report->cohortSummaries();
         if ($cohorts !== []) {
@@ -174,5 +194,48 @@ final class MarkdownReportRenderer
     private function htmlText(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageIntCell(array $usage, string $key): string
+    {
+        $reported = $usage['reported'] ?? [];
+        if (! is_array($reported) || ($reported[$key] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        return (string) $usage[$key];
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageCostCell(array $usage): string
+    {
+        $reported = $usage['reported'] ?? [];
+        if (! is_array($reported) || ($reported['cost_usd'] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        $value = $usage['cost_usd'] ?? null;
+
+        return is_int($value) || is_float($value) ? sprintf('%.6f', (float) $value) : 'n/a';
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageLatencyCell(array $usage, string $key): string
+    {
+        $latency = $usage['latency_ms'] ?? [];
+        if (! is_array($latency) || ($latency['count'] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        $value = $latency[$key] ?? null;
+
+        return is_int($value) || is_float($value) ? sprintf('%.2f', (float) $value) : 'n/a';
     }
 }

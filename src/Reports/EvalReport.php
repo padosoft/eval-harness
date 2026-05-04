@@ -187,6 +187,57 @@ final class EvalReport
     }
 
     /**
+     * Aggregates structured provider usage exposed by metric scores.
+     *
+     * Metrics can opt in by adding a `usage` detail array with any of:
+     * prompt_tokens, completion_tokens, total_tokens, cost_usd,
+     * latency_ms. Unknown or malformed usage fields are ignored so
+     * custom free-form metric details do not break report rendering.
+     *
+     * @return array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}}
+     */
+    public function usageSummary(): array
+    {
+        /** @var array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}} $summary */
+        $summary = [
+            'observations' => 0,
+            'prompt_tokens' => 0,
+            'completion_tokens' => 0,
+            'total_tokens' => 0,
+            'cost_usd' => 0.0,
+            'reported' => [
+                'prompt_tokens' => 0,
+                'completion_tokens' => 0,
+                'total_tokens' => 0,
+                'cost_usd' => 0,
+                'latency_ms' => 0,
+            ],
+            'latency_ms' => [
+                'count' => 0,
+                'total' => 0.0,
+                'mean' => 0.0,
+                'max' => 0.0,
+            ],
+        ];
+
+        foreach ($this->sampleResults as $result) {
+            foreach ($result->metricScores as $score) {
+                $this->addUsageDetails($summary, $score->details);
+            }
+        }
+
+        foreach ($this->failures as $failure) {
+            $this->addUsageDetails($summary, $failure->details);
+        }
+
+        $summary['latency_ms']['mean'] = $summary['latency_ms']['count'] > 0
+            ? $summary['latency_ms']['total'] / $summary['latency_ms']['count']
+            : 0.0;
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{min: float, max: float, count: int}>
      */
     public function histogramForMetric(string $metricName, int $buckets = 10): array
@@ -356,6 +407,106 @@ final class EvalReport
         }
 
         return $values;
+    }
+
+    /**
+     * @param  array<string, mixed>  $details
+     * @return array{prompt_tokens: int|null, completion_tokens: int|null, total_tokens: int|null, cost_usd: float|null, latency_ms: float|null}|null
+     */
+    private function usageDetails(array $details): ?array
+    {
+        $raw = $details['usage'] ?? null;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $promptTokens = $this->nonNegativeInt($raw['prompt_tokens'] ?? null);
+        $completionTokens = $this->nonNegativeInt($raw['completion_tokens'] ?? null);
+        $totalTokens = $this->nonNegativeInt($raw['total_tokens'] ?? null);
+        $costUsd = $this->nonNegativeFloat($raw['cost_usd'] ?? null)
+            ?? $this->nonNegativeFloat($raw['total_cost_usd'] ?? null);
+        $latencyMs = $this->nonNegativeFloat($raw['latency_ms'] ?? null);
+
+        if ($promptTokens === null && $completionTokens === null && $totalTokens === null && $costUsd === null && $latencyMs === null) {
+            return null;
+        }
+
+        return [
+            'prompt_tokens' => $promptTokens,
+            'completion_tokens' => $completionTokens,
+            'total_tokens' => $totalTokens,
+            'cost_usd' => $costUsd,
+            'latency_ms' => $latencyMs,
+        ];
+    }
+
+    /**
+     * @param  array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}}  $summary
+     * @param  array<string, mixed>  $details
+     */
+    private function addUsageDetails(array &$summary, array $details): void
+    {
+        $usage = $this->usageDetails($details);
+        if ($usage === null) {
+            return;
+        }
+
+        $summary['observations']++;
+        if ($usage['prompt_tokens'] !== null) {
+            $summary['reported']['prompt_tokens']++;
+            $summary['prompt_tokens'] += $usage['prompt_tokens'];
+        }
+
+        if ($usage['completion_tokens'] !== null) {
+            $summary['reported']['completion_tokens']++;
+            $summary['completion_tokens'] += $usage['completion_tokens'];
+        }
+
+        if ($usage['total_tokens'] !== null) {
+            $summary['reported']['total_tokens']++;
+            $summary['total_tokens'] += $usage['total_tokens'];
+        }
+
+        if ($usage['cost_usd'] !== null) {
+            $summary['reported']['cost_usd']++;
+            $summary['cost_usd'] += $usage['cost_usd'];
+        }
+
+        if ($usage['latency_ms'] !== null) {
+            $summary['reported']['latency_ms']++;
+            $summary['latency_ms']['count']++;
+            $summary['latency_ms']['total'] += $usage['latency_ms'];
+            $summary['latency_ms']['max'] = max($summary['latency_ms']['max'], $usage['latency_ms']);
+        }
+    }
+
+    private function nonNegativeInt(mixed $value): ?int
+    {
+        if (! is_int($value) && ! (is_string($value) && ctype_digit($value))) {
+            return null;
+        }
+
+        $intValue = (int) $value;
+
+        return $intValue >= 0 ? $intValue : null;
+    }
+
+    private function nonNegativeFloat(mixed $value): ?float
+    {
+        if (! is_int($value) && ! is_float($value) && ! is_string($value)) {
+            return null;
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $floatValue = (float) $value;
+        if ($floatValue < 0.0 || is_nan($floatValue) || is_infinite($floatValue)) {
+            return null;
+        }
+
+        return $floatValue;
     }
 
     /**

@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Metrics;
 
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Metrics\BertScoreLikeMetric;
 use Padosoft\EvalHarness\Metrics\CitationGroundednessMetric;
 use Padosoft\EvalHarness\Metrics\ContainsMetric;
 use Padosoft\EvalHarness\Metrics\CosineEmbeddingMetric;
 use Padosoft\EvalHarness\Metrics\ExactMatchMetric;
 use Padosoft\EvalHarness\Metrics\LlmAsJudgeMetric;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Metrics\RefusalQualityMetric;
 use Padosoft\EvalHarness\Metrics\RegexMetric;
 use Padosoft\EvalHarness\Metrics\RougeLMetric;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -66,6 +68,20 @@ final class MetricResolverTest extends TestCase
         $this->assertInstanceOf(LlmAsJudgeMetric::class, $resolver->resolve('llm-as-judge'));
     }
 
+    public function test_alias_resolves_bertscore_like(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(BertScoreLikeMetric::class, $resolver->resolve('bertscore-like'));
+    }
+
+    public function test_alias_resolves_refusal_quality(): void
+    {
+        /** @var MetricResolver $resolver */
+        $resolver = $this->app->make(MetricResolver::class);
+        $this->assertInstanceOf(RefusalQualityMetric::class, $resolver->resolve('refusal-quality'));
+    }
+
     public function test_metric_instance_is_passed_through(): void
     {
         /** @var MetricResolver $resolver */
@@ -116,7 +132,9 @@ final class MetricResolverTest extends TestCase
         $this->assertArrayHasKey('rouge-l', $aliases);
         $this->assertArrayHasKey('citation-groundedness', $aliases);
         $this->assertArrayHasKey('cosine-embedding', $aliases);
+        $this->assertArrayHasKey('bertscore-like', $aliases);
         $this->assertArrayHasKey('llm-as-judge', $aliases);
+        $this->assertArrayHasKey('refusal-quality', $aliases);
     }
 
     /**

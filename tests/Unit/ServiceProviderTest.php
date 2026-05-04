@@ -9,6 +9,8 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
+use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
@@ -38,6 +40,16 @@ final class ServiceProviderTest extends TestCase
         $this->assertInstanceOf(MetricResolver::class, $this->app->make(MetricResolver::class));
     }
 
+    public function test_embedding_client_is_bound(): void
+    {
+        $this->assertInstanceOf(EmbeddingClient::class, $this->app->make(EmbeddingClient::class));
+    }
+
+    public function test_judge_client_is_bound(): void
+    {
+        $this->assertInstanceOf(JudgeClient::class, $this->app->make(JudgeClient::class));
+    }
+
     public function test_yaml_loader_is_bound(): void
     {
         $this->assertInstanceOf(YamlDatasetLoader::class, $this->app->make(YamlDatasetLoader::class));
@@ -63,6 +75,9 @@ final class ServiceProviderTest extends TestCase
         $endpoint = config('eval-harness.metrics.cosine_embedding.endpoint');
         $this->assertIsString($endpoint);
         $this->assertNotEmpty($endpoint);
+        $this->assertFalse(config('eval-harness.runtime.raise_exceptions'));
+        $this->assertSame(0, config('eval-harness.runtime.provider_retry_attempts'));
+        $this->assertSame(100, config('eval-harness.runtime.provider_retry_sleep_milliseconds'));
         $this->assertSame(3600, config('eval-harness.batches.lazy_parallel.result_ttl_seconds'));
         $this->assertSame(60, config('eval-harness.batches.lazy_parallel.wait_timeout_seconds'));
     }

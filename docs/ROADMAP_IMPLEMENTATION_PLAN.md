@@ -121,12 +121,12 @@ Branch: `task/advanced-metrics`
 
 Implement:
 
-- Embedding-based BERTScore-like metric through an embedding client interface.
-- LLM-as-judge refusal-quality metric with strict response schema.
-- Advanced citation groundedness using evidence spans and quote matching.
-- Token/cost parser hook inspired by Ragas.
-- Cost, token, and latency summary fields in JSON/Markdown reports for metric providers that expose usage.
-- Runtime config for retry/timeout/raise-exceptions behavior.
+- Embedding-based BERTScore-like metric through an embedding client interface. Implemented in the first Macro Task 4 slice with `EmbeddingClient`, `OpenAiCompatibleEmbeddingClient`, and the `bertscore-like` metric alias.
+- LLM-as-judge refusal-quality metric with strict response schema. Implemented in the second Macro Task 4 slice with `JudgeClient`, `OpenAiCompatibleJudgeClient`, and the `refusal-quality` metric alias.
+- Advanced citation groundedness using evidence spans and quote matching. Implemented by extending `citation-groundedness` with `metadata.citation_evidence` marker+quote matching while preserving baseline `metadata.citations`.
+- Token/cost parser hook inspired by Ragas. Implemented through structured metric `usage` details parsed by report aggregation.
+- Cost, token, and latency summary fields in JSON/Markdown reports for metric providers that expose usage. Implemented as top-level usage summaries in `EvalReport`, JSON reports, and Markdown reports.
+- Runtime config for retry/timeout/raise-exceptions behavior. Implemented through normalized runtime config, opt-in provider retries for transient HTTP failures, and optional strict metric exception propagation.
 
 Guardrails:
 
@@ -138,7 +138,7 @@ Tests:
 
 - Fake embedding and fake judge tests.
 - Response parser tests.
-- Timeout/retry config tests.
+- Timeout/retry config tests. Implemented.
 - Usage parser and cost-summary tests.
 - Redaction tests.
 

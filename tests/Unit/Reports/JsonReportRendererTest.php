@@ -32,6 +32,7 @@ final class JsonReportRendererTest extends TestCase
             'total_failures',
             'metrics',
             'metric_distributions',
+            'usage',
             'cohorts',
             'macro_f1',
             'samples',
@@ -43,6 +44,7 @@ final class JsonReportRendererTest extends TestCase
 
         $this->assertSame(ReportSchema::VERSION, $json['schema_version']);
         $this->assertSame(DatasetSchema::VERSION, $json['dataset_schema_version']);
+        $this->assertSame(0, $json['usage']['observations']);
     }
 
     public function test_metrics_aggregate_shape(): void
@@ -154,6 +156,47 @@ final class JsonReportRendererTest extends TestCase
 
         $this->assertSame(1, $json['total_failures']);
         $this->assertSame([['sample_id' => 's1', 'metric' => 'llm-as-judge', 'error' => 'boom']], $json['failures']);
+    }
+
+    public function test_usage_summary_is_serialised(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'x',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'e'),
+                    actualOutput: 'e',
+                    metricScores: [
+                        'llm-as-judge' => new MetricScore(1.0, [
+                            'usage' => [
+                                'prompt_tokens' => 12,
+                                'completion_tokens' => 3,
+                                'total_tokens' => 15,
+                                'cost_usd' => 0.002,
+                                'latency_ms' => 99.0,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $json = (new JsonReportRenderer)->render($report);
+
+        $this->assertSame(1, $json['usage']['observations']);
+        $this->assertSame(12, $json['usage']['prompt_tokens']);
+        $this->assertSame(3, $json['usage']['completion_tokens']);
+        $this->assertSame(15, $json['usage']['total_tokens']);
+        $this->assertSame(0.002, $json['usage']['cost_usd']);
+        $this->assertSame(1, $json['usage']['reported']['prompt_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['completion_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['total_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['cost_usd']);
+        $this->assertSame(1, $json['usage']['reported']['latency_ms']);
+        $this->assertSame(99.0, $json['usage']['latency_ms']['mean']);
     }
 
     public function test_json_encodable(): void
