@@ -287,3 +287,5 @@
 - When a command writes to a fixed artifact path, no-result runs should remove or overwrite any previous artifact. Leaving a stale failure-promotion seed makes a clean run look like it still has failures.
 - Exporter APIs that need operator diagnostics should return the artifact and derived counts from the same computed result. Calling separate `count()` and `export()` paths invites duplicated scans and inconsistent diagnostics.
 - Reserved metadata object keys should reject list-shaped arrays and `null` when the key is present. PHP arrays blur lists and maps, so append-style writes can silently turn invalid user metadata into mixed list/object YAML.
+- Continuous adversarial monitoring should be host-app orchestration around existing package contracts, not a package daemon. Compose Laravel Scheduler or CI cron with persistent manifests, Horizon queues, regression gates, and failure promotion.
+- CI cron adversarial lanes need persistent manifest storage. If every scheduled run starts with an empty workspace, `--regression-gate` can only seed a new compatible baseline and will not detect historical regressions.

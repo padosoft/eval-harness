@@ -1947,3 +1947,16 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the first PR #29 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #29 again at head `a5a9b14` and generated no new comments. CI was green across PHP 8.3/8.4/8.5 and Laravel 12/13, so PR #29 merged into `task/adversarial-regression` at merge commit `3df1024`.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-continuous-guidance` from updated `task/adversarial-regression`.
+- Implemented scheduled/continuous-monitoring guidance without adding runtime daemon code:
+  - added `docs/ADVERSARIAL_CONTINUOUS_MONITORING.md` with Laravel Scheduler, CI cron, artifact, Horizon queue, and alerting guidance,
+  - linked the guide from README adversarial docs and feature bullets,
+  - added a scheduled/continuous monitoring row to the README comparison table while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes,
+  - marked the roadmap guidance item as implemented.
+- Full local gate passed for the adversarial continuous-monitoring guidance slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after adding continuous-monitoring guidance. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
