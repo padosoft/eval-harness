@@ -1988,3 +1988,67 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check before the Macro Task 5 PR. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Macro PR #31 (`task/adversarial-regression` -> `main`) opened after `gh pr create` returned HTTP 504 but still created the PR, requested official Copilot review through the GraphQL fallback, passed CI across PHP 8.3/8.4/8.5 and Laravel 12/13, and Copilot reviewed all 35 changed files with no comments. PR #31 merged into `main` at `cb5c30a`.
+- Started Macro Task 6 from updated `main` on `task/report-api-ui-contract`, pushed the macro branch, and created subtask branch `task/report-api-ui-contract-foundation`.
+- Implemented the first report API contract slice:
+  - added disabled-by-default API config for `eval-harness.api.enabled`, `prefix`, and `middleware`,
+  - registered opt-in read-only report API routes from the service provider,
+  - added URL-safe report artifact ids, report artifact metadata DTO/resource, repository, and controller,
+  - exposed `GET /<prefix>/reports` to list JSON/Markdown report artifacts and `GET /<prefix>/reports/{id}` to show JSON report payloads or Markdown content from the configured reports disk/prefix,
+  - rejected traversal and malformed artifact ids before disk reads.
+- Targeted validation passed for the report API foundation slice:
+  - `vendor/bin/phpunit tests/Unit/ReportApi/ReportApiDisabledTest.php tests/Unit/ReportApi/ReportApiRouteTest.php tests/Unit/ServiceProviderTest.php` => `OK (23 tests, 53 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Added explicit `illuminate/filesystem` and `illuminate/routing` Composer requirements for the API route/artifact surface, then ran `composer update --lock --no-interaction` to keep the ignored local lock metadata consistent.
+- Full local gate passed for the report API foundation slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (564 tests, 1555 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the report API foundation slice. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot and connector review on PR #32 flagged four follow-up issues: `exists()` can point at directories instead of files, list endpoints should not pay per-artifact metadata reads, the API route placeholder should be `id` instead of `report`, and `api.middleware` should tolerate associative arrays produced by config merges.
+- Addressed those PR #32 review comments by making list responses metadata-light, resolving show requests through `fileExists()` / metadata-safe reads, renaming the route placeholder to `{id}`, and normalizing middleware arrays with `array_values()`.
+- Targeted validation for the PR #32 review fixes passed:
+  - `vendor/bin/phpunit tests/Unit/ReportApi/ReportApiRouteTest.php tests/Unit/ReportApi/ReportApiDisabledTest.php tests/Unit/ServiceProviderTest.php` => `OK (25 tests, 59 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate after the PR #32 review fixes passed:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (566 tests, 1561 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Copilot left one new actionable review comment after the first PR #32 re-review: `all()` should not look like it pays per-file metadata reads, and `registerReportApiRoutes()` should not hard-reference `Illuminate\Foundation\Application`.
+- Addressed that second PR #32 review round by splitting report artifacts into explicit summary/detail builders and by guarding `routesAreCached()` with `method_exists()` instead of an `Application` type check.
+- Copilot then flagged three more issues on the refreshed PR #32 review: the summary builder carried an unused disk parameter, `registerReportApiRoutes()` should avoid the `Route` facade in component-only installs, and `show()` should surface content-read failures as 5xx instead of 404.
+- Addressed those follow-up comments by removing the unused summary-builder parameter, switching route registration to the container `Registrar`, and splitting `show()` into 404 not-found handling plus 503 content-read failure handling.
+- Copilot then flagged one more routing issue on the refreshed PR #32 review: the route file itself still used the `Route` facade.
+- Addressed that follow-up by turning `routes/eval-harness-api.php` into a registrar-driven closure and calling it from the provider with the configured prefix and middleware.
+- Copilot then flagged three more follow-up issues on the refreshed PR #32 review: invalid listing entries could still bubble out of `all()`, metadata read failures were still indistinguishable from not-found, and the 503 mapping for content-read failures lacked a regression test.
+- Addressed those follow-up comments by skipping invalid listing entries, introducing a dedicated `ReportArtifactUnavailableException` for metadata/content read failures, mapping that exception to 503, and adding a repository/controller failure test that covers both list skipping and content-read failure semantics.
+- Full local gate after the latest PR #32 review-fix round passed:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (569 tests, 1565 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Refreshed `gh` with `read:project`, requested a fresh Copilot review on PR #32 via `gh pr edit --add-reviewer '@copilot'`, and confirmed CI is green on head `98dc5b9`. Copilot review is now pending on the latest push before merge.
+
+## 2026-05-04
+
+- Opened subtask branch `task/report-api-ui-contract-api-endpoints` from `task/report-api-ui-contract`.
+- Extended the read-only report API contracts for separate UI consumers:
+  - implemented `GET /<prefix>/reports/{id}/cohorts`,
+  - implemented `GET /<prefix>/reports/{id}/histograms`,
+  - implemented `GET /<prefix>/reports/{id}/rows.csv` as deterministic row export,
+  - implemented `GET /<prefix>/reports/{id}/download` for direct artifact download.
+- Updated `docs/ROADMAP_IMPLEMENTATION_PLAN.md` and `README.md` comparison table/feature text to reflect completed API cohorts/histograms/download/CSV capabilities.
+- Added regression tests for new API route surfaces and failure modes in `tests/Unit/ReportApi/ReportApiRouteTest.php`.
+
+## 2026-05-04 (continuation)
+
+- Opened subtask PR #33: `task/report-api-ui-contract-api-endpoints` -> `task/report-api-ui-contract`.
+- Requested Copilot review (GraphQL fallback). The only submitted review was informational from the Codex app, with no actionable comments.
+- CI check suite completed green on all PHP/Laravel matrix targets.
+- Merged PR #33 into `task/report-api-ui-contract` at commit `91e3be5` with no corrective follow-up required.
+- Added `docs/REPORT_API_CONTRACT.md` with endpoint JSON examples (list/show/cohorts/histograms/rows/download) for UI contract consumers.
+- Linked API contract examples from README and marked the Macro 6 roadmap OpenAPI/JSON examples row as implemented.
