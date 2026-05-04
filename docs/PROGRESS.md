@@ -1558,3 +1558,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the second PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `c275ba8` and generated four actionable comments:
+  - store-level regression coverage needed to prove newer runs with different metric names are skipped as incompatible baselines,
+  - first gated runs needed to fail closed when configured metric targets are absent from the current report instead of returning `missing-baseline`,
+  - README needed to say the gate compares against the latest compatible manifest entry, not simply the latest entry,
+  - command tests needed direct coverage for invalid `--regression-max-drop` values.
+- Addressed the third PR #28 review round by failing no-baseline gates when configured current metrics are missing, avoiding manifest writes for missing-value gate failures, adding store coverage for incompatible metric signatures, adding command coverage for non-numeric and out-of-range `--regression-max-drop`, and updating README wording for compatible baselines.
+- Targeted validation passed after the third PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (60 tests, 196 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the third PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (500 tests, 1306 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the third PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

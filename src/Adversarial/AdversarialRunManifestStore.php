@@ -98,7 +98,9 @@ final class AdversarialRunManifestStore
                 metricTargets: $metricTargets,
             );
 
-            $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
+            if ($this->shouldRecordRegressionGateResult($result)) {
+                $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
+            }
         } finally {
             flock($lock, LOCK_UN);
             fclose($lock);
@@ -249,6 +251,17 @@ final class AdversarialRunManifestStore
         }
 
         return null;
+    }
+
+    private function shouldRecordRegressionGateResult(AdversarialRegressionGateResult $result): bool
+    {
+        foreach ($result->checks as $check) {
+            if ($check->status === AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

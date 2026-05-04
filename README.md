@@ -636,8 +636,9 @@ precomputed responses, and reuses the same `--batch`,
 options as `eval-harness:run`. Add `--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep only
 the newest N adversarial summaries. Add `--regression-gate` to compare
-the current run with the latest existing manifest entry before the
-current run is recorded. `--regression-max-drop=5` means five normalized
+the current run with the latest compatible existing manifest entry
+(same metric names and adversarial category/sample-count slice) before
+the current run is recorded. `--regression-max-drop=5` means five normalized
 percentage points. Repeat `--regression-metric=metric` or
 `--regression-metric=metric:mean|p50|p95|pass_rate` for additional
 metric aggregate checks. If no baseline exists, the command emits an

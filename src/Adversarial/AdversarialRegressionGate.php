@@ -41,6 +41,29 @@ final class AdversarialRegressionGate
         $metricTargets = $this->normalizeMetricTargets($metricTargets);
 
         if ($baseline === null) {
+            $checks = [];
+            foreach ($metricTargets as $target) {
+                if ($this->metricAggregateScore($current, $target['metric'], $target['aggregate']) !== null) {
+                    continue;
+                }
+
+                $checks[] = $this->check(
+                    target: sprintf('metrics.%s.%s', $target['metric'], $target['aggregate']),
+                    baselineScore: null,
+                    currentScore: null,
+                    maxDrop: $maxDrop,
+                );
+            }
+
+            if ($checks !== []) {
+                return new AdversarialRegressionGateResult(
+                    status: AdversarialRegressionGateResult::STATUS_FAIL,
+                    currentRunId: $current->runId,
+                    baselineRunId: null,
+                    checks: $checks,
+                );
+            }
+
             return new AdversarialRegressionGateResult(
                 status: AdversarialRegressionGateResult::STATUS_MISSING_BASELINE,
                 currentRunId: $current->runId,

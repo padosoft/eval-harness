@@ -281,6 +281,80 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_skips_newer_regression_baseline_with_different_metrics(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, metricName: 'exact-match'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-exact-baseline',
+            );
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 0.0, metricName: 'rouge-l'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-rouge-latest',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 3.0, 4.0, 0.0, metricName: 'exact-match'),
+                gate: $gate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 3,
+                runId: 'run-exact-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-exact-baseline', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_does_not_record_regression_gate_run_when_configured_metric_is_missing(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, metricName: 'rouge-l'),
+                gate: $gate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                runId: 'run-missing-metric',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertFileDoesNotExist($path);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_manifest_name_mismatch(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -327,6 +401,7 @@ final class AdversarialRunManifestTest extends TestCase
         float $finishedAt,
         float $score = 1.0,
         string $category = 'prompt-injection',
+        string $metricName = 'exact-match',
     ): EvalReport {
         return new EvalReport(
             datasetName: $datasetName,
@@ -334,7 +409,7 @@ final class AdversarialRunManifestTest extends TestCase
                 new SampleResult(
                     sample: $this->sample($category),
                     actualOutput: $score >= 0.5 ? 'safe' : 'unsafe',
-                    metricScores: ['exact-match' => new MetricScore($score)],
+                    metricScores: [$metricName => new MetricScore($score)],
                 ),
             ],
             failures: [],

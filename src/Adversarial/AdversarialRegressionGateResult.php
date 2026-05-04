@@ -63,8 +63,12 @@ final class AdversarialRegressionGateResult
             throw new EvalRunException('Adversarial regression gate missing-baseline results cannot include a baseline run or checks.');
         }
 
-        if ($status !== self::STATUS_MISSING_BASELINE && ($baselineRunId === null || $checks === [])) {
-            throw new EvalRunException('Adversarial regression gate pass/fail results require a baseline run and at least one check.');
+        if ($status === self::STATUS_PASS && ($baselineRunId === null || $checks === [])) {
+            throw new EvalRunException('Adversarial regression gate pass results require a baseline run and at least one check.');
+        }
+
+        if ($status === self::STATUS_FAIL && $checks === []) {
+            throw new EvalRunException('Adversarial regression gate fail results require at least one check.');
         }
 
         $hasFailedCheck = false;

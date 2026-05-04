@@ -28,6 +28,23 @@ final class AdversarialRegressionGateTest extends TestCase
         $this->assertSame([], $result->checks);
     }
 
+    public function test_missing_configured_current_metric_fails_closed_without_baseline(): void
+    {
+        $result = (new AdversarialRegressionGate)->evaluate(
+            current: $this->entry('current', 0.95, ['rouge-l' => $this->aggregate(0.95)]),
+            baseline: null,
+            maxDrop: 0.05,
+            metricTargets: ['exact-match'],
+        );
+
+        $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+        $this->assertNull($result->baselineRunId);
+        $this->assertSame('metrics.exact-match.mean', $result->checks[0]->target);
+        $this->assertSame(AdversarialRegressionGateCheck::STATUS_MISSING_VALUE, $result->checks[0]->status);
+        $this->assertNull($result->checks[0]->baselineScore);
+        $this->assertNull($result->checks[0]->currentScore);
+    }
+
     public function test_passes_when_macro_f1_drop_is_within_threshold(): void
     {
         $result = (new AdversarialRegressionGate)->evaluate(

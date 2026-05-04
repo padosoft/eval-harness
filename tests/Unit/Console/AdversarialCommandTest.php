@@ -316,6 +316,113 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_regression_gate_rejects_non_numeric_max_drop_before_running(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--regression-max-drop' => 'five',
+            ])
+                ->expectsOutputToContain('The --regression-max-drop option must be a finite percentage in [0, 100].')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
+    public function test_regression_gate_rejects_out_of_range_max_drop_before_running(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--regression-max-drop' => '101',
+            ])
+                ->expectsOutputToContain('The --regression-max-drop option must be a finite percentage in [0, 100].')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
+    public function test_regression_gate_fails_and_does_not_record_when_configured_metric_is_missing(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--regression-metric' => ['refusal-quality:mean'],
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: fail - metrics.refusal-quality.mean missing from baseline and current run')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
     public function test_regression_gate_fails_when_macro_f1_drops_beyond_threshold(): void
     {
         $sample = $this->adversarialSample('ssrf');
