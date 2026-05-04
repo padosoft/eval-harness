@@ -93,7 +93,7 @@ final class AdversarialRunManifestStore
             $entry = AdversarialRunManifestEntry::fromReport($report, $runId);
             $result = $gate->evaluate(
                 current: $entry,
-                baseline: $manifest->latest(),
+                baseline: $this->latestCompatibleBaseline($manifest, $entry),
                 maxDrop: $maxDrop,
                 metricTargets: $metricTargets,
             );
@@ -227,5 +227,75 @@ final class AdversarialRunManifestStore
         }
 
         return $lock;
+    }
+
+    private function latestCompatibleBaseline(
+        AdversarialRunManifest $manifest,
+        AdversarialRunManifestEntry $current,
+    ): ?AdversarialRunManifestEntry {
+        $currentMetricNames = $this->metricSignature($current);
+        $currentAdversarialSlice = $this->adversarialSliceSignature($current);
+
+        foreach ($manifest->runs as $baseline) {
+            if ($this->metricSignature($baseline) !== $currentMetricNames) {
+                continue;
+            }
+
+            if ($this->adversarialSliceSignature($baseline) !== $currentAdversarialSlice) {
+                continue;
+            }
+
+            return $baseline;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metricSignature(AdversarialRunManifestEntry $entry): array
+    {
+        $names = array_keys($entry->metrics);
+        sort($names);
+
+        return $names;
+    }
+
+    /**
+     * @return array{total_samples: int, categories: list<array{category: string, sample_count: int}>}
+     */
+    private function adversarialSliceSignature(AdversarialRunManifestEntry $entry): array
+    {
+        $categories = [];
+        $rawCategories = $entry->adversarial['categories'] ?? [];
+        if (is_array($rawCategories) && array_is_list($rawCategories)) {
+            foreach ($rawCategories as $category) {
+                if (! is_array($category)) {
+                    continue;
+                }
+
+                $name = $category['category'] ?? null;
+                $sampleCount = $category['sample_count'] ?? null;
+                if (is_string($name) && is_int($sampleCount)) {
+                    $categories[] = [
+                        'category' => $name,
+                        'sample_count' => $sampleCount,
+                    ];
+                }
+            }
+        }
+
+        usort(
+            $categories,
+            static fn (array $left, array $right): int => strcmp($left['category'], $right['category']),
+        );
+
+        $totalSamples = $entry->adversarial['total_samples'] ?? 0;
+
+        return [
+            'total_samples' => is_int($totalSamples) ? $totalSamples : 0,
+            'categories' => $categories,
+        ];
     }
 }

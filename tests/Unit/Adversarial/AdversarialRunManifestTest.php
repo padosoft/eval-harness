@@ -236,6 +236,51 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_skips_incompatible_latest_regression_baseline(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, 'prompt-injection'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-prompt-baseline',
+            );
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 0.0, 'ssrf'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-ssrf-latest',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 3.0, 4.0, 0.0, 'prompt-injection'),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-prompt-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-prompt-baseline', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_manifest_name_mismatch(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -276,13 +321,18 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
-    private function report(string $datasetName, float $startedAt, float $finishedAt, float $score = 1.0): EvalReport
-    {
+    private function report(
+        string $datasetName,
+        float $startedAt,
+        float $finishedAt,
+        float $score = 1.0,
+        string $category = 'prompt-injection',
+    ): EvalReport {
         return new EvalReport(
             datasetName: $datasetName,
             sampleResults: [
                 new SampleResult(
-                    sample: $this->sample(),
+                    sample: $this->sample($category),
                     actualOutput: $score >= 0.5 ? 'safe' : 'unsafe',
                     metricScores: ['exact-match' => new MetricScore($score)],
                 ),
@@ -293,16 +343,16 @@ final class AdversarialRunManifestTest extends TestCase
         );
     }
 
-    private function sample(): DatasetSample
+    private function sample(string $category = 'prompt-injection'): DatasetSample
     {
         return new DatasetSample(
-            id: 'adv.prompt-injection',
+            id: 'adv.'.$category,
             input: [],
             expectedOutput: 'safe',
             metadata: [
                 'adversarial' => [
-                    'category' => 'prompt-injection',
-                    'label' => 'Prompt injection',
+                    'category' => $category,
+                    'label' => $category,
                     'severity' => 'high',
                     'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF'],
                 ],

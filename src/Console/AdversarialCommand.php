@@ -171,7 +171,7 @@ final class AdversarialCommand extends Command
     private function manifestPathForRegressionGate(): string
     {
         $manifestPath = $this->option('manifest');
-        if (! is_string($manifestPath) || $manifestPath === '') {
+        if (! is_string($manifestPath) || $manifestPath === '' || $manifestPath !== trim($manifestPath)) {
             throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
         }
 
@@ -207,17 +207,15 @@ final class AdversarialCommand extends Command
 
     private function writeRegressionGateResult(AdversarialRegressionGateResult $result): void
     {
-        $errorOutput = $this->output->getErrorStyle();
-
         if ($result->missingBaseline()) {
-            $errorOutput->writeln('Adversarial regression gate: missing-baseline - no previous manifest run; current run will be recorded for future comparisons.');
+            $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no previous manifest run; current run will be recorded for future comparisons.');
 
             return;
         }
 
         if (! $result->failed()) {
             $maxDrop = $result->checks[0]->maxDrop ?? 0.0;
-            $errorOutput->writeln(sprintf(
+            $this->writeRegressionDiagnostic(sprintf(
                 'Adversarial regression gate: pass - %d check(s), max drop %s.',
                 count($result->checks),
                 $this->formatPercentagePoints($maxDrop),
@@ -226,7 +224,19 @@ final class AdversarialCommand extends Command
             return;
         }
 
-        $errorOutput->writeln('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result));
+        $this->writeRegressionDiagnostic('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result));
+    }
+
+    private function writeRegressionDiagnostic(string $message): void
+    {
+        $out = $this->option('out');
+        if (! is_string($out) || $out === '') {
+            fwrite(STDERR, $message.PHP_EOL);
+
+            return;
+        }
+
+        $this->output->getErrorStyle()->writeln($message);
     }
 
     private function regressionGateFailureSummary(AdversarialRegressionGateResult $result): string

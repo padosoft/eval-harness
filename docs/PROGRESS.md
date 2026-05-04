@@ -1543,3 +1543,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the PR #28 review fixes. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `3c4ad44` and generated five actionable comments:
+  - regression baselines needed to match the same adversarial category/metric slice, not just the same manifest name,
+  - padded `--manifest` paths needed fail-fast validation before running the eval,
+  - stderr diagnostics needed command coverage to keep JSON stdout parseable,
+  - the public gate max-drop error message needed to say ratio `[0, 1]`,
+  - invalid metric targets needed validation even when no baseline exists.
+- Addressed the second PR #28 review round by selecting the latest compatible baseline by metric names plus adversarial category/sample-count signature, rejecting padded manifest paths before execution, writing no-`--out` diagnostics directly to stderr, validating metric targets before missing-baseline return, and adding command/store/gate regression coverage.
+- Targeted validation passed after the second PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (54 tests, 170 assertions)`
+- Full local gate passed after the second PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (494 tests, 1280 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the second PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

@@ -112,6 +112,19 @@ final class AdversarialRegressionGateTest extends TestCase
         );
     }
 
+    public function test_evaluate_rejects_invalid_metric_target_even_without_baseline(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('must use metric or metric:aggregate syntax');
+
+        (new AdversarialRegressionGate)->evaluate(
+            current: $this->entry('current', 0.95),
+            baseline: null,
+            maxDrop: 0.05,
+            metricTargets: ['exact-match :mean'],
+        );
+    }
+
     public function test_check_rejects_status_that_contradicts_scores(): void
     {
         $this->expectException(EvalRunException::class);

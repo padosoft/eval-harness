@@ -38,6 +38,7 @@ final class AdversarialRegressionGate
         array $metricTargets = [],
     ): AdversarialRegressionGateResult {
         $this->assertMaxDrop($maxDrop);
+        $metricTargets = $this->normalizeMetricTargets($metricTargets);
 
         if ($baseline === null) {
             return new AdversarialRegressionGateResult(
@@ -57,7 +58,7 @@ final class AdversarialRegressionGate
             ),
         ];
 
-        foreach ($this->normalizeMetricTargets($metricTargets) as $target) {
+        foreach ($metricTargets as $target) {
             $checks[] = $this->check(
                 target: sprintf('metrics.%s.%s', $target['metric'], $target['aggregate']),
                 baselineScore: $this->metricAggregateScore($baseline, $target['metric'], $target['aggregate']),
@@ -85,7 +86,7 @@ final class AdversarialRegressionGate
     private function assertMaxDrop(float $maxDrop): void
     {
         if ($maxDrop < 0.0 || $maxDrop > 1.0 || is_nan($maxDrop) || is_infinite($maxDrop)) {
-            throw new EvalRunException('Adversarial regression gate max drop must be a finite percentage in [0, 100].');
+            throw new EvalRunException('Adversarial regression gate max drop must be a finite ratio in [0, 1].');
         }
     }
 
