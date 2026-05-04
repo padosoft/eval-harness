@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\ReportApi;
 
 use Illuminate\Support\Facades\Storage;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactId;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -86,6 +87,13 @@ final class ReportApiRouteTest extends TestCase
         $id = rtrim(strtr(base64_encode('../secret.json'), '+/', '-_'), '=');
 
         $this->getJson('/eval-harness/api/reports/'.$id)->assertNotFound();
+    }
+
+    public function test_rejects_windows_drive_letter_report_paths(): void
+    {
+        $this->expectException(EvalRunException::class);
+
+        ReportArtifactId::encode('C:/tmp/report.json');
     }
 
     public function test_malformed_json_report_returns_unprocessable_entity(): void

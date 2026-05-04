@@ -44,7 +44,12 @@ final class ReportArtifactId
             throw new EvalRunException('Report artifact path must be a non-empty relative path without leading or trailing whitespace.');
         }
 
-        if (str_contains($relativePath, "\0") || str_contains($relativePath, '\\') || str_starts_with($relativePath, '/')) {
+        if (
+            str_contains($relativePath, "\0")
+            || str_contains($relativePath, '\\')
+            || str_starts_with($relativePath, '/')
+            || preg_match('/^[A-Za-z]:[\\\\\\/]/', $relativePath) === 1
+        ) {
             throw new EvalRunException('Report artifact path must be a normalized relative path.');
         }
 

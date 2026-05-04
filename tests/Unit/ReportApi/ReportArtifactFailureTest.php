@@ -81,6 +81,30 @@ final class ReportArtifactFailureTest extends TestCase
             $this->assertSame(503, $e->getStatusCode());
         }
     }
+
+    public function test_show_returns_service_unavailable_when_report_metadata_cannot_be_read(): void
+    {
+        $disk = new FakeReportFilesystem(
+            files: [
+                'eval-harness/reports/rag/report.json' => '{"schema_version":"eval-harness.report.v1"}',
+            ],
+            failMetadata: true,
+        );
+
+        $repository = new ReportArtifactRepository(
+            new FakeFilesystemFactory($disk),
+            $this->app['config'],
+        );
+        $controller = new ReportArtifactController;
+        $id = ReportArtifactId::encode('rag/report.json');
+
+        try {
+            $controller->show($this->app->make(Request::class), $repository, $id);
+            $this->fail('Expected a ServiceUnavailableHttpException.');
+        } catch (ServiceUnavailableHttpException $e) {
+            $this->assertSame(503, $e->getStatusCode());
+        }
+    }
 }
 
 /**
