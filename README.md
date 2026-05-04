@@ -123,7 +123,7 @@ surface small and the offline path fast.
   abuse, and similar red-team categories. JSON/Markdown reports add
   category and compliance-framework summaries, and optional manifests
   retain adversarial run summaries while preserving latest failure-free
-  baselines per compatible metric names plus adversarial
+  baselines per compatible dataset, metric names, and adversarial
   category/sample-count slice under tight retention; `--regression-gate`
   fails CI when macro-F1 or configured metric aggregates drop.
 - **Standalone output assertions** — score saved JSON/YAML outputs
@@ -637,16 +637,15 @@ precomputed responses, and reuses the same `--batch`,
 `--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
 options as `eval-harness:run`. Add `--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep a
-bounded set of adversarial summaries while preserving the latest
-failure-free baseline for each compatible metric names plus adversarial
-category/sample-count slice when failed plain runs would otherwise evict
-those clean entries. Size retention for the number of distinct metric,
-category, and sample-count slices you run, because each slice may need
-its own clean baseline.
+bounded set of adversarial summaries: the newest N summaries plus any
+additional failure-free baselines needed for compatible dataset, metric
+names, and adversarial category/sample-count slices. Size retention for
+the number of distinct dataset, metric, category, and sample-count
+slices you run, because each slice may need its own clean baseline.
 Add `--regression-gate` to compare the current run with the latest
-compatible failure-free existing manifest entry (same metric names and
-adversarial category/sample-count slice) before the current run is
-recorded. `--regression-max-drop=5` means five normalized percentage
+compatible failure-free existing manifest entry (same dataset, metric
+names, and adversarial category/sample-count slice) before the current
+run is recorded. `--regression-max-drop=5` means five normalized percentage
 points. Repeat `--regression-metric=metric` or
 `--regression-metric=metric:mean|p50|p95|pass_rate` for additional
 metric aggregate checks. Configured regression metrics must exist in the
@@ -872,8 +871,8 @@ accidentally and never burns API credits.
   `eval-harness:adversarial`; JSON/Markdown category and compliance
   framework summaries are implemented.
 - **Regression detection** — JSON manifests retain adversarial runs
-  while preserving latest failure-free baselines per compatible metric
-  names plus adversarial category/sample-count slice, and
+  while preserving latest failure-free baselines per compatible dataset,
+  metric names, and adversarial category/sample-count slice, and
   `--regression-gate` fails the gate when macro-F1 or a configured
   metric aggregate drops more than the allowed percentage points.
 - **Report API contract for a separate UI package** — read-only

@@ -7,7 +7,7 @@ namespace Padosoft\EvalHarness\Adversarial;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 /**
- * Retains the latest adversarial run summaries for future regression gates.
+ * Retains recent adversarial run summaries and clean baseline anchors for future regression gates.
  */
 final class AdversarialRunManifest
 {
@@ -172,34 +172,30 @@ final class AdversarialRunManifest
     private function retainRuns(array $runs, int $maxRuns): array
     {
         $retained = array_slice($runs, 0, $maxRuns);
+        $retainedRunIds = [];
         $retainedCleanSignatures = [];
         foreach ($retained as $run) {
+            $retainedRunIds[$run->runId] = true;
             if ($run->totalFailures === 0) {
                 $retainedCleanSignatures[AdversarialRunSliceSignature::fromEntry($run)] = true;
             }
         }
 
-        $latestCleanBySignature = [];
         foreach ($runs as $run) {
             if ($run->totalFailures !== 0) {
                 continue;
             }
 
             $signature = AdversarialRunSliceSignature::fromEntry($run);
-            $latestCleanBySignature[$signature] ??= $run;
-        }
-
-        foreach ($latestCleanBySignature as $signature => $run) {
             if (isset($retainedCleanSignatures[$signature])) {
                 continue;
             }
 
-            $replaceIndex = $this->oldestFailedRunIndex($retained);
-            if ($replaceIndex === null) {
-                break;
+            if (! isset($retainedRunIds[$run->runId])) {
+                $retained[] = $run;
+                $retainedRunIds[$run->runId] = true;
             }
 
-            $retained[$replaceIndex] = $run;
             $retainedCleanSignatures[$signature] = true;
         }
 
@@ -222,31 +218,6 @@ final class AdversarialRunManifest
         });
 
         return $runs;
-    }
-
-    /**
-     * @param  list<AdversarialRunManifestEntry>  $runs
-     */
-    private function oldestFailedRunIndex(array $runs): ?int
-    {
-        $oldestIndex = null;
-        $oldestRun = null;
-        foreach ($runs as $index => $run) {
-            if ($run->totalFailures === 0) {
-                continue;
-            }
-
-            if (
-                $oldestRun === null
-                || $run->finishedAt < $oldestRun->finishedAt
-                || ($run->finishedAt === $oldestRun->finishedAt && strcmp($run->runId, $oldestRun->runId) > 0)
-            ) {
-                $oldestRun = $run;
-                $oldestIndex = $index;
-            }
-        }
-
-        return $oldestIndex;
     }
 
     /**

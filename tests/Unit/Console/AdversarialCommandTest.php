@@ -332,10 +332,10 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
-    public function test_regression_gate_missing_baseline_reports_when_retention_does_not_keep_current_run(): void
+    public function test_regression_gate_pass_reports_when_retention_does_not_keep_current_run(): void
     {
         $sample = $this->adversarialSample('ssrf');
-        $existingSample = $this->adversarialSample('prompt-injection');
+        $existingSample = $this->adversarialSample('ssrf');
         $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
         $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
         $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
@@ -380,7 +380,7 @@ final class AdversarialCommandTest extends TestCase
                 '--json' => true,
                 '--out' => $report,
             ])
-                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run did not fit within manifest retention and was not recorded for future comparisons.')
+                ->expectsOutputToContain('Adversarial regression gate: pass - score checks passed, but current run did not fit within manifest retention and was not recorded for future comparisons.')
                 ->assertExitCode(0);
 
             $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);

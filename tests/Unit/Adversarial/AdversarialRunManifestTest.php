@@ -290,7 +290,7 @@ final class AdversarialRunManifestTest extends TestCase
         try {
             $store->record(
                 path: $path,
-                report: $this->report('run.dataset', 10.0, 20.0, 1.0, category: 'ssrf'),
+                report: $this->report('run.dataset', 10.0, 20.0, 1.0, category: 'prompt-injection'),
                 maxRuns: 1,
                 runId: 'run-newer-clean',
             );
@@ -304,7 +304,7 @@ final class AdversarialRunManifestTest extends TestCase
                 runId: 'run-older-current',
             );
 
-            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_PASS, $result->status);
             $this->assertFalse($result->recorded);
             $this->assertSame(['run-newer-clean'], array_map(
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
@@ -503,6 +503,82 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_skips_regression_baseline_with_different_sample_counts(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, category: 'prompt-injection', sampleCount: 2),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-two-sample-baseline',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 3.0, 4.0, 0.0, category: 'prompt-injection', sampleCount: 1),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                runId: 'run-one-sample-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertNull($result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_skips_regression_baseline_with_different_dataset_name_in_shared_manifest(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('first.dataset', 1.0, 2.0, 1.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                manifestName: 'shared.adversarial',
+                runId: 'run-first-dataset',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('second.dataset', 3.0, 4.0, 0.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 3,
+                manifestName: 'shared.adversarial',
+                runId: 'run-second-dataset',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertNull($result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_does_not_record_regression_gate_run_when_configured_metric_is_missing(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -623,7 +699,7 @@ final class AdversarialRunManifestTest extends TestCase
                 runId: 'run-failed-latest',
             );
 
-            $this->assertSame(['run-clean-baseline'], array_map(
+            $this->assertSame(['run-failed-latest', 'run-clean-baseline'], array_map(
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
                 $store->load($path)?->runs ?? [],
             ));
@@ -675,7 +751,7 @@ final class AdversarialRunManifestTest extends TestCase
                 runId: 'run-failed-latest',
             );
 
-            $this->assertSame(['run-prompt-rouge-clean', 'run-ssrf-clean'], array_map(
+            $this->assertSame(['run-failed-latest', 'run-prompt-rouge-clean', 'run-ssrf-clean'], array_map(
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
                 $store->load($path)?->runs ?? [],
             ));
@@ -692,6 +768,114 @@ final class AdversarialRunManifestTest extends TestCase
 
             $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
             $this->assertSame('run-ssrf-clean', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_retention_preserves_failure_free_baselines_for_distinct_sample_counts(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, category: 'prompt-injection', sampleCount: 1),
+                maxRuns: 3,
+                runId: 'run-one-sample-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 1.0, category: 'prompt-injection', sampleCount: 2),
+                maxRuns: 3,
+                runId: 'run-two-sample-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->failedReport('run.dataset', 3.0, 4.0),
+                maxRuns: 1,
+                runId: 'run-failed-latest',
+            );
+
+            $this->assertSame(['run-failed-latest', 'run-two-sample-clean', 'run-one-sample-clean'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 4.0, 5.0, 0.0, category: 'prompt-injection', sampleCount: 1),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 1,
+                runId: 'run-one-sample-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-one-sample-clean', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_retention_preserves_failure_free_baselines_for_distinct_dataset_names_in_shared_manifest(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('first.dataset', 1.0, 2.0, 1.0),
+                maxRuns: 3,
+                manifestName: 'shared.adversarial',
+                runId: 'run-first-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->report('second.dataset', 2.0, 3.0, 1.0),
+                maxRuns: 3,
+                manifestName: 'shared.adversarial',
+                runId: 'run-second-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->failedReport('third.dataset', 3.0, 4.0),
+                maxRuns: 1,
+                manifestName: 'shared.adversarial',
+                runId: 'run-third-failed',
+            );
+
+            $this->assertSame(['run-third-failed', 'run-second-clean', 'run-first-clean'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('first.dataset', 4.0, 5.0, 0.0),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 1,
+                manifestName: 'shared.adversarial',
+                runId: 'run-first-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-first-clean', $result->baselineRunId);
         } finally {
             @unlink($path);
             @unlink($path.'.lock');
@@ -819,16 +1003,23 @@ final class AdversarialRunManifestTest extends TestCase
         float $score = 1.0,
         string $category = 'prompt-injection',
         string $metricName = 'exact-match',
+        int $sampleCount = 1,
     ): EvalReport {
+        $sampleResults = [];
+        for ($index = 0; $index < $sampleCount; $index++) {
+            $sampleResults[] = new SampleResult(
+                sample: $this->sample(
+                    category: $category,
+                    id: $sampleCount === 1 ? null : sprintf('adv.%s.%d', $category, $index + 1),
+                ),
+                actualOutput: $score >= 0.5 ? 'safe' : 'unsafe',
+                metricScores: [$metricName => new MetricScore($score)],
+            );
+        }
+
         return new EvalReport(
             datasetName: $datasetName,
-            sampleResults: [
-                new SampleResult(
-                    sample: $this->sample($category),
-                    actualOutput: $score >= 0.5 ? 'safe' : 'unsafe',
-                    metricScores: [$metricName => new MetricScore($score)],
-                ),
-            ],
+            sampleResults: $sampleResults,
             failures: [],
             startedAt: $startedAt,
             finishedAt: $finishedAt,
@@ -854,10 +1045,10 @@ final class AdversarialRunManifestTest extends TestCase
         );
     }
 
-    private function sample(string $category = 'prompt-injection'): DatasetSample
+    private function sample(string $category = 'prompt-injection', ?string $id = null): DatasetSample
     {
         return new DatasetSample(
-            id: 'adv.'.$category,
+            id: $id ?? 'adv.'.$category,
             input: [],
             expectedOutput: 'safe',
             metadata: [

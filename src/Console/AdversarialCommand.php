@@ -44,7 +44,7 @@ final class AdversarialCommand extends Command
         {--metric=* : Metric alias/FQCN to score with; repeat for multiple metrics; defaults to refusal-quality}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--manifest= : JSON manifest path to update with this adversarial run summary}
-        {--manifest-retain=10 : Maximum number of adversarial runs to retain when --manifest is used}
+        {--manifest-retain=10 : Recent adversarial runs to retain before adding required clean baselines}
         {--regression-gate : Compare this run with the latest compatible failure-free --manifest baseline and fail on score drops}
         {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
