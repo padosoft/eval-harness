@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Console;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Metrics\MetricScore;
 use Padosoft\EvalHarness\Reports\EvalReport;
@@ -1247,6 +1248,94 @@ final class AdversarialCommandTest extends TestCase
             @unlink($report);
             @unlink($secondReport);
         }
+    }
+
+    public function test_promote_failures_writes_reloadable_dataset_seed(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $promotion = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-promoted-'.uniqid('', true).'.yml';
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => 'unsafe actual output',
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--promote-failures' => $promotion,
+                '--promoted-dataset' => 'adversarial.security.failures',
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Failure promotion: wrote 1 failed sample(s)')
+                ->assertExitCode(0);
+
+            $parsed = $this->app->make(YamlDatasetLoader::class)->loadFile($promotion);
+            $this->assertSame('adversarial.security.failures', $parsed->name);
+            $this->assertSame($sample->id, $parsed->samples[0]->id);
+            $this->assertSame($sample->input, $parsed->samples[0]->input);
+            $this->assertSame($sample->expectedOutput, $parsed->samples[0]->expectedOutput);
+            $this->assertSame(['exact-match'], $parsed->samples[0]->metadata['eval_harness']['promoted_failure']['failed_metrics']);
+            $this->assertStringNotContainsString('unsafe actual output', (string) file_get_contents($promotion));
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+            @unlink($promotion);
+        }
+    }
+
+    public function test_promote_failures_clears_stale_file_when_no_samples_failed(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $promotion = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-promoted-'.uniqid('', true).'.yml';
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($promotion, 'stale failure seed');
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--promote-failures' => $promotion,
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Failure promotion: no failed samples to export.')
+                ->assertExitCode(0);
+
+            $this->assertFileDoesNotExist($promotion);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+            @unlink($promotion);
+        }
+    }
+
+    public function test_promoted_dataset_option_requires_failure_promotion_path(): void
+    {
+        $this->artisan('eval-harness:adversarial', [
+            '--promoted-dataset' => 'adversarial.security.failures',
+        ])
+            ->expectsOutputToContain('The --promoted-dataset option requires --promote-failures=<path>.')
+            ->assertExitCode(1);
     }
 
     public function test_runs_selected_adversarial_category_with_bound_sut(): void

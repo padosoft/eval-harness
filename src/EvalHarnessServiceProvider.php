@@ -26,6 +26,7 @@ use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
@@ -78,6 +79,10 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(SavedOutputsLoader::class, static function (): SavedOutputsLoader {
             return new SavedOutputsLoader;
+        });
+
+        $this->app->singleton(FailedSampleDatasetExporter::class, static function (): FailedSampleDatasetExporter {
+            return new FailedSampleDatasetExporter;
         });
 
         $this->app->singleton(AdversarialDatasetFactory::class, static function (Container $app): AdversarialDatasetFactory {

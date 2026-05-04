@@ -19,6 +19,7 @@ use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 use Padosoft\EvalHarness\Reports\EvalReport;
+use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 
 /**
  * Opt-in red-team evaluation command for built-in adversarial seed datasets.
@@ -45,6 +46,8 @@ final class AdversarialCommand extends Command
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--manifest= : JSON manifest path to update with this adversarial run summary}
         {--manifest-retain=10 : Recent adversarial runs to retain before adding required clean baselines}
+        {--promote-failures= : Write failed adversarial samples to a reloadable dataset YAML seed path}
+        {--promoted-dataset= : Dataset name to write inside --promote-failures YAML; defaults to <dataset>.failures}
         {--regression-gate : Compare this run with the latest compatible failure-free --manifest baseline and fail on score drops}
         {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
@@ -67,6 +70,7 @@ final class AdversarialCommand extends Command
     {
         try {
             $this->validateManifestAndRegressionGateOptions();
+            $this->validateFailurePromotionOptions();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -131,6 +135,10 @@ final class AdversarialCommand extends Command
 
         $payload = $this->reportPayload($report);
         if ($payload === null || ! $this->writeOrPrintReport($payload)) {
+            return self::FAILURE;
+        }
+
+        if (! $this->writePromotedFailures($report)) {
             return self::FAILURE;
         }
 
@@ -204,6 +212,19 @@ final class AdversarialCommand extends Command
         );
     }
 
+    private function validateFailurePromotionOptions(): void
+    {
+        if ($this->option('promote-failures') === null && $this->optionWasProvided('promoted-dataset')) {
+            throw new EvalRunException('The --promoted-dataset option requires --promote-failures=<path>.');
+        }
+
+        $this->promoteFailuresPathOption();
+
+        if ($this->option('promote-failures') !== null) {
+            $this->promotedDatasetName(null);
+        }
+    }
+
     /**
      * @return ($required is true ? string : ?string)
      */
@@ -229,6 +250,24 @@ final class AdversarialCommand extends Command
         return $manifestPath;
     }
 
+    private function promoteFailuresPathOption(): ?string
+    {
+        $path = $this->option('promote-failures');
+        if ($path === null) {
+            return null;
+        }
+
+        if (! is_string($path) || $path === '' || $path !== trim($path)) {
+            throw new EvalRunException('The --promote-failures option requires a non-empty YAML file path without leading or trailing whitespace.');
+        }
+
+        if ($this->isDirectoryPath($path) || is_dir($path)) {
+            throw new EvalRunException('The --promote-failures option must point to a YAML file path, not a directory path.');
+        }
+
+        return $path;
+    }
+
     private function isDirectoryPath(string $path): bool
     {
         return str_ends_with($path, '/') || str_ends_with($path, '\\');
@@ -251,6 +290,20 @@ final class AdversarialCommand extends Command
         }
 
         return (int) $value;
+    }
+
+    private function promotedDatasetName(?EvalReport $report): string
+    {
+        $value = $this->option('promoted-dataset');
+        if ($value === null) {
+            return $report !== null ? $report->datasetName.'.failures' : 'promoted.failures';
+        }
+
+        if (! is_string($value) || $value === '' || $value !== trim($value)) {
+            throw new EvalRunException('The --promoted-dataset option must be a non-empty dataset name without leading or trailing whitespace.');
+        }
+
+        return $value;
     }
 
     private function recordManifestWithRegressionGate(EvalReport $report): ?AdversarialRegressionGateResult
@@ -330,6 +383,86 @@ final class AdversarialCommand extends Command
     }
 
     private function writeRegressionDiagnostic(string $message): void
+    {
+        $out = $this->option('out');
+        if (! is_string($out) || $out === '') {
+            fwrite(STDERR, $message.PHP_EOL);
+
+            return;
+        }
+
+        $this->output->getErrorStyle()->writeln($message);
+    }
+
+    private function writePromotedFailures(EvalReport $report): bool
+    {
+        try {
+            $path = $this->promoteFailuresPathOption();
+            if ($path === null) {
+                return true;
+            }
+
+            /** @var FailedSampleDatasetExporter $exporter */
+            $exporter = $this->laravel->make(FailedSampleDatasetExporter::class);
+            $export = $exporter->export($report, $this->promotedDatasetName($report));
+
+            if ($export === null) {
+                $this->clearPromotedFailuresFile($path);
+                $this->writeFailurePromotionDiagnostic('Failure promotion: no failed samples to export.');
+
+                return true;
+            }
+
+            $this->writePromotedFailuresFile($path, $export['yaml']);
+            $this->writeFailurePromotionDiagnostic(sprintf(
+                'Failure promotion: wrote %d failed sample(s) to %s.',
+                $export['sample_count'],
+                $path,
+            ));
+
+            return true;
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return false;
+        }
+    }
+
+    private function clearPromotedFailuresFile(string $path): void
+    {
+        if (! is_file($path)) {
+            return;
+        }
+
+        if (! @unlink($path)) {
+            throw new EvalRunException(sprintf('Failed to clear stale failure promotion dataset: %s', $path));
+        }
+    }
+
+    private function writePromotedFailuresFile(string $path, string $yaml): void
+    {
+        $directory = dirname($path);
+        if ($directory !== '.' && ! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
+            throw new EvalRunException(sprintf('Failed to create failure promotion directory: %s', $directory));
+        }
+
+        $temporaryPath = $path.'.tmp.'.str_replace('.', '', uniqid('', true));
+        try {
+            if (file_put_contents($temporaryPath, $yaml, LOCK_EX) === false) {
+                throw new EvalRunException(sprintf('Failed to write failure promotion dataset: %s', $path));
+            }
+
+            if (! rename($temporaryPath, $path)) {
+                throw new EvalRunException(sprintf('Failed to replace failure promotion dataset: %s', $path));
+            }
+        } finally {
+            if (is_file($temporaryPath)) {
+                @unlink($temporaryPath);
+            }
+        }
+    }
+
+    private function writeFailurePromotionDiagnostic(string $message): void
     {
         $out = $this->option('out');
         if (! is_string($out) || $out === '') {

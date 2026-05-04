@@ -126,7 +126,8 @@ surface small and the offline path fast.
   baselines per compatible report schema, dataset, metric names, and
   adversarial category/sample-count slice under tight retention;
   `--regression-gate` fails CI when macro-F1 or configured metric
-  aggregates drop.
+  aggregates drop, and `--promote-failures` writes failed samples back
+  to a reloadable YAML dataset seed.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -170,6 +171,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
 | Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
 | Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
+| Failure promotion to datasets | ⚠️ PARTIAL - custom eval scripts | ✅ YES - trace-to-dataset workflows | ⚠️ PARTIAL - custom dataset curation | ✅ YES - failure-driven test cases | ✅ YES - failed test cases can become datasets | **✅ YES - `--promote-failures` exports failed adversarial samples to YAML seeds** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -660,6 +662,18 @@ manifest and failure-free, including plain `--manifest` writes without
 failure-free and do not fail configured gate checks; metric failures and
 gate failures are left out so they cannot seed broken baselines.
 
+Add `--promote-failures=eval/adversarial-failures.yml` to export
+low-scoring samples and samples with metric exceptions into a reloadable
+dataset YAML seed. Use `--promoted-dataset=adversarial.security.failures`
+to control the dataset name inside that YAML; otherwise it defaults to
+`<dataset>.failures`. Promotion preserves the original sample input,
+expected output, and metadata, adds
+`metadata.eval_harness.promoted_failure` with the source dataset and
+failed metric names, and intentionally omits actual model output and raw
+provider error messages from the seed. If no samples fail, an existing
+promotion file at that path is removed so fixed CI artifact paths do not
+keep stale failure seeds.
+
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
 competitor endorsement, excessive agency, and hallucination
@@ -883,8 +897,9 @@ accidentally and never burns API credits.
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy
   the UI behind your existing admin gate.
-- **Dataset splits/filtering and failure promotion** — keep parity
-  with LangSmith-style workflows while staying local-file-first.
+- **Dataset splits/filtering and failure promotion** — failure
+  promotion is implemented through `--promote-failures`; dataset
+  splits/filtering remain planned while staying local-file-first.
 
 ### v1.0
 
