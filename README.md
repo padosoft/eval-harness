@@ -644,11 +644,13 @@ adversarial category/sample-count slice) before the current run is
 recorded. `--regression-max-drop=5` means five normalized percentage
 points. Repeat `--regression-metric=metric` or
 `--regression-metric=metric:mean|p50|p95|pass_rate` for additional
-metric aggregate checks. If no compatible baseline exists, the command
-emits an explicit `missing-baseline` status. Runs are recorded for the
-next gate only when they are failure-free and do not fail configured
-gate checks; metric failures and gate failures are left out so they
-cannot seed broken baselines.
+metric aggregate checks. Configured regression metrics must exist in the
+current run; missing current aggregates fail closed even when no baseline
+exists yet. If no compatible failure-free baseline exists after that
+validation, the command emits an explicit `missing-baseline` status. Runs
+are recorded for the next gate only when they are failure-free and do not
+fail configured gate checks; metric failures and gate failures are left
+out so they cannot seed broken baselines.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,

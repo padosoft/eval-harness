@@ -134,14 +134,7 @@ final class AdversarialRunManifest
             }
         }
 
-        usort($runs, static function (AdversarialRunManifestEntry $left, AdversarialRunManifestEntry $right): int {
-            $byFinishedAt = $right->finishedAt <=> $left->finishedAt;
-            if ($byFinishedAt !== 0) {
-                return $byFinishedAt;
-            }
-
-            return strcmp($left->runId, $right->runId);
-        });
+        $runs = $this->sortRuns($runs);
 
         return new self(
             name: $this->name,
@@ -179,23 +172,137 @@ final class AdversarialRunManifest
     private function retainRuns(array $runs, int $maxRuns): array
     {
         $retained = array_slice($runs, 0, $maxRuns);
+        $retainedCleanSignatures = [];
         foreach ($retained as $run) {
             if ($run->totalFailures === 0) {
-                return $retained;
+                $retainedCleanSignatures[$this->compatibilitySignature($run)] = true;
             }
         }
 
+        $latestCleanBySignature = [];
         foreach ($runs as $run) {
             if ($run->totalFailures !== 0) {
                 continue;
             }
 
-            $retained[$maxRuns - 1] = $run;
-
-            return $retained;
+            $signature = $this->compatibilitySignature($run);
+            $latestCleanBySignature[$signature] ??= $run;
         }
 
-        return $retained;
+        foreach ($latestCleanBySignature as $signature => $run) {
+            if (isset($retainedCleanSignatures[$signature])) {
+                continue;
+            }
+
+            $replaceIndex = $this->oldestFailedRunIndex($retained);
+            if ($replaceIndex === null) {
+                break;
+            }
+
+            $retained[$replaceIndex] = $run;
+            $retainedCleanSignatures[$signature] = true;
+        }
+
+        return $this->sortRuns($retained);
+    }
+
+    /**
+     * @param  list<AdversarialRunManifestEntry>  $runs
+     * @return list<AdversarialRunManifestEntry>
+     */
+    private function sortRuns(array $runs): array
+    {
+        usort($runs, static function (AdversarialRunManifestEntry $left, AdversarialRunManifestEntry $right): int {
+            $byFinishedAt = $right->finishedAt <=> $left->finishedAt;
+            if ($byFinishedAt !== 0) {
+                return $byFinishedAt;
+            }
+
+            return strcmp($left->runId, $right->runId);
+        });
+
+        return $runs;
+    }
+
+    /**
+     * @param  list<AdversarialRunManifestEntry>  $runs
+     */
+    private function oldestFailedRunIndex(array $runs): ?int
+    {
+        $oldestIndex = null;
+        $oldestRun = null;
+        foreach ($runs as $index => $run) {
+            if ($run->totalFailures === 0) {
+                continue;
+            }
+
+            if (
+                $oldestRun === null
+                || $run->finishedAt < $oldestRun->finishedAt
+                || ($run->finishedAt === $oldestRun->finishedAt && strcmp($run->runId, $oldestRun->runId) > 0)
+            ) {
+                $oldestRun = $run;
+                $oldestIndex = $index;
+            }
+        }
+
+        return $oldestIndex;
+    }
+
+    private function compatibilitySignature(AdversarialRunManifestEntry $entry): string
+    {
+        return serialize([
+            'metrics' => $this->metricSignature($entry),
+            'adversarial' => $this->adversarialSliceSignature($entry),
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function metricSignature(AdversarialRunManifestEntry $entry): array
+    {
+        $names = array_keys($entry->metrics);
+        sort($names);
+
+        return $names;
+    }
+
+    /**
+     * @return array{total_samples: int, categories: list<array{category: string, sample_count: int}>}
+     */
+    private function adversarialSliceSignature(AdversarialRunManifestEntry $entry): array
+    {
+        $categories = [];
+        $rawCategories = $entry->adversarial['categories'] ?? [];
+        if (is_array($rawCategories) && array_is_list($rawCategories)) {
+            foreach ($rawCategories as $category) {
+                if (! is_array($category)) {
+                    continue;
+                }
+
+                $name = $category['category'] ?? null;
+                $sampleCount = $category['sample_count'] ?? null;
+                if (is_string($name) && is_int($sampleCount)) {
+                    $categories[] = [
+                        'category' => $name,
+                        'sample_count' => $sampleCount,
+                    ];
+                }
+            }
+        }
+
+        usort(
+            $categories,
+            static fn (array $left, array $right): int => strcmp($left['category'], $right['category']),
+        );
+
+        $totalSamples = $entry->adversarial['total_samples'] ?? 0;
+
+        return [
+            'total_samples' => is_int($totalSamples) ? $totalSamples : 0,
+            'categories' => $categories,
+        ];
     }
 
     /**

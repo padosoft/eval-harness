@@ -581,6 +581,58 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_retention_preserves_failure_free_baselines_for_distinct_slices(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, category: 'ssrf', metricName: 'exact-match'),
+                maxRuns: 3,
+                runId: 'run-ssrf-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 1.0, category: 'prompt-injection', metricName: 'rouge-l'),
+                maxRuns: 3,
+                runId: 'run-prompt-rouge-clean',
+            );
+            $store->record(
+                path: $path,
+                report: $this->failedReport('run.dataset', 3.0, 4.0),
+                maxRuns: 2,
+                runId: 'run-failed-latest',
+            );
+
+            $this->assertSame(['run-prompt-rouge-clean', 'run-ssrf-clean'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 4.0, 5.0, 0.0, category: 'ssrf', metricName: 'exact-match'),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 2,
+                runId: 'run-ssrf-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-ssrf-clean', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_manifest_name_mismatch(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
