@@ -40,7 +40,11 @@ final class ReportArtifactRepository
                 continue;
             }
 
-            $artifacts[] = $this->summaryArtifactFor($relativePath);
+            try {
+                $artifacts[] = $this->summaryArtifactFor($relativePath);
+            } catch (EvalRunException) {
+                continue;
+            }
         }
 
         usort($artifacts, static fn (ReportArtifact $left, ReportArtifact $right): int => strcmp($left->path, $right->path));
@@ -61,11 +65,11 @@ final class ReportArtifactRepository
         try {
             $contents = $this->disk()->get($this->storagePath($artifact->path));
         } catch (Throwable $e) {
-            throw new EvalRunException('Report artifact contents could not be read.', previous: $e);
+            throw new ReportArtifactUnavailableException('Report artifact contents could not be read.', previous: $e);
         }
 
         if (! is_string($contents)) {
-            throw new EvalRunException('Report artifact contents could not be read.');
+            throw new ReportArtifactUnavailableException('Report artifact contents could not be read.');
         }
 
         return $contents;
@@ -147,7 +151,7 @@ final class ReportArtifactRepository
         } catch (EvalRunException $e) {
             throw $e;
         } catch (Throwable $e) {
-            throw new EvalRunException('Report artifact not found.', previous: $e);
+            throw new ReportArtifactUnavailableException('Report artifact metadata could not be read.', previous: $e);
         }
     }
 

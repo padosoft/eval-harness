@@ -2024,3 +2024,10 @@
 - Addressed those follow-up comments by removing the unused summary-builder parameter, switching route registration to the container `Registrar`, and splitting `show()` into 404 not-found handling plus 503 content-read failure handling.
 - Copilot then flagged one more routing issue on the refreshed PR #32 review: the route file itself still used the `Route` facade.
 - Addressed that follow-up by turning `routes/eval-harness-api.php` into a registrar-driven closure and calling it from the provider with the configured prefix and middleware.
+- Copilot then flagged three more follow-up issues on the refreshed PR #32 review: invalid listing entries could still bubble out of `all()`, metadata read failures were still indistinguishable from not-found, and the 503 mapping for content-read failures lacked a regression test.
+- Addressed those follow-up comments by skipping invalid listing entries, introducing a dedicated `ReportArtifactUnavailableException` for metadata/content read failures, mapping that exception to 503, and adding a repository/controller failure test that covers both list skipping and content-read failure semantics.
+- Full local gate after the latest PR #32 review-fix round passed:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (568 tests, 1564 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

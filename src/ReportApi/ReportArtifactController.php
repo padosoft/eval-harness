@@ -29,14 +29,18 @@ final class ReportArtifactController
     {
         try {
             $artifact = $reports->find($id);
+        } catch (ReportArtifactUnavailableException $e) {
+            throw new ServiceUnavailableHttpException(null, 'Report artifact metadata could not be read.', $e);
         } catch (EvalRunException $e) {
             throw new NotFoundHttpException($e->getMessage(), $e);
         }
 
         try {
             $contents = $reports->contents($artifact);
-        } catch (EvalRunException $e) {
+        } catch (ReportArtifactUnavailableException $e) {
             throw new ServiceUnavailableHttpException(null, 'Report artifact contents could not be read.', $e);
+        } catch (EvalRunException $e) {
+            throw new NotFoundHttpException($e->getMessage(), $e);
         }
 
         return new JsonResponse([
