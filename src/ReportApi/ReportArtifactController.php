@@ -16,11 +16,17 @@ final class ReportArtifactController
 {
     public function index(Request $request, ReportArtifactRepository $reports): JsonResponse
     {
+        try {
+            $artifacts = $reports->all();
+        } catch (ReportArtifactUnavailableException $e) {
+            throw new ServiceUnavailableHttpException(null, 'Report artifact listing could not be read.', $e);
+        }
+
         return new JsonResponse([
             'schema_version' => ReportApiSchema::VERSION,
             'data' => array_map(
                 static fn (ReportArtifact $artifact): array => (new ReportArtifactResource($artifact))->toArray($request),
-                $reports->all(),
+                $artifacts,
             ),
         ]);
     }

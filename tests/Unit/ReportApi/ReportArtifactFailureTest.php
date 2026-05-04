@@ -38,6 +38,26 @@ final class ReportArtifactFailureTest extends TestCase
         $this->assertSame('valid/report.json', $artifacts[0]->path);
     }
 
+    public function test_index_returns_service_unavailable_when_listing_cannot_be_read(): void
+    {
+        $disk = new FakeReportFilesystem(
+            failListing: true,
+        );
+
+        $repository = new ReportArtifactRepository(
+            new FakeFilesystemFactory($disk),
+            $this->app['config'],
+        );
+        $controller = new ReportArtifactController;
+
+        try {
+            $controller->index($this->app->make(Request::class), $repository);
+            $this->fail('Expected a ServiceUnavailableHttpException.');
+        } catch (ServiceUnavailableHttpException $e) {
+            $this->assertSame(503, $e->getStatusCode());
+        }
+    }
+
     public function test_show_returns_service_unavailable_when_report_contents_cannot_be_read(): void
     {
         $disk = new FakeReportFilesystem(
@@ -89,6 +109,7 @@ final class FakeReportFilesystem implements Filesystem
         private readonly array $files = [],
         private readonly array $allFiles = [],
         private readonly bool $failGet = false,
+        private readonly bool $failListing = false,
         private readonly bool $failMetadata = false,
     ) {}
 
@@ -196,6 +217,10 @@ final class FakeReportFilesystem implements Filesystem
 
     public function allFiles($directory = null)
     {
+        if ($this->failListing) {
+            throw new RuntimeException('Listing failure');
+        }
+
         return $this->allFiles;
     }
 

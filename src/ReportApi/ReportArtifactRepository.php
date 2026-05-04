@@ -30,7 +30,13 @@ final class ReportArtifactRepository
         $prefix = $this->prefix();
         $artifacts = [];
 
-        foreach ($disk->allFiles($prefix === '' ? null : $prefix) as $path) {
+        try {
+            $paths = $disk->allFiles($prefix === '' ? null : $prefix);
+        } catch (Throwable $e) {
+            throw new ReportArtifactUnavailableException('Report artifact listing could not be read.', previous: $e);
+        }
+
+        foreach ($paths as $path) {
             if (! is_string($path)) {
                 continue;
             }

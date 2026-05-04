@@ -2028,7 +2028,7 @@
 - Addressed those follow-up comments by skipping invalid listing entries, introducing a dedicated `ReportArtifactUnavailableException` for metadata/content read failures, mapping that exception to 503, and adding a repository/controller failure test that covers both list skipping and content-read failure semantics.
 - Full local gate after the latest PR #32 review-fix round passed:
   - `composer validate --strict`
-  - `vendor/bin/phpunit` => `OK (568 tests, 1564 assertions)`
+  - `vendor/bin/phpunit` => `OK (569 tests, 1565 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Current remote blocker on PR #32: `gh pr edit --add-reviewer '@copilot'` is still blocked by missing `read:project`, and the GraphQL `requestReviewsByLogin` fallback on `copilot-pull-request-reviewer` did not surface a fresh Copilot review on the latest head `eb1eb71`/`f598884` during this session. Next remote step is to re-request Copilot from the PR Reviewers menu or refresh `gh` with `read:project` and request a new review before merging.
+- Refreshed `gh` with `read:project`, so `gh pr edit --add-reviewer '@copilot'` is available again for PR #32. After the report API listing fix, the next remote step is to request a fresh Copilot review on the current head before merging.
