@@ -42,6 +42,7 @@ final class MarkdownReportRendererTest extends TestCase
         $this->assertStringContainsString('| exact-match |', $md);
         $this->assertStringContainsString('## Macro-F1', $md);
         $this->assertStringContainsString('## Cohorts by metadata.tags', $md);
+        $this->assertStringNotContainsString('## Adversarial coverage', $md);
         $this->assertStringContainsString('## Score histograms', $md);
         $this->assertStringContainsString('(untagged)', $md);
         $this->assertStringContainsString('| 0.0-0.1 |', $md);
@@ -107,6 +108,44 @@ final class MarkdownReportRendererTest extends TestCase
         $md = (new MarkdownReportRenderer)->render($report);
 
         $this->assertStringContainsString('| 1 | n/a | n/a | n/a | n/a | 50.00 | 50.00 |', $md);
+    }
+
+    public function test_adversarial_coverage_section_appears_when_adversarial_metadata_exists(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.prompt-injection',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'prompt-injection',
+                                'label' => 'Prompt injection',
+                                'severity' => 'high',
+                                'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('## Adversarial coverage', $md);
+        $this->assertStringContainsString('| category | label | severity | samples | frameworks | metric | mean | p50 | p95 | pass-rate (>= 0.5) |', $md);
+        $this->assertStringContainsString('| prompt-injection | Prompt injection | high | 1 | NIST AI RMF, OWASP LLM | exact-match | 1.0000 | 1.0000 | 1.0000 | 1.0000 |', $md);
+        $this->assertStringContainsString('### Compliance frameworks', $md);
+        $this->assertStringContainsString('| NIST AI RMF | 1 | prompt-injection |', $md);
+        $this->assertStringContainsString('| OWASP LLM | 1 | prompt-injection |', $md);
     }
 
     public function test_failures_section_appears_when_failures_present(): void

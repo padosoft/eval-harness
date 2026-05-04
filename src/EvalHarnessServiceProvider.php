@@ -10,10 +10,14 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
+use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
@@ -22,6 +26,7 @@ use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
@@ -31,7 +36,7 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
  *   - Merge the package config under `eval-harness.*`.
  *   - Bind the {@see EvalEngine} as a singleton so dataset
  *     registrations survive across the same request lifecycle.
- *   - Register the `eval-harness:run` Artisan command in the
+ *   - Register the package Artisan commands in the
  *     console kernel.
  *   - Publish the config when the operator runs
  *     `php artisan vendor:publish --tag=eval-harness-config`.
@@ -74,6 +79,22 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(SavedOutputsLoader::class, static function (): SavedOutputsLoader {
             return new SavedOutputsLoader;
+        });
+
+        $this->app->singleton(FailedSampleDatasetExporter::class, static function (): FailedSampleDatasetExporter {
+            return new FailedSampleDatasetExporter;
+        });
+
+        $this->app->singleton(AdversarialDatasetFactory::class, static function (Container $app): AdversarialDatasetFactory {
+            return new AdversarialDatasetFactory($app->make(MetricResolver::class));
+        });
+
+        $this->app->singleton(AdversarialRunManifestStore::class, static function (): AdversarialRunManifestStore {
+            return new AdversarialRunManifestStore;
+        });
+
+        $this->app->singleton(AdversarialRegressionGate::class, static function (): AdversarialRegressionGate {
+            return new AdversarialRegressionGate;
         });
 
         $this->app->singleton(SerialBatch::class, static function (): SerialBatch {
@@ -126,7 +147,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([EvalCommand::class]);
+            $this->commands([EvalCommand::class, AdversarialCommand::class]);
 
             $this->publishes([
                 __DIR__.'/../config/eval-harness.php' => $this->configPath('eval-harness.php'),

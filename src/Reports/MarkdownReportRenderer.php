@@ -13,6 +13,8 @@ namespace Padosoft\EvalHarness\Reports;
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
  *   - Usage summary when metric providers expose token/cost/latency data.
  *   - Cohort table by metadata.tags.
+ *   - Adversarial category + compliance summary when samples carry
+ *     normalized `metadata.adversarial` fields.
  *   - Per-metric score histograms.
  *   - Failure list (if any).
  *
@@ -112,6 +114,49 @@ final class MarkdownReportRenderer
             $lines[] = '';
         }
 
+        $adversarial = $report->adversarialSummary();
+        if ($adversarial['total_samples'] > 0) {
+            $lines[] = '## Adversarial coverage';
+            $lines[] = '';
+            $lines[] = '| category | label | severity | samples | frameworks | metric | mean | p50 | p95 | pass-rate (>= 0.5) |';
+            $lines[] = '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |';
+
+            foreach ($adversarial['categories'] as $category) {
+                foreach ($category['metrics'] as $metricName => $aggregate) {
+                    $lines[] = sprintf(
+                        '| %s | %s | %s | %d | %s | %s | %.4f | %.4f | %.4f | %.4f |',
+                        $this->tableCell($category['category']),
+                        $this->tableCell($category['label']),
+                        $this->tableCell($category['severity'] ?? 'n/a'),
+                        $category['sample_count'],
+                        $this->tableCell($this->commaList($category['compliance_frameworks'])),
+                        $this->tableCell($metricName),
+                        $aggregate['mean'],
+                        $aggregate['p50'],
+                        $aggregate['p95'],
+                        $aggregate['pass_rate'],
+                    );
+                }
+            }
+
+            $lines[] = '';
+            $lines[] = '### Compliance frameworks';
+            $lines[] = '';
+            $lines[] = '| framework | samples | categories |';
+            $lines[] = '| --- | --- | --- |';
+
+            foreach ($adversarial['compliance_frameworks'] as $framework) {
+                $lines[] = sprintf(
+                    '| %s | %d | %s |',
+                    $this->tableCell($framework['framework']),
+                    $framework['sample_count'],
+                    $this->tableCell($this->commaList($framework['categories'])),
+                );
+            }
+
+            $lines[] = '';
+        }
+
         $distributions = $report->metricDistributions();
         if ($distributions !== []) {
             $lines[] = '## Score histograms';
@@ -152,6 +197,14 @@ final class MarkdownReportRenderer
         }
 
         return implode("\n", $lines)."\n";
+    }
+
+    /**
+     * @param  list<string>  $values
+     */
+    private function commaList(array $values): string
+    {
+        return $values === [] ? 'n/a' : implode(', ', $values);
     }
 
     private function tableCell(string $value): string

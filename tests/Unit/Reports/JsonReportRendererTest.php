@@ -34,6 +34,7 @@ final class JsonReportRendererTest extends TestCase
             'metric_distributions',
             'usage',
             'cohorts',
+            'adversarial',
             'macro_f1',
             'samples',
             'failures',
@@ -45,6 +46,7 @@ final class JsonReportRendererTest extends TestCase
         $this->assertSame(ReportSchema::VERSION, $json['schema_version']);
         $this->assertSame(DatasetSchema::VERSION, $json['dataset_schema_version']);
         $this->assertSame(0, $json['usage']['observations']);
+        $this->assertSame(0, $json['adversarial']['total_samples']);
     }
 
     public function test_metrics_aggregate_shape(): void
@@ -75,6 +77,7 @@ final class JsonReportRendererTest extends TestCase
         $this->assertCount(1, $json['samples']);
         $this->assertSame('s1', $json['samples'][0]['id']);
         $this->assertSame([], $json['samples'][0]['tags']);
+        $this->assertNull($json['samples'][0]['adversarial']);
         $this->assertArrayNotHasKey('metadata', $json['samples'][0]);
         $this->assertSame(1.0, $json['samples'][0]['scores']['exact-match']['score']);
         $this->assertSame(['match' => true], $json['samples'][0]['scores']['exact-match']['details']);
@@ -140,6 +143,56 @@ final class JsonReportRendererTest extends TestCase
 
         $this->assertSame(['safe'], $json['samples'][0]['tags']);
         $this->assertArrayNotHasKey('metadata', $json['samples'][0]);
+    }
+
+    public function test_adversarial_metadata_is_serialised_as_safe_normalised_subset(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.prompt-injection',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'tags' => ['adversarial', 'prompt-injection'],
+                            'token' => 'secret-token',
+                            'refusal_policy' => 'Do not serialize this policy text.',
+                            'adversarial' => [
+                                'category' => 'prompt-injection',
+                                'label' => 'Prompt injection',
+                                'severity' => 'high',
+                                'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF'],
+                                'raw_prompt' => 'hidden',
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $json = (new JsonReportRenderer)->render($report);
+
+        $expected = [
+            'category' => 'prompt-injection',
+            'label' => 'Prompt injection',
+            'severity' => 'high',
+            'compliance_frameworks' => ['OWASP LLM', 'NIST AI RMF'],
+        ];
+
+        $this->assertSame($expected, $json['samples'][0]['adversarial']);
+        $this->assertSame(1, $json['adversarial']['total_samples']);
+        $this->assertSame('prompt-injection', $json['adversarial']['categories'][0]['category']);
+        $this->assertSame(['NIST AI RMF', 'OWASP LLM'], $json['adversarial']['categories'][0]['compliance_frameworks']);
+        $this->assertArrayNotHasKey('metadata', $json['samples'][0]);
+        $this->assertArrayNotHasKey('refusal_policy', $json['samples'][0]['adversarial']);
+        $this->assertArrayNotHasKey('raw_prompt', $json['samples'][0]['adversarial']);
     }
 
     public function test_failures_are_serialised(): void

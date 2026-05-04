@@ -117,6 +117,18 @@ surface small and the offline path fast.
 - **Citation evidence checks** — `citation-groundedness` can score
   simple citation markers or stricter `metadata.citation_evidence`
   spans that require both citation markers and quote text.
+- **Opt-in adversarial lane** — `AdversarialDatasetFactory` and
+  `php artisan eval-harness:adversarial` build/run safety regression
+  seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
+  abuse, and similar red-team categories. JSON/Markdown reports add
+  category and compliance-framework summaries, and optional manifests
+  retain adversarial run summaries while preserving latest failure-free
+  baselines per compatible report schema, dataset, metric names, and
+  adversarial category/sample-count slice under tight retention;
+  `--regression-gate` fails CI when macro-F1 or configured metric
+  aggregates drop, and `--promote-failures` writes failed samples back
+  to a reloadable YAML dataset seed. Scheduler/CI guidance shows how to
+  run the lane continuously without bundling a daemon in this package.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -155,6 +167,13 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
+| Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
+| Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
+| Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
+| Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
+| Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
+| Scheduled/continuous monitoring | ⚠️ PARTIAL - custom scheduler around eval runs | ✅ YES - hosted monitoring workflows | ⚠️ PARTIAL - custom scheduler around Python metrics | ✅ YES - CLI/CI monitoring workflows | ⚠️ PARTIAL - local runner or hosted platform workflow | **✅ YES - Laravel Scheduler/CI cron guidance with manifests, Horizon queues, gates, and failure promotion** |
+| Failure promotion to datasets | ⚠️ PARTIAL - custom eval scripts | ✅ YES - trace-to-dataset workflows | ⚠️ PARTIAL - custom dataset curation | ✅ YES - failure-driven test cases | ✅ YES - failed test cases can become datasets | **✅ YES - `--promote-failures` exports failed adversarial samples to YAML seeds** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -582,6 +601,104 @@ same chat-completions settings. `refusal-quality` requires each sample
 to declare `metadata.refusal_expected: true|false` so safety/refusal
 behavior is explicit in the dataset contract.
 
+Adversarial safety/regression seeds are opt-in. Build and register them
+programmatically when a host app wants a red-team lane:
+
+```php
+use Padosoft\EvalHarness\Adversarial\AdversarialCategory;
+use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+
+$factory = app(AdversarialDatasetFactory::class);
+
+$dataset = $factory->build(categories: [
+    AdversarialCategory::PromptInjection,
+    'pii-leak',
+    'ssrf',
+]);
+
+app(\Padosoft\EvalHarness\EvalEngine::class)->registerDataset($dataset);
+```
+
+Or run the built-in red-team lane directly from Artisan:
+
+```bash
+php artisan eval-harness:adversarial \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --category=prompt-injection \
+  --category=pii-leak \
+  --metric=refusal-quality \
+  --manifest=storage/eval/adversarial-runs.json \
+  --manifest-retain=10 \
+  --regression-gate \
+  --regression-max-drop=5 \
+  --regression-metric=refusal-quality:mean \
+  --json --out=adversarial.json
+```
+
+`eval:adversarial` is available as a short alias. The command registers
+only the selected adversarial seed dataset for that invocation, accepts
+`--metric=*` (default: `refusal-quality`), supports `--outputs` for
+precomputed responses, and reuses the same `--batch`,
+`--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
+options as `eval-harness:run`. Add `--manifest=<path>` to update a
+local JSON run-history manifest and `--manifest-retain=N` to keep a
+bounded set of adversarial summaries: the newest N summaries plus any
+additional failure-free baselines needed for compatible report schema,
+dataset, metric names, and adversarial category/sample-count slices. Size
+`--manifest-retain` for the number of distinct report schema, dataset,
+metric, category, and sample-count slices you run, because each slice may
+need its own clean baseline.
+Add `--regression-gate` to compare the current run with the latest
+compatible failure-free existing manifest entry (same report schema,
+dataset, metric names, and adversarial category/sample-count slice)
+before the current run is recorded. `--regression-max-drop=5` means five
+normalized percentage points. Repeat `--regression-metric=metric` or
+`--regression-metric=metric:mean|p50|p95|pass_rate` for additional
+metric aggregate checks. Configured regression metrics must exist in the
+current run; missing current aggregates fail closed even when no baseline
+exists yet. If no compatible failure-free baseline exists after that
+validation, the command emits an explicit `missing-baseline` status. Runs
+can advance the next compatible baseline whenever they are written to the
+manifest and failure-free, including plain `--manifest` writes without
+`--regression-gate`. Gated runs are recorded only when they are
+failure-free and do not fail configured gate checks; metric failures and
+gate failures are left out so they cannot seed broken baselines.
+
+Add `--promote-failures=eval/adversarial-failures.yml` to export
+low-scoring samples and samples with metric exceptions into a reloadable
+dataset YAML seed. Use `--promoted-dataset=adversarial.security.failures`
+to control the dataset name inside that YAML; otherwise it defaults to
+`<dataset>.failures`. Promotion preserves the original sample input,
+expected output, and metadata, adds
+`metadata.eval_harness.promoted_failure` with the source dataset and
+failed metric names, and intentionally omits actual model output and raw
+provider error messages from the seed. If no samples fail, an existing
+promotion file at that path is removed so fixed CI artifact paths do not
+keep stale failure seeds.
+
+The default factory covers 10 categories: prompt injection, jailbreak,
+tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
+competitor endorsement, excessive agency, and hallucination
+overreliance. Samples include `metadata.tags`, `metadata.adversarial`,
+`metadata.refusal_expected`, and `metadata.refusal_policy` so they can be
+scored with `refusal-quality` and grouped in JSON/Markdown reports.
+Reports expose a safe normalized adversarial subset only: category,
+label, severity, and compliance frameworks. Raw prompts, refusal policy
+text, and arbitrary sample metadata stay out of JSON sample rows.
+The top-level JSON `adversarial` block aggregates category metrics and
+framework counts for OWASP LLM, NIST AI RMF, and EU AI Act style
+security reporting; Markdown reports render the same data under
+`Adversarial coverage`. Manifest files use
+`eval-harness.adversarial-runs.v1`, store stable metric aggregates plus
+the safe adversarial summary, serialize command updates with a lock file,
+and write through a temporary file before replacing the target path.
+
+For recurring safety checks, see
+[`docs/ADVERSARIAL_CONTINUOUS_MONITORING.md`](docs/ADVERSARIAL_CONTINUOUS_MONITORING.md).
+It shows how to run the adversarial lane from Laravel Scheduler or CI cron
+with persistent manifests, Horizon-backed queues, regression gates, and
+failure promotion while keeping this package daemon-free.
+
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with
 `EVAL_HARNESS_PROVIDER_RETRY_SLEEP_MS` between attempts. Retries apply
@@ -639,9 +756,9 @@ wall-clock latency, keeping reports diff-friendly across repeated runs.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  EvalCommand (php artisan eval-harness:run)                      │
-│  └─► resolves Registrar (--registrar=FQCN)                       │
-│      └─► registrar binds dataset + callable/SampleRunner SUT     │
+│  EvalCommand / AdversarialCommand                                │
+│  └─► php artisan eval-harness:run / eval-harness:adversarial      │
+│      └─► resolve registrar, dataset, callable/SampleRunner SUT    │
 └──────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -777,15 +894,23 @@ accidentally and never burns API credits.
 
 - **Adversarial harness** — prompt injection / jailbreak / tool-abuse
   test datasets bundled (opt-in), including multi-input targets and
-  compliance/framework mapping for security reports.
-- **Regression detection** — store the last N runs in a JSON
-  manifest and fail the gate when macro-F1 drops more than X%.
+  `eval-harness:adversarial`; JSON/Markdown category and compliance
+  framework summaries are implemented.
+- **Regression detection** — JSON manifests retain adversarial runs
+  while preserving latest failure-free baselines per compatible report
+  schema, dataset, metric names, and adversarial category/sample-count slice, and
+  `--regression-gate` fails the gate when macro-F1 or a configured
+  metric aggregate drops more than the allowed percentage points.
+- **Adversarial continuous monitoring** — Scheduler/CI cron guidance is
+  implemented for recurring runs with persistent manifests, Horizon queues,
+  regression gates, and failure promotion without bundling a daemon.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy
   the UI behind your existing admin gate.
-- **Dataset splits/filtering and failure promotion** — keep parity
-  with LangSmith-style workflows while staying local-file-first.
+- **Dataset splits/filtering and failure promotion** — failure
+  promotion is implemented through `--promote-failures`; dataset
+  splits/filtering remain planned while staying local-file-first.
 
 ### v1.0
 

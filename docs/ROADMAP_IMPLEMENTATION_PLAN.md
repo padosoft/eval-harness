@@ -148,14 +148,22 @@ Branch: `task/adversarial-regression`
 
 Implement:
 
-- Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance.
-- Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt.
-- Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting.
-- Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon.
-- `eval:adversarial` command.
-- Manifest storing the last N runs.
-- Regression gate: fail when macro-F1 or configured metric drops more than X%.
-- Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
+- Opt-in adversarial datasets: prompt injection, jailbreak, tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling, competitor endorsement, excessive agency, hallucination/overreliance. Initial seed factory implemented through `AdversarialDatasetFactory`.
+- Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt. Implemented through structured `AdversarialDatasetFactory` sample inputs.
+- Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting. Implemented through safe normalized `adversarial` report summaries.
+- Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon. Implemented in `docs/ADVERSARIAL_CONTINUOUS_MONITORING.md`.
+- `eval:adversarial` command. Implemented as
+  `eval-harness:adversarial` with an `eval:adversarial` alias,
+  selected categories/metrics, saved-output scoring, and batch options.
+- Manifest retaining adversarial run summaries with clean-baseline
+  preservation. Implemented through
+  `AdversarialRunManifest`, `AdversarialRunManifestStore`, and
+  `eval-harness:adversarial --manifest=<path> --manifest-retain=N`.
+- Regression gate: fail when macro-F1 or configured metric drops more
+  than N percentage points. Implemented through
+  `AdversarialRegressionGate` and
+  `eval-harness:adversarial --manifest=<path> --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`.
+- Failure promotion workflow: export failed samples into a dataset seed for future regression coverage. Implemented through `eval-harness:adversarial --promote-failures=<path> --promoted-dataset=<name>`.
 
 Guardrails:
 
@@ -165,12 +173,12 @@ Guardrails:
 
 Tests:
 
-- Adversarial command tests.
-- Multi-input adversarial dataset tests.
-- Compliance mapping serialization tests.
-- Manifest retention tests.
-- Regression pass/fail/missing-baseline tests.
-- Failure export tests.
+- Adversarial command tests. Implemented.
+- Multi-input adversarial dataset tests. Implemented.
+- Compliance mapping serialization tests. Implemented.
+- Manifest retention tests. Implemented.
+- Regression pass/fail/missing-baseline tests. Implemented.
+- Failure export tests. Implemented.
 
 ## Macro Task 6 - Report API Contract For Separate UI Package v0.3
 
