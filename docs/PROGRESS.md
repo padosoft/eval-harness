@@ -2031,3 +2031,4 @@
   - `vendor/bin/phpunit` => `OK (568 tests, 1564 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Current remote blocker on PR #32: `gh pr edit --add-reviewer '@copilot'` is still blocked by missing `read:project`, and the GraphQL `requestReviewsByLogin` fallback on `copilot-pull-request-reviewer` did not surface a fresh Copilot review on the latest head `eb1eb71`/`f598884` during this session. Next remote step is to re-request Copilot from the PR Reviewers menu or refresh `gh` with `read:project` and request a new review before merging.
