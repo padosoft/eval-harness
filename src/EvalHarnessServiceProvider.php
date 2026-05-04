@@ -10,6 +10,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\ServiceProvider;
+use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
@@ -74,6 +75,10 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(SavedOutputsLoader::class, static function (): SavedOutputsLoader {
             return new SavedOutputsLoader;
+        });
+
+        $this->app->singleton(AdversarialDatasetFactory::class, static function (Container $app): AdversarialDatasetFactory {
+            return new AdversarialDatasetFactory($app->make(MetricResolver::class));
         });
 
         $this->app->singleton(SerialBatch::class, static function (): SerialBatch {
