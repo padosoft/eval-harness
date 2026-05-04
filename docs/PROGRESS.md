@@ -1698,3 +1698,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the eleventh PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `cfeed55` and generated three actionable comments:
+  - centralize the compatibility-slice rules shared by retention and baseline lookup,
+  - centralize CLI `--manifest` validation across gated and non-gated command paths,
+  - README should describe clean-baseline retention per compatible metric/category slice so operators size `--manifest-retain` correctly.
+- Addressed the twelfth PR #28 review round by adding the internal `AdversarialRunSliceSignature` helper used by both `AdversarialRunManifest` and `AdversarialRunManifestStore`, routing command manifest validation through one method, and updating README retention wording to say each compatible slice can need its own clean baseline.
+- Targeted validation passed after the twelfth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (73 tests, 244 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twelfth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (513 tests, 1354 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twelfth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

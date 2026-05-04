@@ -122,9 +122,10 @@ surface small and the offline path fast.
   seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
   abuse, and similar red-team categories. JSON/Markdown reports add
   category and compliance-framework summaries, and optional manifests
-  retain adversarial run summaries while preserving the latest
-  failure-free baseline under tight retention; `--regression-gate`
-  fails CI when macro-F1 or configured metric aggregates drop.
+  retain adversarial run summaries while preserving latest failure-free
+  baselines per compatible metric/category slice under tight retention;
+  `--regression-gate` fails CI when macro-F1 or configured metric
+  aggregates drop.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -635,9 +636,12 @@ only the selected adversarial seed dataset for that invocation, accepts
 precomputed responses, and reuses the same `--batch`,
 `--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
 options as `eval-harness:run`. Add `--manifest=<path>` to update a
-local JSON run-history manifest and `--manifest-retain=N` to keep only
-the newest N adversarial summaries while preserving the latest
-failure-free baseline when failed plain runs would otherwise evict it.
+local JSON run-history manifest and `--manifest-retain=N` to keep a
+bounded set of adversarial summaries while preserving the latest
+failure-free baseline for each compatible metric/category slice when
+failed plain runs would otherwise evict those clean entries. Size
+retention for the number of distinct slices you run, because each slice
+may need its own clean baseline.
 Add `--regression-gate` to compare the current run with the latest
 compatible failure-free existing manifest entry (same metric names and
 adversarial category/sample-count slice) before the current run is
@@ -867,7 +871,7 @@ accidentally and never burns API credits.
   `eval-harness:adversarial`; JSON/Markdown category and compliance
   framework summaries are implemented.
 - **Regression detection** — JSON manifests retain adversarial runs
-  while preserving the latest failure-free baseline, and
+  while preserving latest failure-free baselines per compatible slice, and
   `--regression-gate` fails the gate when macro-F1 or a configured
   metric aggregate drops more than the allowed percentage points.
 - **Report API contract for a separate UI package** — read-only

@@ -175,7 +175,7 @@ final class AdversarialRunManifest
         $retainedCleanSignatures = [];
         foreach ($retained as $run) {
             if ($run->totalFailures === 0) {
-                $retainedCleanSignatures[$this->compatibilitySignature($run)] = true;
+                $retainedCleanSignatures[AdversarialRunSliceSignature::fromEntry($run)] = true;
             }
         }
 
@@ -185,7 +185,7 @@ final class AdversarialRunManifest
                 continue;
             }
 
-            $signature = $this->compatibilitySignature($run);
+            $signature = AdversarialRunSliceSignature::fromEntry($run);
             $latestCleanBySignature[$signature] ??= $run;
         }
 
@@ -247,62 +247,6 @@ final class AdversarialRunManifest
         }
 
         return $oldestIndex;
-    }
-
-    private function compatibilitySignature(AdversarialRunManifestEntry $entry): string
-    {
-        return serialize([
-            'metrics' => $this->metricSignature($entry),
-            'adversarial' => $this->adversarialSliceSignature($entry),
-        ]);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function metricSignature(AdversarialRunManifestEntry $entry): array
-    {
-        $names = array_keys($entry->metrics);
-        sort($names);
-
-        return $names;
-    }
-
-    /**
-     * @return array{total_samples: int, categories: list<array{category: string, sample_count: int}>}
-     */
-    private function adversarialSliceSignature(AdversarialRunManifestEntry $entry): array
-    {
-        $categories = [];
-        $rawCategories = $entry->adversarial['categories'] ?? [];
-        if (is_array($rawCategories) && array_is_list($rawCategories)) {
-            foreach ($rawCategories as $category) {
-                if (! is_array($category)) {
-                    continue;
-                }
-
-                $name = $category['category'] ?? null;
-                $sampleCount = $category['sample_count'] ?? null;
-                if (is_string($name) && is_int($sampleCount)) {
-                    $categories[] = [
-                        'category' => $name,
-                        'sample_count' => $sampleCount,
-                    ];
-                }
-            }
-        }
-
-        usort(
-            $categories,
-            static fn (array $left, array $right): int => strcmp($left['category'], $right['category']),
-        );
-
-        $totalSamples = $entry->adversarial['total_samples'] ?? 0;
-
-        return [
-            'total_samples' => is_int($totalSamples) ? $totalSamples : 0,
-            'categories' => $categories,
-        ];
     }
 
     /**

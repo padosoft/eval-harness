@@ -164,13 +164,9 @@ final class AdversarialCommand extends Command
 
     private function validateManifestOptions(): void
     {
-        $manifestPath = $this->option('manifest');
+        $manifestPath = $this->manifestPathOption(required: false);
         if ($manifestPath === null) {
             return;
-        }
-
-        if (! is_string($manifestPath) || $manifestPath === '' || $manifestPath !== trim($manifestPath)) {
-            throw new EvalRunException('The --manifest option requires a non-empty file path without leading or trailing whitespace.');
         }
 
         $this->positiveIntegerOption('manifest-retain', 10);
@@ -195,11 +191,26 @@ final class AdversarialCommand extends Command
 
     private function manifestPathForRegressionGate(): string
     {
-        $manifestPath = $this->option('manifest');
-        if (! is_string($manifestPath) || $manifestPath === '') {
+        $manifestPath = $this->manifestPathOption(required: true);
+        if ($manifestPath === null) {
             throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
         }
-        if ($manifestPath !== trim($manifestPath)) {
+
+        return $manifestPath;
+    }
+
+    private function manifestPathOption(bool $required): ?string
+    {
+        $manifestPath = $this->option('manifest');
+        if ($manifestPath === null || ($required && $manifestPath === '')) {
+            if ($required) {
+                throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
+            }
+
+            return null;
+        }
+
+        if (! is_string($manifestPath) || $manifestPath === '' || $manifestPath !== trim($manifestPath)) {
             throw new EvalRunException('The --manifest option requires a non-empty file path without leading or trailing whitespace.');
         }
 
@@ -353,15 +364,16 @@ final class AdversarialCommand extends Command
 
     private function recordManifest(EvalReport $report): bool
     {
-        $manifestPath = $this->option('manifest');
-        if ($manifestPath === null) {
-            return true;
-        }
-
-        if (! is_string($manifestPath) || $manifestPath === '') {
-            $this->error('The --manifest option requires a non-empty file path.');
+        try {
+            $manifestPath = $this->manifestPathOption(required: false);
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
 
             return false;
+        }
+
+        if ($manifestPath === null) {
+            return true;
         }
 
         try {
