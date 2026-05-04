@@ -15,6 +15,7 @@ use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\SerialBatch;
+use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
@@ -32,7 +33,7 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
  *   - Merge the package config under `eval-harness.*`.
  *   - Bind the {@see EvalEngine} as a singleton so dataset
  *     registrations survive across the same request lifecycle.
- *   - Register the `eval-harness:run` Artisan command in the
+ *   - Register the package Artisan commands in the
  *     console kernel.
  *   - Publish the config when the operator runs
  *     `php artisan vendor:publish --tag=eval-harness-config`.
@@ -131,7 +132,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([EvalCommand::class]);
+            $this->commands([EvalCommand::class, AdversarialCommand::class]);
 
             $this->publishes([
                 __DIR__.'/../config/eval-harness.php' => $this->configPath('eval-harness.php'),

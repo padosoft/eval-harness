@@ -152,7 +152,9 @@ Implement:
 - Multi-input adversarial samples for workflows where the target receives several fields instead of a single prompt.
 - Compliance/framework mapping in adversarial JSON/Markdown reports for OWASP/NIST/EU-AI-Act style reporting.
 - Scheduled/continuous-monitoring guidance that reuses manifests and queues without bundling a scheduler daemon.
-- `eval:adversarial` command.
+- `eval:adversarial` command. Implemented as
+  `eval-harness:adversarial` with an `eval:adversarial` alias,
+  selected categories/metrics, saved-output scoring, and batch options.
 - Manifest storing the last N runs.
 - Regression gate: fail when macro-F1 or configured metric drops more than X%.
 - Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
