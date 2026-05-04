@@ -7,7 +7,7 @@ namespace Padosoft\EvalHarness\Adversarial;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 
 /**
- * Retains the latest adversarial run summaries for future regression gates.
+ * Retains recent adversarial run summaries and clean baseline anchors for future regression gates.
  */
 final class AdversarialRunManifest
 {
@@ -70,7 +70,7 @@ final class AdversarialRunManifest
             $normalizedRuns[] = $run;
         }
 
-        $this->runs = $normalizedRuns;
+        $this->runs = self::sortRuns($normalizedRuns);
     }
 
     public static function empty(string $name, ?float $now = null): self
@@ -128,24 +128,28 @@ final class AdversarialRunManifest
         }
 
         $runs = [$entry];
+        $entrySignature = AdversarialRunSliceSignature::fromEntry($entry);
         foreach ($this->runs as $run) {
             if ($run->runId !== $entry->runId) {
                 $runs[] = $run;
+
+                continue;
+            }
+
+            if (AdversarialRunSliceSignature::fromEntry($run) !== $entrySignature) {
+                throw new EvalRunException(sprintf(
+                    "Adversarial run manifest '%s' already contains run_id '%s' for a different report schema, dataset, metric set, or adversarial slice.",
+                    $this->name,
+                    $entry->runId,
+                ));
             }
         }
 
-        usort($runs, static function (AdversarialRunManifestEntry $left, AdversarialRunManifestEntry $right): int {
-            $byFinishedAt = $right->finishedAt <=> $left->finishedAt;
-            if ($byFinishedAt !== 0) {
-                return $byFinishedAt;
-            }
-
-            return strcmp($left->runId, $right->runId);
-        });
+        $runs = self::sortRuns($runs);
 
         return new self(
             name: $this->name,
-            runs: array_slice($runs, 0, $maxRuns),
+            runs: $this->retainRuns($runs, $maxRuns),
             updatedAt: $now ?? microtime(true),
             schemaVersion: $this->schemaVersion,
         );
@@ -170,6 +174,61 @@ final class AdversarialRunManifest
                 $this->runs,
             ),
         ];
+    }
+
+    /**
+     * @param  list<AdversarialRunManifestEntry>  $runs
+     * @return list<AdversarialRunManifestEntry>
+     */
+    private function retainRuns(array $runs, int $maxRuns): array
+    {
+        $retained = array_slice($runs, 0, $maxRuns);
+        $retainedRunIds = [];
+        $retainedCleanSignatures = [];
+        foreach ($retained as $run) {
+            $retainedRunIds[$run->runId] = true;
+            if ($run->totalFailures === 0) {
+                $retainedCleanSignatures[AdversarialRunSliceSignature::fromEntry($run)] = true;
+            }
+        }
+
+        foreach ($runs as $run) {
+            if ($run->totalFailures !== 0) {
+                continue;
+            }
+
+            $signature = AdversarialRunSliceSignature::fromEntry($run);
+            if (isset($retainedCleanSignatures[$signature])) {
+                continue;
+            }
+
+            if (! isset($retainedRunIds[$run->runId])) {
+                $retained[] = $run;
+                $retainedRunIds[$run->runId] = true;
+            }
+
+            $retainedCleanSignatures[$signature] = true;
+        }
+
+        return self::sortRuns($retained);
+    }
+
+    /**
+     * @param  list<AdversarialRunManifestEntry>  $runs
+     * @return list<AdversarialRunManifestEntry>
+     */
+    private static function sortRuns(array $runs): array
+    {
+        usort($runs, static function (AdversarialRunManifestEntry $left, AdversarialRunManifestEntry $right): int {
+            $byFinishedAt = $right->finishedAt <=> $left->finishedAt;
+            if ($byFinishedAt !== 0) {
+                return $byFinishedAt;
+            }
+
+            return strcmp($left->runId, $right->runId);
+        });
+
+        return $runs;
     }
 
     /**

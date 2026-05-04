@@ -155,10 +155,14 @@ Implement:
 - `eval:adversarial` command. Implemented as
   `eval-harness:adversarial` with an `eval:adversarial` alias,
   selected categories/metrics, saved-output scoring, and batch options.
-- Manifest storing the last N runs. Implemented through
+- Manifest retaining adversarial run summaries with clean-baseline
+  preservation. Implemented through
   `AdversarialRunManifest`, `AdversarialRunManifestStore`, and
   `eval-harness:adversarial --manifest=<path> --manifest-retain=N`.
-- Regression gate: fail when macro-F1 or configured metric drops more than X%.
+- Regression gate: fail when macro-F1 or configured metric drops more
+  than N percentage points. Implemented through
+  `AdversarialRegressionGate` and
+  `eval-harness:adversarial --manifest=<path> --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`.
 - Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
 
 Guardrails:

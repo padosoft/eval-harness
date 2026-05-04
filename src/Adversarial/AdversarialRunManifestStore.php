@@ -21,8 +21,11 @@ final class AdversarialRunManifestStore
         ?string $runId = null,
     ): AdversarialRunManifest {
         $this->assertPath($path);
-        $this->ensureDirectory($path);
+        $this->assertRetention($maxRuns);
         $manifestName ??= $report->datasetName;
+        $this->assertManifestName($manifestName);
+        $this->assertRunId($runId);
+        $this->ensureDirectory($path);
 
         $lock = $this->openLock($path);
         try {
@@ -53,6 +56,69 @@ final class AdversarialRunManifestStore
         }
 
         return $manifest;
+    }
+
+    /**
+     * @param  list<string>  $metricTargets
+     */
+    public function recordWithRegressionGate(
+        string $path,
+        EvalReport $report,
+        AdversarialRegressionGate $gate,
+        float $maxDrop,
+        array $metricTargets = [],
+        int $maxRuns = 10,
+        ?string $manifestName = null,
+        ?string $runId = null,
+    ): AdversarialRegressionGateResult {
+        $this->assertPath($path);
+        $manifestName ??= $report->datasetName;
+        $this->assertManifestName($manifestName);
+        $this->assertRunId($runId);
+        $gate->assertConfiguration($maxDrop, $metricTargets);
+        $this->assertRetention($maxRuns);
+        $this->ensureDirectory($path);
+
+        $lock = $this->openLock($path);
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new EvalRunException(sprintf("Failed to lock adversarial run manifest '%s'.", $path));
+            }
+
+            $manifest = $this->load($path);
+            if ($manifest !== null && $manifest->name !== $manifestName) {
+                throw new EvalRunException(sprintf(
+                    "Adversarial run manifest '%s' belongs to manifest '%s', not '%s'.",
+                    $path,
+                    $manifest->name,
+                    $manifestName,
+                ));
+            }
+
+            $manifest ??= AdversarialRunManifest::empty($manifestName);
+            $entry = AdversarialRunManifestEntry::fromReport($report, $runId);
+            $result = $gate->evaluate(
+                current: $entry,
+                baseline: $this->latestCompatibleBaseline($manifest, $entry),
+                maxDrop: $maxDrop,
+                metricTargets: $metricTargets,
+            );
+
+            if ($this->shouldRecordRegressionGateResult($entry, $result)) {
+                $manifest = $manifest->record($entry, maxRuns: $maxRuns);
+                $this->save($path, $manifest);
+
+                return $this->withRecordingStatus(
+                    $result,
+                    recorded: $this->manifestContainsRun($manifest, $entry->runId),
+                );
+            }
+
+            return $result;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     public function load(string $path): ?AdversarialRunManifest
@@ -137,6 +203,29 @@ final class AdversarialRunManifestStore
         if ($path === '' || $path !== trim($path)) {
             throw new EvalRunException('Adversarial run manifest path must be a non-empty string without leading or trailing whitespace.');
         }
+
+        if ($this->isDirectoryPath($path) || is_dir($path)) {
+            throw new EvalRunException('Adversarial run manifest path must point to a file path, not a directory path.');
+        }
+    }
+
+    private function isDirectoryPath(string $path): bool
+    {
+        return str_ends_with($path, '/') || str_ends_with($path, '\\');
+    }
+
+    private function assertManifestName(string $manifestName): void
+    {
+        if ($manifestName === '' || $manifestName !== trim($manifestName)) {
+            throw new EvalRunException('Adversarial run manifest name must be a non-empty string without leading or trailing whitespace.');
+        }
+    }
+
+    private function assertRunId(?string $runId): void
+    {
+        if ($runId !== null && ($runId === '' || $runId !== trim($runId))) {
+            throw new EvalRunException('Adversarial run manifest entry run_id must be a non-empty string without leading or trailing whitespace.');
+        }
     }
 
     /**
@@ -175,5 +264,89 @@ final class AdversarialRunManifestStore
         }
 
         return $lock;
+    }
+
+    private function latestCompatibleBaseline(
+        AdversarialRunManifest $manifest,
+        AdversarialRunManifestEntry $current,
+    ): ?AdversarialRunManifestEntry {
+        $currentSignature = AdversarialRunSliceSignature::fromEntry($current);
+        $latest = null;
+
+        foreach ($manifest->runs as $baseline) {
+            if ($baseline->runId === $current->runId) {
+                continue;
+            }
+
+            if ($baseline->totalFailures > 0) {
+                continue;
+            }
+
+            if (AdversarialRunSliceSignature::fromEntry($baseline) !== $currentSignature) {
+                continue;
+            }
+
+            if (
+                $latest === null
+                || $baseline->finishedAt > $latest->finishedAt
+                || ($baseline->finishedAt === $latest->finishedAt && strcmp($baseline->runId, $latest->runId) < 0)
+            ) {
+                $latest = $baseline;
+            }
+        }
+
+        return $latest;
+    }
+
+    private function shouldRecordRegressionGateResult(
+        AdversarialRunManifestEntry $entry,
+        AdversarialRegressionGateResult $result,
+    ): bool {
+        if ($result->failed()) {
+            return false;
+        }
+
+        if ($entry->totalFailures > 0) {
+            return false;
+        }
+
+        foreach ($result->checks as $check) {
+            if ($check->status === AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function manifestContainsRun(AdversarialRunManifest $manifest, string $runId): bool
+    {
+        foreach ($manifest->runs as $run) {
+            if ($run->runId === $runId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function withRecordingStatus(
+        AdversarialRegressionGateResult $result,
+        bool $recorded,
+    ): AdversarialRegressionGateResult {
+        return new AdversarialRegressionGateResult(
+            status: $result->status,
+            currentRunId: $result->currentRunId,
+            baselineRunId: $result->baselineRunId,
+            checks: $result->checks,
+            recorded: $recorded,
+        );
+    }
+
+    private function assertRetention(int $maxRuns): void
+    {
+        if ($maxRuns < 1) {
+            throw new EvalRunException('Adversarial run manifest retention must keep at least one run.');
+        }
     }
 }

@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit;
 
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
@@ -74,6 +75,17 @@ final class ServiceProviderTest extends TestCase
     public function test_adversarial_run_manifest_store_is_bound(): void
     {
         $this->assertInstanceOf(AdversarialRunManifestStore::class, $this->app->make(AdversarialRunManifestStore::class));
+    }
+
+    public function test_adversarial_regression_gate_is_an_explicit_singleton(): void
+    {
+        $this->assertTrue($this->app->bound(AdversarialRegressionGate::class));
+
+        $first = $this->app->make(AdversarialRegressionGate::class);
+        $second = $this->app->make(AdversarialRegressionGate::class);
+
+        $this->assertInstanceOf(AdversarialRegressionGate::class, $first);
+        $this->assertSame($first, $second, 'AdversarialRegressionGate must be a container singleton so gate policy stays stable across command/store resolution.');
     }
 
     public function test_config_is_merged(): void
