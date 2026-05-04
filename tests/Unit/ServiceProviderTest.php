@@ -127,7 +127,7 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame([], config('eval-harness.api.middleware'));
     }
 
-    public function test_api_route_middleware_keeps_associative_config_arrays(): void
+    public function test_api_route_middleware_normalizes_associative_arrays(): void
     {
         config([
             'eval-harness.api.middleware' => [
