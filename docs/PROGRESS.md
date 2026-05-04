@@ -2022,3 +2022,5 @@
 - Addressed that second PR #32 review round by splitting report artifacts into explicit summary/detail builders and by guarding `routesAreCached()` with `method_exists()` instead of an `Application` type check.
 - Copilot then flagged three more issues on the refreshed PR #32 review: the summary builder carried an unused disk parameter, `registerReportApiRoutes()` should avoid the `Route` facade in component-only installs, and `show()` should surface content-read failures as 5xx instead of 404.
 - Addressed those follow-up comments by removing the unused summary-builder parameter, switching route registration to the container `Registrar`, and splitting `show()` into 404 not-found handling plus 503 content-read failure handling.
+- Copilot then flagged one more routing issue on the refreshed PR #32 review: the route file itself still used the `Route` facade.
+- Addressed that follow-up by turning `routes/eval-harness-api.php` into a registrar-driven closure and calling it from the provider with the configured prefix and middleware.

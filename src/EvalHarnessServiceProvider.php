@@ -184,11 +184,12 @@ class EvalHarnessServiceProvider extends ServiceProvider
         }
 
         $router = $this->app->make(Registrar::class);
-        $router->group([
-            'prefix' => $this->apiRoutePrefix($config),
-            'middleware' => $this->apiRouteMiddleware($config),
-            'as' => 'eval-harness.api.',
-        ], __DIR__.'/../routes/eval-harness-api.php');
+        $registerRoutes = require __DIR__.'/../routes/eval-harness-api.php';
+        $registerRoutes(
+            $router,
+            $this->apiRoutePrefix($config),
+            $this->apiRouteMiddleware($config),
+        );
     }
 
     private function apiRoutePrefix(ConfigRepository $config): string
