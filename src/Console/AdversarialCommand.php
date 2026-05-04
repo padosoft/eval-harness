@@ -248,7 +248,10 @@ final class AdversarialCommand extends Command
     {
         if ($result->missingBaseline()) {
             if (! $result->recorded) {
-                $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run has metric failures and was not recorded for future comparisons.');
+                $this->writeRegressionDiagnostic(
+                    'Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; '.
+                    $this->nonRecordedRegressionGateReason($report),
+                );
 
                 return;
             }
@@ -260,7 +263,10 @@ final class AdversarialCommand extends Command
 
         if (! $result->failed()) {
             if (! $result->recorded) {
-                $this->writeRegressionDiagnostic('Adversarial regression gate: pass - score checks passed, but current run has metric failures and was not recorded for future comparisons.');
+                $this->writeRegressionDiagnostic(
+                    'Adversarial regression gate: pass - score checks passed, but '.
+                    $this->nonRecordedRegressionGateReason($report),
+                );
 
                 return;
             }
@@ -276,6 +282,15 @@ final class AdversarialCommand extends Command
         }
 
         $this->writeRegressionDiagnostic('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result).'; current run was not recorded for future comparisons.');
+    }
+
+    private function nonRecordedRegressionGateReason(EvalReport $report): string
+    {
+        if ($report->totalFailures() > 0) {
+            return 'current run has metric failures and was not recorded for future comparisons.';
+        }
+
+        return 'current run did not fit within manifest retention and was not recorded for future comparisons.';
     }
 
     private function writeRegressionDiagnostic(string $message): void

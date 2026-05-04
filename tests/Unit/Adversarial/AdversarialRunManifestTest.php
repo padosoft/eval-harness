@@ -281,6 +281,44 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_marks_regression_gate_run_unrecorded_when_retention_evicts_current_entry(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 10.0, 20.0, 1.0, category: 'ssrf'),
+                maxRuns: 1,
+                runId: 'run-newer-clean',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, category: 'prompt-injection'),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                maxRuns: 1,
+                runId: 'run-older-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
+            $this->assertFalse($result->recorded);
+            $this->assertSame(['run-newer-clean'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_invalid_regression_gate_retention_before_non_recorded_result(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);

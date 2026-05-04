@@ -332,6 +332,67 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_regression_gate_missing_baseline_reports_when_retention_does_not_keep_current_run(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $existingSample = $this->adversarialSample('prompt-injection');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+        $this->assertIsString($existingSample->expectedOutput);
+
+        try {
+            (new AdversarialRunManifestStore)->record(
+                path: $manifest,
+                report: new EvalReport(
+                    datasetName: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+                    sampleResults: [
+                        new SampleResult(
+                            sample: $existingSample,
+                            actualOutput: $existingSample->expectedOutput,
+                            metricScores: ['exact-match' => new MetricScore(1.0)],
+                        ),
+                    ],
+                    failures: [],
+                    startedAt: microtime(true) + 3600.0,
+                    finishedAt: microtime(true) + 3601.0,
+                ),
+                maxRuns: 1,
+                runId: 'run-future-clean',
+            );
+
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '1',
+                '--regression-gate' => true,
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run did not fit within manifest retention and was not recorded for future comparisons.')
+                ->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame(['run-future-clean'], array_column($decoded['runs'], 'run_id'));
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
     public function test_regression_gate_pass_with_metric_failures_reports_non_recorded_run(): void
     {
         $sample = $this->adversarialSample('ssrf');

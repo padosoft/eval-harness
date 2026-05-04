@@ -101,9 +101,13 @@ final class AdversarialRunManifestStore
             );
 
             if ($this->shouldRecordRegressionGateResult($entry, $result)) {
-                $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
+                $manifest = $manifest->record($entry, maxRuns: $maxRuns);
+                $this->save($path, $manifest);
 
-                return $this->withRecordingStatus($result, recorded: true);
+                return $this->withRecordingStatus(
+                    $result,
+                    recorded: $this->manifestContainsRun($manifest, $entry->runId),
+                );
             }
 
             return $result;
@@ -275,6 +279,17 @@ final class AdversarialRunManifestStore
         }
 
         return true;
+    }
+
+    private function manifestContainsRun(AdversarialRunManifest $manifest, string $runId): bool
+    {
+        foreach ($manifest->runs as $run) {
+            if ($run->runId === $runId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function withRecordingStatus(
