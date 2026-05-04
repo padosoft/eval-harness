@@ -1972,3 +1972,11 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the first PR #30 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #30 again at head `01a7d37` and generated two actionable comments: examples that use `--raw-path` must either create the report parent directory first or use the configured reports disk/prefix path.
+- Addressed the second PR #30 review round by making the Scheduler example use the configured reports disk/prefix path and adding an explicit `mkdir -p storage/eval/reports` step before the CI raw-path report write.
+- Full local gate passed after the second PR #30 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the second PR #30 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

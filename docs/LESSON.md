@@ -291,3 +291,4 @@
 - CI cron adversarial lanes need persistent manifest storage. If every scheduled run starts with an empty workspace, `--regression-gate` can only seed a new compatible baseline and will not detect historical regressions.
 - Report artifact examples that use literal filesystem paths need `--raw-path`. Without it, relative `--out` paths are intentionally written through the configured reports disk and prefix.
 - Adversarial command alerting docs must include captured metric exceptions as a non-zero exit case. Failure-promotion files can still be written before that non-zero exit, so artifact presence and exit code carry different signals.
+- `--raw-path` report writes use `file_put_contents()` directly and do not create parent directories. Docs and host-app snippets must either pre-create the directory or use the configured reports disk/prefix path.
