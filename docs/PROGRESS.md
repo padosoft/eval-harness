@@ -2007,3 +2007,14 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the report API foundation slice. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot and connector review on PR #32 flagged four follow-up issues: `exists()` can point at directories instead of files, list endpoints should not pay per-artifact metadata reads, the API route placeholder should be `id` instead of `report`, and `api.middleware` should tolerate associative arrays produced by config merges.
+- Addressed those PR #32 review comments by making list responses metadata-light, resolving show requests through `fileExists()` / metadata-safe reads, renaming the route placeholder to `{id}`, and normalizing middleware arrays with `array_values()`.
+- Targeted validation for the PR #32 review fixes passed:
+  - `vendor/bin/phpunit tests/Unit/ReportApi/ReportApiRouteTest.php tests/Unit/ReportApi/ReportApiDisabledTest.php tests/Unit/ServiceProviderTest.php` => `OK (25 tests, 59 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate after the PR #32 review fixes passed:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (566 tests, 1561 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

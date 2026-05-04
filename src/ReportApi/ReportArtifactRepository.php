@@ -7,7 +7,9 @@ namespace Padosoft\EvalHarness\ReportApi;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Throwable;
 
 /**
  * Reads report artifacts from the configured reports disk and prefix.
@@ -38,7 +40,7 @@ final class ReportArtifactRepository
                 continue;
             }
 
-            $artifacts[] = $this->artifactFor($disk, $relativePath);
+            $artifacts[] = $this->artifactFor($disk, $relativePath, includeMetadata: false);
         }
 
         usort($artifacts, static fn (ReportArtifact $left, ReportArtifact $right): int => strcmp($left->path, $right->path));
@@ -50,18 +52,18 @@ final class ReportArtifactRepository
     {
         $relativePath = ReportArtifactId::decode($id);
         $disk = $this->disk();
-        $path = $this->storagePath($relativePath);
 
-        if (! $disk->exists($path)) {
-            throw new EvalRunException('Report artifact not found.');
-        }
-
-        return $this->artifactFor($disk, $relativePath);
+        return $this->artifactFor($disk, $relativePath, includeMetadata: true);
     }
 
     public function contents(ReportArtifact $artifact): string
     {
-        $contents = $this->disk()->get($this->storagePath($artifact->path));
+        try {
+            $contents = $this->disk()->get($this->storagePath($artifact->path));
+        } catch (Throwable $e) {
+            throw new EvalRunException('Report artifact contents could not be read.', previous: $e);
+        }
+
         if (! is_string($contents)) {
             throw new EvalRunException('Report artifact contents could not be read.');
         }
@@ -96,18 +98,46 @@ final class ReportArtifactRepository
         return $prefix === '' ? $relativePath : $prefix.'/'.$relativePath;
     }
 
-    private function artifactFor(Filesystem $disk, string $relativePath): ReportArtifact
+    private function artifactFor(Filesystem $disk, string $relativePath, bool $includeMetadata): ReportArtifact
     {
         ReportArtifactId::assertValidRelativePath($relativePath);
         $path = $this->storagePath($relativePath);
+        $metadata = $includeMetadata
+            ? $this->metadataFor($disk, $path)
+            : ['size_bytes' => null, 'last_modified' => null];
 
         return new ReportArtifact(
             id: ReportArtifactId::encode($relativePath),
             path: $relativePath,
             format: str_ends_with($relativePath, '.json') ? 'json' : 'markdown',
-            sizeBytes: $disk->size($path),
-            lastModified: $disk->lastModified($path),
+            sizeBytes: $metadata['size_bytes'],
+            lastModified: $metadata['last_modified'],
         );
+    }
+
+    /**
+     * @return array{size_bytes: int, last_modified: int}
+     */
+    private function metadataFor(Filesystem $disk, string $path): array
+    {
+        try {
+            if ($disk instanceof FilesystemAdapter) {
+                if (! $disk->fileExists($path)) {
+                    throw new EvalRunException('Report artifact not found.');
+                }
+            } elseif (! $disk->exists($path)) {
+                throw new EvalRunException('Report artifact not found.');
+            }
+
+            return [
+                'size_bytes' => $disk->size($path),
+                'last_modified' => $disk->lastModified($path),
+            ];
+        } catch (EvalRunException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            throw new EvalRunException('Report artifact not found.', previous: $e);
+        }
     }
 
     private function relativePath(string $path, string $prefix): ?string

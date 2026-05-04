@@ -24,10 +24,10 @@ final class ReportArtifactController
         ]);
     }
 
-    public function show(Request $request, ReportArtifactRepository $reports, string $report): JsonResponse
+    public function show(Request $request, ReportArtifactRepository $reports, string $id): JsonResponse
     {
         try {
-            $artifact = $reports->find($report);
+            $artifact = $reports->find($id);
             $contents = $reports->contents($artifact);
         } catch (EvalRunException $e) {
             throw new NotFoundHttpException($e->getMessage(), $e);

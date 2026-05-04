@@ -13,7 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class ReportArtifactResource extends JsonResource
 {
     /**
-     * @return array{id: string, path: string, format: string, size_bytes: int, last_modified: int}
+     * @return array{id: string, path: string, format: string, size_bytes: int|null, last_modified: int|null}
      */
     public function toArray(Request $request): array
     {

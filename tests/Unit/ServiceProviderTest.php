@@ -127,6 +127,23 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame([], config('eval-harness.api.middleware'));
     }
 
+    public function test_api_route_middleware_keeps_associative_config_arrays(): void
+    {
+        config([
+            'eval-harness.api.middleware' => [
+                'web' => 'web',
+                'auth' => 'auth.admin',
+                'blank' => ' ',
+            ],
+        ]);
+
+        $provider = new EvalHarnessServiceProvider($this->app);
+        $method = new \ReflectionMethod($provider, 'apiRouteMiddleware');
+        $method->setAccessible(true);
+
+        $this->assertSame(['web', 'auth.admin'], $method->invoke($provider, $this->app['config']));
+    }
+
     public function test_lazy_parallel_batch_uses_configured_ttl_and_wait_timeout(): void
     {
         config([

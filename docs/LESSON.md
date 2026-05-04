@@ -294,3 +294,6 @@
 - `--raw-path` report writes use `file_put_contents()` directly and do not create parent directories. Docs and host-app snippets must either pre-create the directory or use the configured reports disk/prefix path.
 - Report API routes should be disabled by default because this package does not bundle auth. Host apps opt in with their own prefix/middleware and place the routes behind an existing admin gate.
 - Do not expose report file paths directly as route parameters. Use URL-safe encoded relative ids and reject empty, absolute, traversal, backslash, non-report-extension, and non-canonical ids before reading from the reports disk.
+- Filesystem `exists()` is not strong enough for report artifact detail lookups because it may accept directories. Use file-specific existence checks when the adapter exposes them, and treat metadata failures as not-found for a read-only report API.
+- The report artifact list endpoint should stay metadata-light on purpose. Size and mtime can be omitted from collection responses to avoid N+1 metadata calls on remote disks; reserve them for the single-artifact show response.
+- `eval-harness.api.middleware` may arrive as an associative array after config merges. Route middleware normalization should accept any array shape, trim entries, and discard empty strings instead of requiring a zero-based list.

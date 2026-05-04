@@ -39,6 +39,8 @@ final class ReportApiRouteTest extends TestCase
         $this->assertSame(['rag/report.json', 'rag/report.md'], $paths);
         $this->assertSame(ReportArtifactId::encode('rag/report.json'), $response->json('data.0.id'));
         $this->assertSame('json', $response->json('data.0.format'));
+        $this->assertNull($response->json('data.0.size_bytes'));
+        $this->assertNull($response->json('data.0.last_modified'));
     }
 
     public function test_shows_json_report_artifact_by_url_safe_id(): void
@@ -52,13 +54,16 @@ final class ReportApiRouteTest extends TestCase
 
         $id = ReportArtifactId::encode('rag/report.json');
 
-        $this->getJson('/eval-harness/api/reports/'.$id)
+        $response = $this->getJson('/eval-harness/api/reports/'.$id)
             ->assertOk()
             ->assertJsonPath('schema_version', ReportApiSchema::VERSION)
             ->assertJsonPath('data.artifact.path', 'rag/report.json')
             ->assertJsonPath('data.artifact.format', 'json')
             ->assertJsonPath('data.report.dataset', 'rag.factuality')
             ->assertJsonPath('data.content', null);
+
+        $this->assertIsInt($response->json('data.artifact.size_bytes'));
+        $this->assertIsInt($response->json('data.artifact.last_modified'));
     }
 
     public function test_shows_markdown_report_artifact_by_url_safe_id(): void
@@ -91,5 +96,15 @@ final class ReportApiRouteTest extends TestCase
         $id = ReportArtifactId::encode('rag/bad.json');
 
         $this->getJson('/eval-harness/api/reports/'.$id)->assertUnprocessable();
+    }
+
+    public function test_show_returns_not_found_when_encoded_id_points_to_directory(): void
+    {
+        Storage::fake('eval-api');
+        Storage::disk('eval-api')->makeDirectory('eval-harness/reports/rag/archive.json');
+
+        $id = ReportArtifactId::encode('rag/archive.json');
+
+        $this->getJson('/eval-harness/api/reports/'.$id)->assertNotFound();
     }
 }

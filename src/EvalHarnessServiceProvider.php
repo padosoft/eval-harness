@@ -211,12 +211,12 @@ class EvalHarnessServiceProvider extends ServiceProvider
             $middleware = array_map('trim', explode(',', $middleware));
         }
 
-        if (! is_array($middleware) || array_is_list($middleware) === false) {
+        if (! is_array($middleware)) {
             return [];
         }
 
         $normalized = [];
-        foreach ($middleware as $entry) {
+        foreach (array_values($middleware) as $entry) {
             if (is_string($entry) && trim($entry) !== '') {
                 $normalized[] = trim($entry);
             }
