@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
-use JsonException;
-use Padosoft\EvalHarness\Batches\BatchOptions;
-use Padosoft\EvalHarness\Contracts\SampleRunner;
+use Padosoft\EvalHarness\Console\Concerns\BuildsBatchOptions;
+use Padosoft\EvalHarness\Console\Concerns\DispatchesEvalRegistrars;
+use Padosoft\EvalHarness\Console\Concerns\ResolvesSystemUnderTest;
+use Padosoft\EvalHarness\Console\Concerns\WritesEvalReports;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
-use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 
 /**
@@ -58,6 +56,11 @@ use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
  */
 final class EvalCommand extends Command
 {
+    use BuildsBatchOptions;
+    use DispatchesEvalRegistrars;
+    use ResolvesSystemUnderTest;
+    use WritesEvalReports;
+
     /** @var string */
     protected $signature = 'eval-harness:run
         {dataset : Dataset name (e.g. rag.factuality.fy2026)}
@@ -121,24 +124,8 @@ final class EvalCommand extends Command
                 return self::FAILURE;
             }
         } else {
-            if (! $engine->container()->bound('eval-harness.sut')) {
-                $this->error(
-                    "No system-under-test bound under 'eval-harness.sut'. Bind a callable with \$container->bind('eval-harness.sut', fn () => fn (array \$in) => ...), or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
-                );
-
-                return self::FAILURE;
-            }
-
-            $sut = $engine->container()->make('eval-harness.sut');
-
-            if (! $sut instanceof SampleRunner && ! is_callable($sut)) {
-                $this->error(
-                    sprintf(
-                        "System-under-test bound under 'eval-harness.sut' must resolve to a callable or SampleRunner; got %s. Update the binding to return a callable, or bind a SampleRunner class with \$container->bind('eval-harness.sut', \\App\\Eval\\MyRunner::class).",
-                        get_debug_type($sut),
-                    ),
-                );
-
+            $sut = $this->resolveSystemUnderTest($engine);
+            if ($sut === null) {
                 return self::FAILURE;
             }
 
@@ -151,168 +138,11 @@ final class EvalCommand extends Command
             }
         }
 
-        if ($this->option('json')) {
-            try {
-                $payload = json_encode(
-                    $report->toJson(),
-                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR,
-                );
-            } catch (JsonException $e) {
-                $this->error(sprintf(
-                    'Failed to encode report as JSON: %s. The report contained values that cannot be serialised (most often invalid UTF-8 in actual_output or metric details).',
-                    $e->getMessage(),
-                ));
-
-                return self::FAILURE;
-            }
-
-            // json_encode with JSON_THROW_ON_ERROR returns string or
-            // throws — but PHPStan still types it as string|false.
-            if (! is_string($payload)) {
-                $this->error('Failed to encode report as JSON: encoder returned a non-string.');
-
-                return self::FAILURE;
-            }
-        } else {
-            $payload = $report->toMarkdown();
-        }
-
-        $out = $this->option('out');
-        if (is_string($out) && $out !== '') {
-            if (! $this->writeReport($out, $payload)) {
-                return self::FAILURE;
-            }
-        } else {
-            $this->line($payload);
+        $payload = $this->reportPayload($report);
+        if ($payload === null || ! $this->writeOrPrintReport($payload)) {
+            return self::FAILURE;
         }
 
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
-    }
-
-    private function writeReport(string $out, string $payload): bool
-    {
-        $rawPath = (bool) $this->option('raw-path');
-        $isAbsolute = $this->isAbsolutePath($out);
-
-        if ($rawPath || $isAbsolute) {
-            $bytes = file_put_contents($out, $payload);
-            if ($bytes === false) {
-                $this->error(sprintf('Failed to write report to %s', $out));
-
-                return false;
-            }
-            $this->info(sprintf('Wrote %d bytes to %s', $bytes, $out));
-
-            return true;
-        }
-
-        /** @var ConfigRepository $config */
-        $config = $this->laravel->make(ConfigRepository::class);
-        $diskName = (string) $config->get('eval-harness.reports.disk', 'local');
-        $prefix = trim((string) $config->get('eval-harness.reports.path_prefix', ''), '/');
-
-        /** @var FilesystemFactory $filesystems */
-        $filesystems = $this->laravel->make(FilesystemFactory::class);
-        $disk = $filesystems->disk($diskName);
-
-        $relativePath = $prefix === '' ? $out : $prefix.'/'.ltrim($out, '/');
-
-        if (! $disk->put($relativePath, $payload)) {
-            $this->error(sprintf(
-                'Failed to write report to disk [%s] at path [%s].',
-                $diskName,
-                $relativePath,
-            ));
-
-            return false;
-        }
-
-        $this->info(sprintf(
-            'Wrote %d bytes to disk [%s] at path [%s].',
-            strlen($payload),
-            $diskName,
-            $relativePath,
-        ));
-
-        return true;
-    }
-
-    private function isAbsolutePath(string $path): bool
-    {
-        if ($path === '') {
-            return false;
-        }
-
-        // POSIX absolute (/foo) or Windows drive (C:\foo, C:/foo).
-        if (str_starts_with($path, '/') || str_starts_with($path, '\\')) {
-            return true;
-        }
-
-        return (bool) preg_match('#^[A-Za-z]:[\\\\/]#', $path);
-    }
-
-    private function batchOptions(): BatchOptions
-    {
-        $batch = $this->option('batch');
-        $mode = is_string($batch) && $batch !== '' ? $batch : BatchOptions::MODE_SERIAL;
-        $queue = $this->option('queue');
-
-        return new BatchOptions(
-            mode: $mode,
-            concurrency: $this->positiveIntegerOption('concurrency', 1),
-            queue: is_string($queue) && $queue !== '' ? $queue : null,
-            timeoutSeconds: $this->nullablePositiveIntegerOption('timeout'),
-            waitTimeoutSeconds: $this->nullablePositiveIntegerOption('batch-timeout'),
-        );
-    }
-
-    private function positiveIntegerOption(string $name, int $default): int
-    {
-        $value = $this->option($name);
-        if ($value === null || $value === '') {
-            return $default;
-        }
-
-        if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
-            throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
-        }
-
-        return (int) $value;
-    }
-
-    private function nullablePositiveIntegerOption(string $name): ?int
-    {
-        $value = $this->option($name);
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        if (! is_string($value) || ! ctype_digit($value) || (int) $value < 1) {
-            throw new EvalRunException(sprintf('The --%s option must be a positive integer.', $name));
-        }
-
-        return (int) $value;
-    }
-
-    private function dispatchRegistrar(EvalEngine $engine, string $registrarClass): void
-    {
-        if (! class_exists($registrarClass)) {
-            throw new EvalRunException(
-                sprintf("Registrar class '%s' does not exist.", $registrarClass),
-            );
-        }
-
-        $instance = $engine->container()->make($registrarClass);
-
-        if (! is_callable($instance)) {
-            throw new EvalRunException(
-                sprintf(
-                    "Registrar '%s' must be an invokable class (define __invoke(EvalEngine \$engine): void).",
-                    $registrarClass,
-                ),
-            );
-        }
-
-        $instance($engine);
     }
 }

@@ -117,9 +117,10 @@ surface small and the offline path fast.
 - **Citation evidence checks** — `citation-groundedness` can score
   simple citation markers or stricter `metadata.citation_evidence`
   spans that require both citation markers and quote text.
-- **Opt-in adversarial seeds** — `AdversarialDatasetFactory` builds
-  safety/regression seed samples for prompt injection, jailbreaks,
-  data leaks, SSRF, tool abuse, and similar red-team categories.
+- **Opt-in adversarial lane** — `AdversarialDatasetFactory` and
+  `php artisan eval-harness:adversarial` build/run safety regression
+  seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
+  abuse, and similar red-team categories.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -159,6 +160,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
 | Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
 | Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
+| Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -604,6 +606,23 @@ $dataset = $factory->build(categories: [
 app(\Padosoft\EvalHarness\EvalEngine::class)->registerDataset($dataset);
 ```
 
+Or run the built-in red-team lane directly from Artisan:
+
+```bash
+php artisan eval-harness:adversarial \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --category=prompt-injection \
+  --category=pii-leak \
+  --json --out=adversarial.json
+```
+
+`eval:adversarial` is available as a short alias. The command registers
+only the selected adversarial seed dataset for that invocation, accepts
+`--metric=*` (default: `refusal-quality`), supports `--outputs` for
+precomputed responses, and reuses the same `--batch`,
+`--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
+options as `eval-harness:run`.
+
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
 competitor endorsement, excessive agency, and hallucination
@@ -668,9 +687,9 @@ wall-clock latency, keeping reports diff-friendly across repeated runs.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  EvalCommand (php artisan eval-harness:run)                      │
-│  └─► resolves Registrar (--registrar=FQCN)                       │
-│      └─► registrar binds dataset + callable/SampleRunner SUT     │
+│  EvalCommand / AdversarialCommand                                │
+│  └─► php artisan eval-harness:run / eval-harness:adversarial      │
+│      └─► resolve registrar, dataset, callable/SampleRunner SUT    │
 └──────────────────────────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -806,7 +825,8 @@ accidentally and never burns API credits.
 
 - **Adversarial harness** — prompt injection / jailbreak / tool-abuse
   test datasets bundled (opt-in), including multi-input targets and
-  compliance/framework mapping for security reports.
+  `eval-harness:adversarial`; compliance/framework report mapping is
+  next.
 - **Regression detection** — store the last N runs in a JSON
   manifest and fail the gate when macro-F1 drops more than X%.
 - **Report API contract for a separate UI package** — read-only

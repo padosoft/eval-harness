@@ -1388,3 +1388,22 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding five adversarial factory tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Opened PR #24 (`task/adversarial-regression-seeds` -> `task/adversarial-regression`), requested official Copilot review through the GraphQL fallback, verified CI green across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix, and Copilot generated no actionable comments. PR #24 merged into the macro branch at merge commit `a0a2f29`.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-command` from `task/adversarial-regression`.
+- Implemented the adversarial command slice:
+  - added `eval-harness:adversarial` with `eval:adversarial` alias,
+  - registered a fresh opt-in adversarial dataset for the current command invocation,
+  - supported selected categories, selected metrics, saved-output scoring, serial/lazy-parallel batch options, JSON/Markdown output, and registrar-based SUT/custom metric setup,
+  - extracted shared console helpers for report writing, batch option parsing, registrar dispatch, and `eval-harness.sut` validation so `eval-harness:run` and the adversarial command stay aligned.
+- Updated README's feature list, usage docs, architecture diagram, roadmap note, and comparison matrix with the adversarial CLI lane while keeping explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial command slice:
+  - `vendor/bin/phpunit tests/Unit/Console/EvalCommandTest.php tests/Unit/Console/AdversarialCommandTest.php` => `OK (29 tests, 78 assertions)`
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialDatasetFactoryTest.php tests/Unit/ServiceProviderTest.php` => `OK (18 tests, 97 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed for the adversarial command slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (454 tests, 1125 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding six adversarial command tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
