@@ -186,8 +186,8 @@ Branch: `task/report-api-ui-contract`
 
 Implement:
 
-- Read-only API routes for listing report manifests, showing a report, showing cohorts, showing histograms, and downloading JSON/Markdown artifacts. Partially implemented: opt-in routes can list and show JSON/Markdown report artifacts; cohorts, histograms, downloads, and richer manifest views remain planned.
-- API resources that expose the exact data needed by a future Web UI package. Initial `ReportArtifactResource` implemented for report artifact list/show responses.
+- Read-only API routes for listing report manifests, showing a report, showing cohorts, showing histograms, and downloading JSON/Markdown artifacts. Implemented: opt-in routes expose list/show plus cohort and histogram views, artifact download, and JSON row exports.
+- API resources that expose the exact data needed by a future Web UI package. Initial `ReportArtifactResource` and report API payloads are implemented for artifact, cohort, histogram, and CSV download flows.
 - CSV export endpoints for experiment/report rows, matching the operational need LangSmith covers with downloadable experiment results.
 - Path/id validation to prevent traversal and accidental arbitrary file reads. Implemented for report artifact route ids with URL-safe encoded relative paths.
 - Optional route prefix/config publishing, but no bundled UI assets. Implemented with disabled-by-default `eval-harness.api.enabled`, `prefix`, and `middleware` config.

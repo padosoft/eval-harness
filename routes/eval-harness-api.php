@@ -15,5 +15,17 @@ return static function (Registrar $router, string $prefix, array $middleware): v
         $router->get('/reports/{id}', [ReportArtifactController::class, 'show'])
             ->where('id', '[A-Za-z0-9_-]+')
             ->name('reports.show');
+        $router->get('/reports/{id}/cohorts', [ReportArtifactController::class, 'cohorts'])
+            ->where('id', '[A-Za-z0-9_-]+')
+            ->name('reports.cohorts');
+        $router->get('/reports/{id}/histograms', [ReportArtifactController::class, 'histograms'])
+            ->where('id', '[A-Za-z0-9_-]+')
+            ->name('reports.histograms');
+        $router->get('/reports/{id}/rows.csv', [ReportArtifactController::class, 'rowsCsv'])
+            ->where('id', '[A-Za-z0-9_-]+')
+            ->name('reports.rows');
+        $router->get('/reports/{id}/download', [ReportArtifactController::class, 'download'])
+            ->where('id', '[A-Za-z0-9_-]+')
+            ->name('reports.download');
     });
 };
