@@ -122,7 +122,8 @@ surface small and the offline path fast.
   seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
   abuse, and similar red-team categories. JSON/Markdown reports add
   category and compliance-framework summaries, and optional manifests
-  retain the last N adversarial run summaries; `--regression-gate`
+  retain adversarial run summaries while preserving the latest
+  failure-free baseline under tight retention; `--regression-gate`
   fails CI when macro-F1 or configured metric aggregates drop.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
@@ -165,7 +166,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
 | Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
 | Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
-| Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains last N adversarial summaries** |
+| Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
 | Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
@@ -863,10 +864,10 @@ accidentally and never burns API credits.
   test datasets bundled (opt-in), including multi-input targets and
   `eval-harness:adversarial`; JSON/Markdown category and compliance
   framework summaries are implemented.
-- **Regression detection** — JSON manifests now store the last N
-  adversarial runs, and `--regression-gate` fails the gate when macro-F1
-  or a configured metric aggregate drops more than the allowed
-  percentage points.
+- **Regression detection** — JSON manifests retain adversarial runs
+  while preserving the latest failure-free baseline, and
+  `--regression-gate` fails the gate when macro-F1 or a configured
+  metric aggregate drops more than the allowed percentage points.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy

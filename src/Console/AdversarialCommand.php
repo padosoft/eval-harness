@@ -242,7 +242,7 @@ final class AdversarialCommand extends Command
                 return;
             }
 
-            $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible manifest baseline; current run will be recorded for future comparisons.');
+            $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run will be recorded for future comparisons.');
 
             return;
         }

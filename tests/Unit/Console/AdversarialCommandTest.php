@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Metrics\MetricScore;
+use Padosoft\EvalHarness\Reports\EvalReport;
+use Padosoft\EvalHarness\Reports\SampleResult;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class AdversarialCommandTest extends TestCase
@@ -275,7 +279,9 @@ final class AdversarialCommandTest extends TestCase
                 '--regression-gate' => true,
                 '--json' => true,
                 '--out' => $report,
-            ])->assertExitCode(0);
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run will be recorded for future comparisons.')
+                ->assertExitCode(0);
 
             $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
             $this->assertCount(1, $decoded['runs']);
@@ -318,6 +324,68 @@ final class AdversarialCommandTest extends TestCase
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
+    public function test_regression_gate_pass_with_metric_failures_reports_non_recorded_run(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            (new AdversarialRunManifestStore)->record(
+                path: $manifest,
+                report: new EvalReport(
+                    datasetName: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+                    sampleResults: [
+                        new SampleResult(
+                            sample: $sample,
+                            actualOutput: $sample->expectedOutput,
+                            metricScores: [
+                                'exact-match' => new MetricScore(1.0),
+                                'citation-groundedness' => new MetricScore(1.0),
+                            ],
+                        ),
+                    ],
+                    failures: [],
+                    startedAt: 1.0,
+                    finishedAt: 2.0,
+                ),
+                maxRuns: 2,
+                runId: 'run-baseline',
+            );
+
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match', 'citation-groundedness'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--regression-max-drop' => '100',
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: pass - score checks passed, but current run has metric failures and was not recorded for future comparisons.')
+                ->assertExitCode(1);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame(['run-baseline'], array_column($decoded['runs'], 'run_id'));
         } finally {
             @unlink($outputs);
             @unlink($manifest);

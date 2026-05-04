@@ -1668,3 +1668,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the ninth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `3f019af` and generated five actionable comments:
+  - command tests needed the successful baseline-seeding `missing-baseline` diagnostic,
+  - command tests needed the passing-but-not-recorded metric-failure diagnostic,
+  - README feature/roadmap sections should avoid saying manifests are a strict last-N history now that clean baselines are preserved,
+  - successful `missing-baseline` diagnostics should also say no compatible failure-free baseline.
+- Addressed the tenth PR #28 review round by adding command coverage for successful baseline seeding and pass/not-recorded metric failures, qualifying the success diagnostic with failure-free, and updating README/roadmap retention wording so manifests are not described as strict last-N history.
+- Targeted validation passed after the tenth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (72 tests, 241 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the tenth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (512 tests, 1351 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the tenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
