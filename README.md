@@ -645,8 +645,8 @@ framework counts for OWASP LLM, NIST AI RMF, and EU AI Act style
 security reporting; Markdown reports render the same data under
 `Adversarial coverage`. Manifest files use
 `eval-harness.adversarial-runs.v1`, store stable metric aggregates plus
-the safe adversarial summary, and write through a temporary file before
-replacing the target path.
+the safe adversarial summary, serialize command updates with a lock file,
+and write through a temporary file before replacing the target path.
 
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with

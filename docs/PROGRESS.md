@@ -1458,3 +1458,20 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding nine adversarial manifest tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Opened PR #27 (`task/adversarial-regression-manifest` -> `task/adversarial-regression`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 27 --add-reviewer copilot` failed with missing `read:project`.
+- PR #27 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot reviewed all 12 changed files and generated three actionable comments; Codex's automatic review also generated one actionable concurrency comment.
+- Started PR #27 review fixes:
+  - serialize manifest `record()` read/modify/write with a stable lock file,
+  - reject writing runs into an existing manifest with a different manifest name,
+  - create manifest directories with `0755`,
+  - make default run-id timestamp formatting locale-independent.
+- Targeted validation passed after the PR #27 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (30 tests, 87 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the PR #27 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (470 tests, 1197 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

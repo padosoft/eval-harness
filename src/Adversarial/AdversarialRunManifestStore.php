@@ -20,13 +20,36 @@ final class AdversarialRunManifestStore
         string $manifestName = 'adversarial.security',
         ?string $runId = null,
     ): AdversarialRunManifest {
-        $manifest = $this->load($path) ?? AdversarialRunManifest::empty($manifestName);
-        $manifest = $manifest->record(
-            AdversarialRunManifestEntry::fromReport($report, $runId),
-            maxRuns: $maxRuns,
-        );
+        $this->assertPath($path);
+        $this->ensureDirectory($path);
 
-        $this->save($path, $manifest);
+        $lock = $this->openLock($path);
+        try {
+            if (! flock($lock, LOCK_EX)) {
+                throw new EvalRunException(sprintf("Failed to lock adversarial run manifest '%s'.", $path));
+            }
+
+            $manifest = $this->load($path);
+            if ($manifest !== null && $manifest->name !== $manifestName) {
+                throw new EvalRunException(sprintf(
+                    "Adversarial run manifest '%s' belongs to manifest '%s', not '%s'.",
+                    $path,
+                    $manifest->name,
+                    $manifestName,
+                ));
+            }
+
+            $manifest ??= AdversarialRunManifest::empty($manifestName);
+            $manifest = $manifest->record(
+                AdversarialRunManifestEntry::fromReport($report, $runId),
+                maxRuns: $maxRuns,
+            );
+
+            $this->save($path, $manifest);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
 
         return $manifest;
     }
@@ -86,10 +109,7 @@ final class AdversarialRunManifestStore
             throw new EvalRunException(sprintf("Failed to encode adversarial run manifest '%s': encoder returned a non-string.", $path));
         }
 
-        $directory = dirname($path);
-        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
-            throw new EvalRunException(sprintf("Failed to create adversarial run manifest directory '%s'.", $directory));
-        }
+        $directory = $this->ensureDirectory($path);
 
         $tempPath = tempnam($directory, basename($path).'.tmp.');
         if ($tempPath === false) {
@@ -131,5 +151,28 @@ final class AdversarialRunManifestStore
         }
 
         return $payload;
+    }
+
+    private function ensureDirectory(string $path): string
+    {
+        $directory = dirname($path);
+        if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
+            throw new EvalRunException(sprintf("Failed to create adversarial run manifest directory '%s'.", $directory));
+        }
+
+        return $directory;
+    }
+
+    /**
+     * @return resource
+     */
+    private function openLock(string $path): mixed
+    {
+        $lock = fopen($path.'.lock', 'c');
+        if ($lock === false) {
+            throw new EvalRunException(sprintf("Failed to open adversarial run manifest lock '%s.lock'.", $path));
+        }
+
+        return $lock;
     }
 }

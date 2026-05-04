@@ -35,6 +35,20 @@ final class AdversarialRunManifestTest extends TestCase
         $this->assertSame($entry->toJson(), $roundTrip->toJson());
     }
 
+    public function test_entry_default_run_id_uses_locale_independent_float_format(): void
+    {
+        $report = $this->report('run.dataset', 1.1234567, 2.7654321, 1.0);
+        $entry = AdversarialRunManifestEntry::fromReport($report);
+
+        $this->assertSame(hash('sha256', implode('|', [
+            'run.dataset',
+            '1.123457',
+            '2.765432',
+            '1',
+            '0',
+        ])), $entry->runId);
+    }
+
     public function test_entry_allows_metric_failure_count_above_sample_count(): void
     {
         $report = new EvalReport(
@@ -111,6 +125,29 @@ final class AdversarialRunManifestTest extends TestCase
             if (is_file($path)) {
                 @unlink($path);
             }
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_rejects_manifest_name_mismatch(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record($path, $this->report('first.dataset', 1.0, 2.0), manifestName: 'first.dataset', runId: 'run-1');
+
+            $this->expectException(EvalRunException::class);
+            $this->expectExceptionMessage("belongs to manifest 'first.dataset', not 'second.dataset'");
+
+            $store->record($path, $this->report('second.dataset', 2.0, 3.0), manifestName: 'second.dataset', runId: 'run-2');
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
             if (is_dir($directory)) {
                 @rmdir($directory);
             }
@@ -131,6 +168,7 @@ final class AdversarialRunManifestTest extends TestCase
             (new AdversarialRunManifestStore)->load($path);
         } finally {
             @unlink($path);
+            @unlink($path.'.lock');
         }
     }
 

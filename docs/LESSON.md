@@ -239,3 +239,5 @@
 - Category-level adversarial severity must not depend on sample order. When several samples share a category, derive severity deterministically with explicit precedence instead of keeping the first sample's value.
 - Adversarial run manifests should treat `total_failures` as metric-level failures, not failed sample count. A single sample can produce multiple captured metric failures, so manifest entries must not require failures to be less than or equal to samples.
 - JSON manifest round trips should normalize numeric aggregates after decoding. PHP can decode `1.0` as `1`; rehydrate metric and adversarial aggregate fields back to floats so DTO JSON remains stable for strict comparisons and downstream UI contracts.
+- File-backed manifest `record()` methods need a cross-process lock around the read/modify/write sequence. Atomic replacement protects partial writes, but it does not prevent concurrent commands from overwriting each other's newly recorded runs.
+- Deterministic run IDs should not use locale-sensitive `sprintf()` float formatting. Use explicit dot-decimal formatting before hashing timestamps so IDs remain stable across hosts.

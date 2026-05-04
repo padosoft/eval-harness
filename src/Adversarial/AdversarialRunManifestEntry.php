@@ -143,11 +143,16 @@ final class AdversarialRunManifestEntry
     {
         return hash('sha256', implode('|', [
             $report->datasetName,
-            sprintf('%.6F', $report->startedAt),
-            sprintf('%.6F', $report->finishedAt),
+            self::formatFloatForRunId($report->startedAt),
+            self::formatFloatForRunId($report->finishedAt),
             (string) $report->totalSamples(),
             (string) $report->totalFailures(),
         ]));
+    }
+
+    private static function formatFloatForRunId(float $value): string
+    {
+        return number_format($value, 6, '.', '');
     }
 
     /**
