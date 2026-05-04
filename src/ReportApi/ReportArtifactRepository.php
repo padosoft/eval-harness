@@ -96,7 +96,7 @@ final class ReportArtifactRepository
             return 'eval-harness/reports';
         }
 
-        return trim(str_replace('\\', '/', $prefix), '/');
+        return trim(trim(str_replace('\\', '/', $prefix)), '/');
     }
 
     private function storagePath(string $relativePath): string

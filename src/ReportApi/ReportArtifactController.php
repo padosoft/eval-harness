@@ -45,8 +45,6 @@ final class ReportArtifactController
             $contents = $reports->contents($artifact);
         } catch (ReportArtifactUnavailableException $e) {
             throw new ServiceUnavailableHttpException(null, 'Report artifact contents could not be read.', $e);
-        } catch (EvalRunException $e) {
-            throw new NotFoundHttpException($e->getMessage(), $e);
         }
 
         return new JsonResponse([
