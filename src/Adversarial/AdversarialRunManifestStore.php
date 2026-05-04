@@ -98,7 +98,7 @@ final class AdversarialRunManifestStore
                 metricTargets: $metricTargets,
             );
 
-            if ($this->shouldRecordRegressionGateResult($result)) {
+            if ($this->shouldRecordRegressionGateResult($entry, $result)) {
                 $this->save($path, $manifest->record($entry, maxRuns: $maxRuns));
             }
         } finally {
@@ -239,6 +239,10 @@ final class AdversarialRunManifestStore
         $currentAdversarialSlice = $this->adversarialSliceSignature($current);
 
         foreach ($manifest->runs as $baseline) {
+            if ($baseline->totalFailures > 0) {
+                continue;
+            }
+
             if ($this->metricSignature($baseline) !== $currentMetricNames) {
                 continue;
             }
@@ -253,8 +257,14 @@ final class AdversarialRunManifestStore
         return null;
     }
 
-    private function shouldRecordRegressionGateResult(AdversarialRegressionGateResult $result): bool
-    {
+    private function shouldRecordRegressionGateResult(
+        AdversarialRunManifestEntry $entry,
+        AdversarialRegressionGateResult $result,
+    ): bool {
+        if ($entry->totalFailures > 0) {
+            return false;
+        }
+
         foreach ($result->checks as $check) {
             if ($check->status === AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
                 return false;

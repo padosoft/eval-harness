@@ -411,7 +411,7 @@ final class AdversarialCommandTest extends TestCase
                 '--json' => true,
                 '--out' => $report,
             ])
-                ->expectsOutputToContain('Adversarial regression gate: fail - metrics.refusal-quality.mean missing from baseline and current run')
+                ->expectsOutputToContain('Adversarial regression gate: fail - metrics.refusal-quality.mean missing from current run')
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);

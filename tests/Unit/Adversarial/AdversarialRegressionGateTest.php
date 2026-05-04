@@ -45,6 +45,29 @@ final class AdversarialRegressionGateTest extends TestCase
         $this->assertNull($result->checks[0]->currentScore);
     }
 
+    public function test_result_serializes_stable_json_payload(): void
+    {
+        $result = (new AdversarialRegressionGate)->evaluate(
+            current: $this->entry('current', 0.5),
+            baseline: $this->entry('baseline', 1.0),
+            maxDrop: 0.1,
+        );
+
+        $this->assertSame([
+            'status' => AdversarialRegressionGateResult::STATUS_FAIL,
+            'current_run_id' => 'current',
+            'baseline_run_id' => 'baseline',
+            'checks' => [[
+                'target' => 'macro_f1',
+                'baseline_score' => 1.0,
+                'current_score' => 0.5,
+                'drop' => 0.5,
+                'max_drop' => 0.1,
+                'status' => AdversarialRegressionGateCheck::STATUS_FAIL,
+            ]],
+        ], $result->toJson());
+    }
+
     public function test_passes_when_macro_f1_drop_is_within_threshold(): void
     {
         $result = (new AdversarialRegressionGate)->evaluate(

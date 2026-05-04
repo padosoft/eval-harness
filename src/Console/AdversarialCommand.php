@@ -249,10 +249,13 @@ final class AdversarialCommand extends Command
 
             if ($check->status === AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
                 $missing = [];
-                if ($check->baselineScore === null) {
+                if ($check->baselineScore === null && $result->baselineRunId !== null) {
                     $missing[] = 'baseline';
                 }
                 if ($check->currentScore === null) {
+                    $missing[] = 'current';
+                }
+                if ($missing === []) {
                     $missing[] = 'current';
                 }
 
