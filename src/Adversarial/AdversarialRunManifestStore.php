@@ -262,6 +262,7 @@ final class AdversarialRunManifestStore
         AdversarialRunManifestEntry $current,
     ): ?AdversarialRunManifestEntry {
         $currentSignature = AdversarialRunSliceSignature::fromEntry($current);
+        $latest = null;
 
         foreach ($manifest->runs as $baseline) {
             if ($baseline->runId === $current->runId) {
@@ -276,10 +277,16 @@ final class AdversarialRunManifestStore
                 continue;
             }
 
-            return $baseline;
+            if (
+                $latest === null
+                || $baseline->finishedAt > $latest->finishedAt
+                || ($baseline->finishedAt === $latest->finishedAt && strcmp($baseline->runId, $latest->runId) < 0)
+            ) {
+                $latest = $baseline;
+            }
         }
 
-        return null;
+        return $latest;
     }
 
     private function shouldRecordRegressionGateResult(

@@ -65,6 +65,14 @@ final class AdversarialCommand extends Command
 
     public function handle(EvalEngine $engine, AdversarialDatasetFactory $factory): int
     {
+        try {
+            $this->validateManifestAndRegressionGateOptions();
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
         $registrar = $this->option('registrar');
         if (is_string($registrar) && $registrar !== '') {
             try {
@@ -83,14 +91,6 @@ final class AdversarialCommand extends Command
                 categories: $this->categoryOptions(),
                 metricSpecs: $this->metricOptions(),
             ));
-        } catch (EvalHarnessException $e) {
-            $this->error($e->getMessage());
-
-            return self::FAILURE;
-        }
-
-        try {
-            $this->validateManifestAndRegressionGateOptions();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 

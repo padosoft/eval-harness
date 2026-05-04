@@ -1770,3 +1770,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the sixteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `abcfa44` and generated three actionable comments:
+  - manifest/regression preflight still ran after adversarial dataset registration, so invalid options could mutate the singleton `EvalEngine`,
+  - baseline lookup assumed manifest runs were serialized newest-first even though direct callers can save or edit out-of-order manifests,
+  - the command-level score-drop diagnostic branch lacked direct assertion coverage.
+- Addressed the seventeenth PR #28 review round by moving manifest/regression preflight before registrar and dataset registration, selecting the newest compatible baseline by timestamp/run ID instead of list order, adding command coverage that invalid preflight does not replace existing dataset registration, adding out-of-order manifest baseline coverage, and asserting the score-drop failure diagnostic.
+- Targeted validation passed after the seventeenth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (85 tests, 285 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the seventeenth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (525 tests, 1395 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the seventeenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

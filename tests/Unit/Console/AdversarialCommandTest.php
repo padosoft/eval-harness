@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Console;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Metrics\MetricScore;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleResult;
@@ -246,6 +247,49 @@ final class AdversarialCommandTest extends TestCase
                 ->expectsOutputToContain('The --manifest option requires a non-empty file path without leading or trailing whitespace.')
                 ->assertExitCode(1);
 
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
+    public function test_manifest_preflight_does_not_replace_registered_dataset(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => ' '.$manifest.' ',
+            ])
+                ->expectsOutputToContain('The --manifest option requires a non-empty file path without leading or trailing whitespace.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+            $this->assertSame(['exact-match'], $registered->metricNames());
             $this->assertFileDoesNotExist($manifest);
         } finally {
             @unlink($outputs);
@@ -675,7 +719,9 @@ final class AdversarialCommandTest extends TestCase
                 '--regression-metric' => ['exact-match:mean'],
                 '--json' => true,
                 '--out' => $secondReport,
-            ])->assertExitCode(1);
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: fail - macro_f1 dropped by 100.00 percentage points')
+                ->assertExitCode(1);
 
             $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
             $this->assertCount(1, $decoded['runs']);
