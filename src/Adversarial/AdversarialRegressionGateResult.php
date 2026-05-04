@@ -103,7 +103,7 @@ final class AdversarialRegressionGateResult
 
     public function passed(): bool
     {
-        return $this->status !== self::STATUS_FAIL;
+        return $this->status === self::STATUS_PASS;
     }
 
     public function failed(): bool

@@ -266,3 +266,6 @@
 - Plain `--manifest` writes can advance future regression baselines when they are failure-free. README wording should distinguish that general manifest rule from the stricter gated-write rule that skips metric failures and failed gate results.
 - Reject `--regression-max-drop` and `--regression-metric` unless `--regression-gate` is enabled. Otherwise a CI typo can silently run a plain manifest write and weaken the next baseline instead of failing fast.
 - Load/construct adversarial run manifests in newest-first order. If `latestCompatibleBaseline()` compensates for out-of-order JSON but `latest()` does not, public manifest APIs disagree about the latest run.
+- Keep adversarial regression gate states three-valued. `missing-baseline` is non-failing first-run/seeding guidance, but `passed()` should mean only an actual comparison pass.
+- Distinguish omitted required CLI options from explicitly empty values. For `--regression-gate`, no `--manifest` should explain the required manifest/seeding contract, while `--manifest=""` should fail the generic non-empty path preflight.
+- Command-level regression gate tests should cover the retained success diagnostic, not only failure, missing-baseline, and non-recorded pass branches.

@@ -204,7 +204,7 @@ final class AdversarialCommand extends Command
     private function manifestPathOption(bool $required): ?string
     {
         $manifestPath = $this->option('manifest');
-        if ($manifestPath === null || ($required && $manifestPath === '')) {
+        if ($manifestPath === null) {
             if ($required) {
                 throw new EvalRunException('The --regression-gate option requires --manifest=<path> so the current run can compare with or seed a compatible baseline.');
             }

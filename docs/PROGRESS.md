@@ -1815,3 +1815,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the nineteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `11ebd58` and generated three actionable comments:
+  - `AdversarialRegressionGateResult::passed()` treated `missing-baseline` as a pass instead of keeping it as a third explicit state,
+  - the retained success diagnostic lacked command-level assertion coverage,
+  - `--regression-gate --manifest=""` reused the missing-manifest guidance instead of the invalid path preflight message.
+- Addressed the twentieth PR #28 review round by making `passed()` true only for `pass`, keeping `missing-baseline` non-failing but not passing, distinguishing omitted `--manifest` from an explicitly empty manifest path, and adding command coverage for both the retained pass diagnostic and empty manifest preflight.
+- Targeted validation passed after the twentieth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (90 tests, 310 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twentieth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (530 tests, 1420 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twentieth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

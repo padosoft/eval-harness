@@ -190,6 +190,34 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_regression_gate_rejects_empty_manifest_path_before_running(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => '',
+                '--regression-gate' => true,
+            ])
+                ->expectsOutputToContain('The --manifest option requires a non-empty file path without leading or trailing whitespace.')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
     public function test_regression_gate_rejects_padded_manifest_path_before_running(): void
     {
         $sample = $this->adversarialSample('ssrf');
@@ -368,6 +396,66 @@ final class AdversarialCommandTest extends TestCase
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
+    public function test_regression_gate_pass_reports_recorded_run(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            (new AdversarialRunManifestStore)->record(
+                path: $manifest,
+                report: new EvalReport(
+                    datasetName: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+                    sampleResults: [
+                        new SampleResult(
+                            sample: $sample,
+                            actualOutput: $sample->expectedOutput,
+                            metricScores: ['exact-match' => new MetricScore(1.0)],
+                        ),
+                    ],
+                    failures: [],
+                    startedAt: 1.0,
+                    finishedAt: 2.0,
+                ),
+                maxRuns: 2,
+                runId: 'run-baseline',
+            );
+
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '2',
+                '--regression-gate' => true,
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: pass - 1 check(s), max drop 5.00 percentage points.')
+                ->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertCount(2, $decoded['runs']);
+            $this->assertContains('run-baseline', array_column($decoded['runs'], 'run_id'));
         } finally {
             @unlink($outputs);
             @unlink($manifest);

@@ -23,7 +23,7 @@ final class AdversarialRegressionGateTest extends TestCase
 
         $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $result->status);
         $this->assertTrue($result->missingBaseline());
-        $this->assertTrue($result->passed());
+        $this->assertFalse($result->passed());
         $this->assertFalse($result->failed());
         $this->assertFalse($result->recorded);
         $this->assertSame([], $result->checks);
