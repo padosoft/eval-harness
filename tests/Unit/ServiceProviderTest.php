@@ -17,6 +17,7 @@ use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -100,6 +101,17 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame($first, $second, 'FailedSampleDatasetExporter must be an explicit singleton binding, not only an auto-resolvable concrete class.');
     }
 
+    public function test_report_artifact_repository_is_an_explicit_singleton(): void
+    {
+        $this->assertTrue($this->app->bound(ReportArtifactRepository::class));
+
+        $first = $this->app->make(ReportArtifactRepository::class);
+        $second = $this->app->make(ReportArtifactRepository::class);
+
+        $this->assertInstanceOf(ReportArtifactRepository::class, $first);
+        $this->assertSame($first, $second, 'ReportArtifactRepository must be an explicit singleton binding for the report API.');
+    }
+
     public function test_config_is_merged(): void
     {
         $endpoint = config('eval-harness.metrics.cosine_embedding.endpoint');
@@ -110,6 +122,9 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame(100, config('eval-harness.runtime.provider_retry_sleep_milliseconds'));
         $this->assertSame(3600, config('eval-harness.batches.lazy_parallel.result_ttl_seconds'));
         $this->assertSame(60, config('eval-harness.batches.lazy_parallel.wait_timeout_seconds'));
+        $this->assertFalse(config('eval-harness.api.enabled'));
+        $this->assertSame('eval-harness/api', config('eval-harness.api.prefix'));
+        $this->assertSame([], config('eval-harness.api.middleware'));
     }
 
     public function test_lazy_parallel_batch_uses_configured_ttl_and_wait_timeout(): void

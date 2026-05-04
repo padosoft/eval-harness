@@ -107,6 +107,29 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Read-only report API
+    |--------------------------------------------------------------------------
+    |
+    | The package can register read-only routes for a separate UI/admin package
+    | to consume report artifacts. Routes are disabled by default because this
+    | package does not bundle auth. Enable them only behind the host app's
+    | existing admin middleware or network controls.
+    |
+    */
+
+    'api' => [
+        'enabled' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_API_ENABLED'), false),
+        'prefix' => env('EVAL_HARNESS_API_PREFIX', 'eval-harness/api'),
+        'middleware' => env('EVAL_HARNESS_API_MIDDLEWARE') === null
+            ? []
+            : array_values(array_filter(array_map(
+                static fn (string $middleware): string => trim($middleware),
+                explode(',', (string) env('EVAL_HARNESS_API_MIDDLEWARE')),
+            ))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue-backed batches
     |--------------------------------------------------------------------------
     |

@@ -162,6 +162,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
 | Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
 | Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
+| Read-only report API | ⚠️ PARTIAL - custom artifact/API layer | ✅ YES - hosted experiment API | ⚠️ PARTIAL - custom app/API layer | ⚠️ PARTIAL - local result files/viewer workflows | ⚠️ PARTIAL - local results or hosted platform API | **⚠️ PARTIAL - opt-in routes list/show JSON/Markdown report artifacts; cohorts/histograms/CSV planned** |
 | Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/BERTScore-like/judge/refusal** |
 | Embedding semantic overlap | ⚠️ PARTIAL - custom embedding eval code | ⚠️ PARTIAL - SDK evaluator path | ✅ YES - RAG embedding metrics | ⚠️ PARTIAL - provider-backed similarity assertions | ✅ YES - semantic metrics | **✅ YES - cosine-embedding + bertscore-like via fakeable EmbeddingClient** |
 | Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
@@ -363,6 +364,28 @@ _Run completed in 2.41s over 30 samples (0 failures captured)._
 | 0.0-0.1 | 8 |
 | 0.9-1.0 inclusive | 22 |
 ```
+
+### 6. Optional read-only report API
+
+The package can register opt-in, read-only routes for a separate Laravel
+admin/UI package to consume stored report artifacts. Routes are disabled by
+default because this package does not bundle authentication; enable them only
+behind your host app's existing admin middleware.
+
+```php
+// config/eval-harness.php
+'api' => [
+    'enabled' => true,
+    'prefix' => 'admin/eval-harness/api',
+    'middleware' => ['web', 'auth'],
+],
+```
+
+With the API enabled, `GET /admin/eval-harness/api/reports` lists JSON and
+Markdown artifacts from the configured reports disk/prefix, and
+`GET /admin/eval-harness/api/reports/{id}` shows one artifact by URL-safe id.
+The foundation slice exposes report artifacts only; cohort, histogram,
+download, and CSV endpoints are planned for the remaining report API work.
 
 ---
 
@@ -905,8 +928,9 @@ accidentally and never burns API credits.
   implemented for recurring runs with persistent manifests, Horizon queues,
   regression gates, and failure promotion without bundling a daemon.
 - **Report API contract for a separate UI package** — read-only
-  Laravel routes/resources for JSON reports, cohorts, histograms,
-  CSV export, and artifacts. No bundled UI in this package; deploy
+  Laravel routes/resources now list and show JSON/Markdown report
+  artifacts by URL-safe id. Cohorts, histograms, CSV export, and
+  download endpoints are planned. No bundled UI in this package; deploy
   the UI behind your existing admin gate.
 - **Dataset splits/filtering and failure promotion** — failure
   promotion is implemented through `--promote-failures`; dataset

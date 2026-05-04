@@ -8,7 +8,9 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\Factory;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
@@ -26,7 +28,9 @@ use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
+use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
@@ -83,6 +87,13 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(FailedSampleDatasetExporter::class, static function (): FailedSampleDatasetExporter {
             return new FailedSampleDatasetExporter;
+        });
+
+        $this->app->singleton(ReportArtifactRepository::class, static function (Container $app): ReportArtifactRepository {
+            return new ReportArtifactRepository(
+                filesystems: $app->make(\Illuminate\Contracts\Filesystem\Factory::class),
+                config: $app->make(ConfigRepository::class),
+            );
         });
 
         $this->app->singleton(AdversarialDatasetFactory::class, static function (Container $app): AdversarialDatasetFactory {
@@ -153,6 +164,65 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 __DIR__.'/../config/eval-harness.php' => $this->configPath('eval-harness.php'),
             ], 'eval-harness-config');
         }
+
+        $this->registerReportApiRoutes();
+    }
+
+    private function registerReportApiRoutes(): void
+    {
+        /** @var ConfigRepository $config */
+        $config = $this->app->make(ConfigRepository::class);
+        if (! RuntimeOptions::normalizeBoolean($config->get('eval-harness.api.enabled'), false)) {
+            return;
+        }
+
+        if ($this->app instanceof Application && $this->app->routesAreCached()) {
+            return;
+        }
+
+        $prefix = $this->apiRoutePrefix($config);
+        $middleware = $this->apiRouteMiddleware($config);
+
+        Route::prefix($prefix)
+            ->middleware($middleware)
+            ->as('eval-harness.api.')
+            ->group(__DIR__.'/../routes/eval-harness-api.php');
+    }
+
+    private function apiRoutePrefix(ConfigRepository $config): string
+    {
+        $prefix = $config->get('eval-harness.api.prefix', 'eval-harness/api');
+        if (! is_string($prefix) || trim($prefix) === '') {
+            return 'eval-harness/api';
+        }
+
+        $prefix = trim(trim($prefix), '/');
+
+        return $prefix === '' ? 'eval-harness/api' : $prefix;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function apiRouteMiddleware(ConfigRepository $config): array
+    {
+        $middleware = $config->get('eval-harness.api.middleware', []);
+        if (is_string($middleware)) {
+            $middleware = array_map('trim', explode(',', $middleware));
+        }
+
+        if (! is_array($middleware) || array_is_list($middleware) === false) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($middleware as $entry) {
+            if (is_string($entry) && trim($entry) !== '') {
+                $normalized[] = trim($entry);
+            }
+        }
+
+        return $normalized;
     }
 
     private function configPath(string $file): string

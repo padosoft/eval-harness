@@ -292,3 +292,5 @@
 - Report artifact examples that use literal filesystem paths need `--raw-path`. Without it, relative `--out` paths are intentionally written through the configured reports disk and prefix.
 - Adversarial command alerting docs must include captured metric exceptions as a non-zero exit case. Failure-promotion files can still be written before that non-zero exit, so artifact presence and exit code carry different signals.
 - `--raw-path` report writes use `file_put_contents()` directly and do not create parent directories. Docs and host-app snippets must either pre-create the directory or use the configured reports disk/prefix path.
+- Report API routes should be disabled by default because this package does not bundle auth. Host apps opt in with their own prefix/middleware and place the routes behind an existing admin gate.
+- Do not expose report file paths directly as route parameters. Use URL-safe encoded relative ids and reject empty, absolute, traversal, backslash, non-report-extension, and non-canonical ids before reading from the reports disk.

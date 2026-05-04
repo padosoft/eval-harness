@@ -1988,3 +1988,22 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check before the Macro Task 5 PR. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Macro PR #31 (`task/adversarial-regression` -> `main`) opened after `gh pr create` returned HTTP 504 but still created the PR, requested official Copilot review through the GraphQL fallback, passed CI across PHP 8.3/8.4/8.5 and Laravel 12/13, and Copilot reviewed all 35 changed files with no comments. PR #31 merged into `main` at `cb5c30a`.
+- Started Macro Task 6 from updated `main` on `task/report-api-ui-contract`, pushed the macro branch, and created subtask branch `task/report-api-ui-contract-foundation`.
+- Implemented the first report API contract slice:
+  - added disabled-by-default API config for `eval-harness.api.enabled`, `prefix`, and `middleware`,
+  - registered opt-in read-only report API routes from the service provider,
+  - added URL-safe report artifact ids, report artifact metadata DTO/resource, repository, and controller,
+  - exposed `GET /<prefix>/reports` to list JSON/Markdown report artifacts and `GET /<prefix>/reports/{id}` to show JSON report payloads or Markdown content from the configured reports disk/prefix,
+  - rejected traversal and malformed artifact ids before disk reads.
+- Targeted validation passed for the report API foundation slice:
+  - `vendor/bin/phpunit tests/Unit/ReportApi/ReportApiDisabledTest.php tests/Unit/ReportApi/ReportApiRouteTest.php tests/Unit/ServiceProviderTest.php` => `OK (23 tests, 53 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Added explicit `illuminate/filesystem` and `illuminate/routing` Composer requirements for the API route/artifact surface, then ran `composer update --lock --no-interaction` to keep the ignored local lock metadata consistent.
+- Full local gate passed for the report API foundation slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (564 tests, 1555 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the report API foundation slice. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
