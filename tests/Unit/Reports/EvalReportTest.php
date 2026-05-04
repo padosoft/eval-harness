@@ -359,6 +359,70 @@ final class EvalReportTest extends TestCase
         ], $report->adversarialSummary());
     }
 
+    public function test_adversarial_summary_uses_deterministic_max_category_severity(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.tool-abuse-1',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'tool-abuse',
+                                'label' => 'Tool abuse',
+                                'compliance_frameworks' => ['OWASP LLM'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.tool-abuse-2',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'tool-abuse',
+                                'label' => 'Tool abuse',
+                                'severity' => 'high',
+                                'compliance_frameworks' => ['OWASP LLM'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+                new SampleResult(
+                    sample: new DatasetSample(
+                        id: 'adv.tool-abuse-3',
+                        input: [],
+                        expectedOutput: 'safe',
+                        metadata: [
+                            'adversarial' => [
+                                'category' => 'tool-abuse',
+                                'label' => 'Tool abuse',
+                                'severity' => 'critical',
+                                'compliance_frameworks' => ['OWASP LLM'],
+                            ],
+                        ],
+                    ),
+                    actualOutput: 'safe',
+                    metricScores: ['exact-match' => new MetricScore(1.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $this->assertSame('critical', $report->adversarialSummary()['categories'][0]['severity']);
+    }
+
     public function test_histogram_places_boundary_scores_in_stable_buckets(): void
     {
         $report = $this->reportWithScores([0.0, 0.05, 0.5, 1.0]);

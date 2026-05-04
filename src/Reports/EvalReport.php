@@ -30,6 +30,13 @@ final class EvalReport
 {
     private const UNTAGGED_COHORT_KEY = "\0eval-harness.untagged";
 
+    private const SEVERITY_PRECEDENCE = [
+        'low' => 1,
+        'medium' => 2,
+        'high' => 3,
+        'critical' => 4,
+    ];
+
     /**
      * @param  list<SampleResult>  $sampleResults
      * @param  list<SampleFailure>  $failures
@@ -372,10 +379,14 @@ final class EvalReport
             $categories[$category] ??= [
                 'category' => $category,
                 'label' => $adversarial['label'],
-                'severity' => $adversarial['severity'],
+                'severity' => null,
                 'frameworks' => [],
                 'results' => [],
             ];
+            $categories[$category]['severity'] = $this->preferredSeverity(
+                $categories[$category]['severity'],
+                $adversarial['severity'],
+            );
             $categories[$category]['results'][] = $result;
 
             foreach ($adversarial['compliance_frameworks'] as $framework) {
@@ -524,6 +535,26 @@ final class EvalReport
         }
 
         return array_values($strings);
+    }
+
+    private function preferredSeverity(?string $current, ?string $candidate): ?string
+    {
+        if ($candidate === null) {
+            return $current;
+        }
+
+        if ($current === null) {
+            return $candidate;
+        }
+
+        $currentRank = self::SEVERITY_PRECEDENCE[strtolower($current)] ?? 0;
+        $candidateRank = self::SEVERITY_PRECEDENCE[strtolower($candidate)] ?? 0;
+
+        if ($candidateRank !== $currentRank) {
+            return $candidateRank > $currentRank ? $candidate : $current;
+        }
+
+        return strcmp($candidate, $current) < 0 ? $candidate : $current;
     }
 
     /**

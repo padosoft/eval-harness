@@ -1431,3 +1431,14 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README comparison prefix check after the docblock fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #26 again at head `3aedde2` and generated one actionable comment: adversarial category severity was taken from the first sample, making the category summary order-dependent when later samples had higher or non-null severity.
+- Addressed the severity comment by deriving category severity through deterministic precedence (`critical > high > medium > low`) and adding regression coverage for missing first severity followed by higher later severities.
+- Targeted validation passed after the PR #26 severity fix:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (42 tests, 173 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the PR #26 severity fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (459 tests, 1153 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README comparison prefix check after the severity fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

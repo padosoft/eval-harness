@@ -236,3 +236,4 @@
 - The adversarial CLI should register seeds only for the current invocation and then reuse the same saved-output, batch, SUT binding, and report-writing contracts as `eval-harness:run`. Keep `eval-harness:adversarial` as the package-native command and `eval:adversarial` as a compatibility/roadmap alias.
 - Adversarial report mapping should expose only a normalized safe subset (`category`, `label`, `severity`, `compliance_frameworks`). Do not serialize raw refusal policies, prompts, sample input, or arbitrary adversarial metadata into JSON rows.
 - JSON report renderer docblocks are part of the downstream UI contract. When adding fields such as adversarial `label` or `severity`, keep the shape example synchronized with the exact renderer payload.
+- Category-level adversarial severity must not depend on sample order. When several samples share a category, derive severity deterministically with explicit precedence instead of keeping the first sample's value.
