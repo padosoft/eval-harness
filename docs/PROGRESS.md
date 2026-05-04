@@ -1499,3 +1499,11 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding three more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `e3e1ba6` and generated one actionable documentation comment: the roadmap showed `--manifest` as if it were a boolean flag instead of `--manifest=<path>`.
+- Corrected the roadmap command note to `eval-harness:adversarial --manifest=<path> --manifest-retain=N`.
+- Full local gate passed after the roadmap PR #27 review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (475 tests, 1206 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the roadmap fix. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

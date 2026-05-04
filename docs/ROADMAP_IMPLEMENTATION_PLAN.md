@@ -157,7 +157,7 @@ Implement:
   selected categories/metrics, saved-output scoring, and batch options.
 - Manifest storing the last N runs. Implemented through
   `AdversarialRunManifest`, `AdversarialRunManifestStore`, and
-  `eval-harness:adversarial --manifest --manifest-retain`.
+  `eval-harness:adversarial --manifest=<path> --manifest-retain=N`.
 - Regression gate: fail when macro-F1 or configured metric drops more than X%.
 - Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
 
