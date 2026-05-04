@@ -1605,3 +1605,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the fifth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `fef3c46` and generated four actionable comments:
+  - failed regression-gate runs should not be recorded because they can ratchet the next baseline downward,
+  - `recordWithRegressionGate()` should reject invalid retention before non-recorded paths return,
+  - pass diagnostics should mention when metric failures prevent manifest recording,
+  - README should align with the now-stricter rule that gate failures do not seed future baselines.
+- Addressed the sixth PR #28 review round by recording gated runs only when the gate did not fail and the report has no metric failures, validating `maxRuns` up front, updating diagnostics for pass/fail non-recorded outcomes, updating README, and adjusting store/command assertions for non-ratcheting baselines.
+- Targeted validation passed after the sixth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (66 tests, 213 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the sixth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (506 tests, 1323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the sixth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

@@ -72,6 +72,7 @@ final class AdversarialRunManifestStore
         $this->ensureDirectory($path);
         $manifestName ??= $report->datasetName;
         $gate->assertConfiguration($maxDrop, $metricTargets);
+        $this->assertRetention($maxRuns);
 
         $lock = $this->openLock($path);
         try {
@@ -261,6 +262,10 @@ final class AdversarialRunManifestStore
         AdversarialRunManifestEntry $entry,
         AdversarialRegressionGateResult $result,
     ): bool {
+        if ($result->failed()) {
+            return false;
+        }
+
         if ($entry->totalFailures > 0) {
             return false;
         }
@@ -272,6 +277,13 @@ final class AdversarialRunManifestStore
         }
 
         return true;
+    }
+
+    private function assertRetention(int $maxRuns): void
+    {
+        if ($maxRuns < 1) {
+            throw new EvalRunException('Adversarial run manifest retention must keep at least one run.');
+        }
     }
 
     /**

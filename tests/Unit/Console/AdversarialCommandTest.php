@@ -542,9 +542,8 @@ final class AdversarialCommandTest extends TestCase
             ])->assertExitCode(1);
 
             $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
-            $this->assertCount(2, $decoded['runs']);
-            $this->assertEqualsWithDelta(0.0, $decoded['runs'][0]['macro_f1'], 1e-9);
-            $this->assertEqualsWithDelta(1.0, $decoded['runs'][1]['macro_f1'], 1e-9);
+            $this->assertCount(1, $decoded['runs']);
+            $this->assertEqualsWithDelta(1.0, $decoded['runs'][0]['macro_f1'], 1e-9);
         } finally {
             @unlink($outputs);
             @unlink($manifest);

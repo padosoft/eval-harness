@@ -196,7 +196,7 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
-    public function test_store_records_with_regression_gate_against_latest_locked_manifest(): void
+    public function test_store_does_not_record_failed_regression_gate_result(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
         $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
@@ -223,10 +223,37 @@ final class AdversarialRunManifestTest extends TestCase
             $this->assertSame(AdversarialRegressionGateResult::STATUS_MISSING_BASELINE, $missing->status);
             $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $failed->status);
             $this->assertSame('run-baseline', $failed->baselineRunId);
-            $this->assertSame(['run-current', 'run-baseline'], array_map(
+            $this->assertSame(['run-baseline'], array_map(
                 static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
                 $store->load($path)?->runs ?? [],
             ));
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_rejects_invalid_regression_gate_retention_before_non_recorded_result(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+
+        try {
+            $this->expectException(EvalRunException::class);
+            $this->expectExceptionMessage('retention must keep at least one run');
+
+            (new AdversarialRunManifestStore)->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0, metricName: 'rouge-l'),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 0,
+                runId: 'run-missing-metric',
+            );
         } finally {
             @unlink($path);
             @unlink($path.'.lock');

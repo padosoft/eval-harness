@@ -245,6 +245,12 @@ final class AdversarialCommand extends Command
         }
 
         if (! $result->failed()) {
+            if ($report->totalFailures() > 0) {
+                $this->writeRegressionDiagnostic('Adversarial regression gate: pass - score checks passed, but current run has metric failures and was not recorded for future comparisons.');
+
+                return;
+            }
+
             $maxDrop = $result->checks[0]->maxDrop ?? 0.0;
             $this->writeRegressionDiagnostic(sprintf(
                 'Adversarial regression gate: pass - %d check(s), max drop %s.',
@@ -255,7 +261,7 @@ final class AdversarialCommand extends Command
             return;
         }
 
-        $this->writeRegressionDiagnostic('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result));
+        $this->writeRegressionDiagnostic('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result).'; current run was not recorded for future comparisons.');
     }
 
     private function writeRegressionDiagnostic(string $message): void
