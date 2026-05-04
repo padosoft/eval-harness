@@ -192,6 +192,7 @@ Implement:
 - Path/id validation to prevent traversal and accidental arbitrary file reads. Implemented for report artifact route ids with URL-safe encoded relative paths.
 - Optional route prefix/config publishing, but no bundled UI assets. Implemented with disabled-by-default `eval-harness.api.enabled`, `prefix`, and `middleware` config.
 - OpenAPI-style contract documentation or JSON examples for UI consumers.
+Implemented: added `docs/REPORT_API_CONTRACT.md` with endpoint-level request/response examples for list/show/cohorts/histograms/rows.csv/download.
 
 Guardrails:
 

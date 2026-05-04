@@ -390,6 +390,7 @@ Additional read-only contracts are now available for UI consumers:
 - `GET /admin/eval-harness/api/reports/{id}/histograms` for score distribution buckets.
 - `GET /admin/eval-harness/api/reports/{id}/rows.csv` for CSV sample rows.
 - `GET /admin/eval-harness/api/reports/{id}/download` for direct artifact download.
+- JSON examples and contract notes are documented in [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
 

@@ -2043,3 +2043,12 @@
   - implemented `GET /<prefix>/reports/{id}/download` for direct artifact download.
 - Updated `docs/ROADMAP_IMPLEMENTATION_PLAN.md` and `README.md` comparison table/feature text to reflect completed API cohorts/histograms/download/CSV capabilities.
 - Added regression tests for new API route surfaces and failure modes in `tests/Unit/ReportApi/ReportApiRouteTest.php`.
+
+## 2026-05-04 (continuation)
+
+- Opened subtask PR #33: `task/report-api-ui-contract-api-endpoints` -> `task/report-api-ui-contract`.
+- Requested Copilot review (GraphQL fallback). The only submitted review was informational from the Codex app, with no actionable comments.
+- CI check suite completed green on all PHP/Laravel matrix targets.
+- Merged PR #33 into `task/report-api-ui-contract` at commit `91e3be5` with no corrective follow-up required.
+- Added `docs/REPORT_API_CONTRACT.md` with endpoint JSON examples (list/show/cohorts/histograms/rows/download) for UI contract consumers.
+- Linked API contract examples from README and marked the Macro 6 roadmap OpenAPI/JSON examples row as implemented.
