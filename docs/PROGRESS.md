@@ -1621,3 +1621,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the sixth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `4ad0b78` and generated four actionable comments:
+  - `missing-baseline` diagnostics should say no compatible baseline, not no previous manifest run,
+  - padded `--manifest` values under `--regression-gate` should show the same whitespace-specific guidance as plain manifest validation,
+  - README should say no compatible baseline exists when describing `missing-baseline`.
+- Addressed the seventh PR #28 review round by separating missing vs padded gated manifest validation, changing missing-baseline diagnostics to "compatible manifest baseline", updating command assertions, updating README wording, and recording the compatible-baseline lesson.
+- Targeted validation passed after the seventh PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (66 tests, 213 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the seventh PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (506 tests, 1323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the seventh PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

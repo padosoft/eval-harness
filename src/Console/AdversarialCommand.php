@@ -196,8 +196,11 @@ final class AdversarialCommand extends Command
     private function manifestPathForRegressionGate(): string
     {
         $manifestPath = $this->option('manifest');
-        if (! is_string($manifestPath) || $manifestPath === '' || $manifestPath !== trim($manifestPath)) {
+        if (! is_string($manifestPath) || $manifestPath === '') {
             throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
+        }
+        if ($manifestPath !== trim($manifestPath)) {
+            throw new EvalRunException('The --manifest option requires a non-empty file path without leading or trailing whitespace.');
         }
 
         return $manifestPath;
@@ -234,12 +237,12 @@ final class AdversarialCommand extends Command
     {
         if ($result->missingBaseline()) {
             if ($report->totalFailures() > 0) {
-                $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no previous failure-free manifest run; current run has metric failures and was not recorded for future comparisons.');
+                $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run has metric failures and was not recorded for future comparisons.');
 
                 return;
             }
 
-            $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no previous manifest run; current run will be recorded for future comparisons.');
+            $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no compatible manifest baseline; current run will be recorded for future comparisons.');
 
             return;
         }

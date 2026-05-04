@@ -200,7 +200,7 @@ final class AdversarialCommandTest extends TestCase
                 '--manifest' => ' '.$manifest.' ',
                 '--regression-gate' => true,
             ])
-                ->expectsOutputToContain('The --regression-gate option requires --manifest=<path>')
+                ->expectsOutputToContain('The --manifest option requires a non-empty file path without leading or trailing whitespace.')
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);
@@ -307,7 +307,7 @@ final class AdversarialCommandTest extends TestCase
                 '--json' => true,
                 '--out' => $report,
             ])
-                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no previous failure-free manifest run; current run has metric failures and was not recorded for future comparisons.')
+                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no compatible failure-free manifest baseline; current run has metric failures and was not recorded for future comparisons.')
                 ->assertExitCode(1);
 
             $this->assertFileDoesNotExist($manifest);
