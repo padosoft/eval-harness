@@ -19,14 +19,15 @@
 5. [Installation](#installation)
 6. [Quick start](#quick-start)
 7. [Usage examples](#usage-examples)
-8. [Configuration](#configuration)
-9. [Architecture](#architecture)
-10. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
-11. [Testing](#testing)
-12. [Roadmap](#roadmap)
-13. [Contributing](#contributing)
-14. [Security](#security)
-15. [License](#license)
+8. [Contract stability and migration](#contract-stability-and-migration)
+9. [Configuration](#configuration)
+10. [Architecture](#architecture)
+11. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
+12. [Testing](#testing)
+13. [Roadmap](#roadmap)
+14. [Contributing](#contributing)
+15. [Security](#security)
+16. [License](#license)
 
 ---
 
@@ -155,39 +156,39 @@ surface small and the offline path fast.
 
 ## Comparison with alternatives
 
-Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means supported with limits or outside the Laravel-native path, and `❌ NO` means not a primary fit.
+Status legend: `✅ YES` means first-class support, `⚠️ partial` means supported with limits or outside the Laravel-native path, and `❌ NO` means not a primary fit.
 
 | Concern | OpenAI Evals | LangSmith | Ragas | Promptfoo | DeepEval | **eval-harness** |
 | --- | --- | --- | --- | --- | --- | --- |
 | Laravel-native package | ❌ NO - Python CLI/library | ❌ NO - hosted Python/TS workflow | ❌ NO - Python library | ❌ NO - Node/YAML CLI | ❌ NO - Python library | **✅ YES - PHP/Laravel package** |
-| Runs inside your app container | ⚠️ PARTIAL - custom completion functions | ⚠️ PARTIAL - SDK/API integration | ⚠️ PARTIAL - integrate from Python | ⚠️ PARTIAL - external CLI/provider call | ⚠️ PARTIAL - local Python runner | **✅ YES - resolves Laravel services directly** |
-| Local-first storage | ⚠️ PARTIAL - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ PARTIAL - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
-| Read-only report API | ⚠️ PARTIAL - custom artifact/API layer | ✅ YES - hosted experiment API | ⚠️ PARTIAL - custom app/API layer | ⚠️ PARTIAL - local result files/viewer workflows | ⚠️ PARTIAL - local results or hosted platform API | **✅ YES - opt-in Laravel routes for report listing/show, cohorts, histograms, artifact download, and row CSV export** |
-| Built-in metrics | ⚠️ PARTIAL - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/BERTScore-like/judge/refusal** |
-| Embedding semantic overlap | ⚠️ PARTIAL - custom embedding eval code | ⚠️ PARTIAL - SDK evaluator path | ✅ YES - RAG embedding metrics | ⚠️ PARTIAL - provider-backed similarity assertions | ✅ YES - semantic metrics | **✅ YES - cosine-embedding + bertscore-like via fakeable EmbeddingClient** |
-| Deterministic no-network tests | ⚠️ PARTIAL - depends on eval | ⚠️ PARTIAL - cloud/API path common | ⚠️ PARTIAL - many metrics need LLMs | ⚠️ PARTIAL - assertions can be local, red team needs models | ⚠️ PARTIAL - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
+| Runs inside your app container | ⚠️ partial - custom completion functions | ⚠️ partial - SDK/API integration | ⚠️ partial - integrate from Python | ⚠️ partial - external CLI/provider call | ⚠️ partial - local Python runner | **✅ YES - resolves Laravel services directly** |
+| Local-first storage | ⚠️ partial - local logs or Snowflake | ❌ NO - LangSmith cloud workspace | ✅ YES - local datasets/results | ✅ YES - local YAML/results | ⚠️ partial - local evals, optional Confident AI cloud | **✅ YES - YAML datasets + JSON/Markdown reports** |
+| Read-only report API | ⚠️ partial - custom artifact/API layer | ✅ YES - hosted experiment API | ⚠️ partial - custom app/API layer | ⚠️ partial - local result files/viewer workflows | ⚠️ partial - local results or hosted platform API | **✅ YES - opt-in Laravel routes for report listing/show, cohorts, histograms, artifact download, and row CSV export** |
+| Built-in metrics | ⚠️ partial - custom eval code | ✅ YES - evaluators in platform/SDK | ✅ YES - RAG-focused metrics | ✅ YES - assertions and graders | ✅ YES - built-in metrics | **✅ YES - offline exact/contains/regex/ROUGE-L/citation plus fakeable cosine/BERTScore-like/judge/refusal** |
+| Embedding semantic overlap | ⚠️ partial - custom embedding eval code | ⚠️ partial - SDK evaluator path | ✅ YES - RAG embedding metrics | ⚠️ partial - provider-backed similarity assertions | ✅ YES - semantic metrics | **✅ YES - cosine-embedding + bertscore-like via fakeable EmbeddingClient** |
+| Deterministic no-network tests | ⚠️ partial - depends on eval | ⚠️ partial - cloud/API path common | ⚠️ partial - many metrics need LLMs | ⚠️ partial - assertions can be local, red team needs models | ⚠️ partial - metric dependent | **✅ YES - Http::fake, fake LLM/embedding clients** |
 | LLM-as-judge | ✅ YES - model-graded evals | ✅ YES - evaluators | ✅ YES - LLM metrics | ✅ YES - rubric/grader assertions | ✅ YES - LLM metrics | **✅ YES - schema-checked, fakeable judge client** |
-| Refusal quality / safety judge | ⚠️ PARTIAL - custom model-graded eval | ⚠️ PARTIAL - custom evaluator workflow | ⚠️ PARTIAL - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
-| Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
-| Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
-| Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
-| Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
-| Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
-| Scheduled/continuous monitoring | ⚠️ PARTIAL - custom scheduler around eval runs | ✅ YES - hosted monitoring workflows | ⚠️ PARTIAL - custom scheduler around Python metrics | ✅ YES - CLI/CI monitoring workflows | ⚠️ PARTIAL - local runner or hosted platform workflow | **✅ YES - Laravel Scheduler/CI cron guidance with manifests, Horizon queues, gates, and failure promotion** |
-| Failure promotion to datasets | ⚠️ PARTIAL - custom eval scripts | ✅ YES - trace-to-dataset workflows | ⚠️ PARTIAL - custom dataset curation | ✅ YES - failure-driven test cases | ✅ YES - failed test cases can become datasets | **✅ YES - `--promote-failures` exports failed adversarial samples to YAML seeds** |
-| Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
-| Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
-| Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
-| Provider choice | ⚠️ PARTIAL - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
-| CI gate | ⚠️ PARTIAL - script around CLI/API | ⚠️ PARTIAL - API/automation hook | ⚠️ PARTIAL - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
+| Refusal quality / safety judge | ⚠️ partial - custom model-graded eval | ⚠️ partial - custom evaluator workflow | ⚠️ partial - custom LLM metric | ✅ YES - safety/red-team assertions | ✅ YES - safety metrics | **✅ YES - refusal-quality with required metadata + strict JSON schema** |
+| Adversarial red-team seeds | ⚠️ partial - custom eval registry | ⚠️ partial - custom datasets/evaluators | ⚠️ partial - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
+| Adversarial CLI lane | ⚠️ partial - custom eval runner scripts | ⚠️ partial - custom evaluator automation | ⚠️ partial - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
+| Adversarial compliance mapping | ⚠️ partial - custom eval metadata | ⚠️ partial - custom evaluator metadata | ⚠️ partial - custom report code | ✅ YES - red-team category reporting | ⚠️ partial - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
+| Adversarial run history manifests | ⚠️ partial - custom eval logs | ✅ YES - hosted experiment history | ⚠️ partial - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ partial - platform/history workflow | **✅ YES - local JSON manifest retains adversarial summaries and clean baselines** |
+| Adversarial regression gate | ⚠️ partial - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ partial - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
+| Scheduled/continuous monitoring | ⚠️ partial - custom scheduler around eval runs | ✅ YES - hosted monitoring workflows | ⚠️ partial - custom scheduler around Python metrics | ✅ YES - CLI/CI monitoring workflows | ⚠️ partial - local runner or hosted platform workflow | **✅ YES - Laravel Scheduler/CI cron guidance with manifests, Horizon queues, gates, and failure promotion** |
+| Failure promotion to datasets | ⚠️ partial - custom eval scripts | ✅ YES - trace-to-dataset workflows | ⚠️ partial - custom dataset curation | ✅ YES - failure-driven test cases | ✅ YES - failed test cases can become datasets | **✅ YES - `--promote-failures` exports failed adversarial samples to YAML seeds** |
+| Citation evidence spans | ⚠️ partial - custom eval code | ⚠️ partial - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ partial - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
+| Cost/token/latency summaries | ⚠️ partial - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ partial - provider output dependent | ⚠️ partial - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
+| Runtime retry / strict exception controls | ⚠️ partial - custom eval code | ⚠️ partial - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ partial - provider/config dependent | ⚠️ partial - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
+| Provider choice | ⚠️ partial - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** |
+| CI gate | ⚠️ partial - script around CLI/API | ⚠️ partial - API/automation hook | ⚠️ partial - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow | **✅ YES - Artisan command with non-zero failure exit** |
 | Queue/Horizon batch execution | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** |
-| Eval sets / multi-dataset runs | ✅ YES - `oaievalset` | ✅ YES - dataset experiments | ⚠️ PARTIAL - run multiple datasets in code | ✅ YES - suites/configs | ✅ YES - metric collections/test suites | **✅ YES - EvalSetDefinition + resumable manifests** |
-| Resume interrupted multi-dataset progress | ❌ NO - no mid-eval resume | ⚠️ PARTIAL - platform run history | ⚠️ PARTIAL - custom code | ⚠️ PARTIAL - rerun/filter workflows | ⚠️ PARTIAL - platform/regression workflows | **✅ YES - explicit per-dataset resume manifest** |
-| Cohorts / tags / facets | ⚠️ PARTIAL - custom eval/reporting | ✅ YES - dataset filtering/metadata | ⚠️ PARTIAL - custom analysis | ✅ YES - metadata/config-driven views | ⚠️ PARTIAL - test metadata | **✅ YES - tag cohorts in JSON/Markdown** |
-| Saved-output assertions | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - compare uploaded runs | ⚠️ PARTIAL - build dataset/results manually | ✅ YES - assertion-first workflow | ✅ YES - test-case assertions | **✅ YES - `--outputs` and `Eval::scoreOutputs()`** |
-| Auditable in PR diff | ⚠️ PARTIAL - local YAML/code possible | ❌ NO - cloud-first | ✅ YES - code/data files | ✅ YES - YAML config | ✅ YES - Python test files | **✅ YES - YAML datasets + stable JSON/Markdown artifacts** |
-| Vendor lock-in | ⚠️ PARTIAL - OpenAI-oriented defaults | ❌ NO - LangSmith workspace | ✅ YES - OSS library | ✅ YES - OSS CLI | ⚠️ PARTIAL - OSS plus Confident AI option | **✅ YES - headless, local-first, provider-agnostic** |
-| Cost to evaluate 200 offline samples | ⚠️ PARTIAL - depends on model calls | ❌ NO - cloud/API usage | ⚠️ PARTIAL - free only for non-LLM metrics | ⚠️ PARTIAL - free only for local assertions | ⚠️ PARTIAL - free only for local/non-LLM metrics | **✅ YES - free for offline metrics and faked providers** |
+| Eval sets / multi-dataset runs | ✅ YES - `oaievalset` | ✅ YES - dataset experiments | ⚠️ partial - run multiple datasets in code | ✅ YES - suites/configs | ✅ YES - metric collections/test suites | **✅ YES - EvalSetDefinition + resumable manifests** |
+| Resume interrupted multi-dataset progress | ❌ NO - no mid-eval resume | ⚠️ partial - platform run history | ⚠️ partial - custom code | ⚠️ partial - rerun/filter workflows | ⚠️ partial - platform/regression workflows | **✅ YES - explicit per-dataset resume manifest** |
+| Cohorts / tags / facets | ⚠️ partial - custom eval/reporting | ✅ YES - dataset filtering/metadata | ⚠️ partial - custom analysis | ✅ YES - metadata/config-driven views | ⚠️ partial - test metadata | **✅ YES - tag cohorts in JSON/Markdown** |
+| Saved-output assertions | ⚠️ partial - custom eval code | ⚠️ partial - compare uploaded runs | ⚠️ partial - build dataset/results manually | ✅ YES - assertion-first workflow | ✅ YES - test-case assertions | **✅ YES - `--outputs` and `Eval::scoreOutputs()`** |
+| Auditable in PR diff | ⚠️ partial - local YAML/code possible | ❌ NO - cloud-first | ✅ YES - code/data files | ✅ YES - YAML config | ✅ YES - Python test files | **✅ YES - YAML datasets + stable JSON/Markdown artifacts** |
+| Vendor lock-in | ⚠️ partial - OpenAI-oriented defaults | ❌ NO - LangSmith workspace | ✅ YES - OSS library | ✅ YES - OSS CLI | ⚠️ partial - OSS plus Confident AI option | **✅ YES - headless, local-first, provider-agnostic** |
+| Cost to evaluate 200 offline samples | ⚠️ partial - depends on model calls | ❌ NO - cloud/API usage | ⚠️ partial - free only for non-LLM metrics | ⚠️ partial - free only for local assertions | ⚠️ partial - free only for local/non-LLM metrics | **✅ YES - free for offline metrics and faked providers** |
 
 The Python-stack tools are excellent if your stack is Python. If your
 RAG pipeline lives in a Laravel monolith, `eval-harness` is the
@@ -284,7 +285,7 @@ class EvalRegistrar
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
-  --registrar="App\\Console\\EvalRegistrar" \
+  --registrar="App\Console\EvalRegistrar" \
   --json --out=factuality.json
 ```
 
@@ -308,7 +309,7 @@ dataset and score those outputs directly:
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
-  --registrar="App\\Console\\EvalRegistrar" \
+  --registrar="App\Console\EvalRegistrar" \
   --outputs=eval/outputs/factuality.json \
   --json --out=factuality.json
 ```
@@ -325,7 +326,7 @@ exists. The registrar still registers the dataset; no
 
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
-  --registrar="App\\Console\\EvalRegistrar"
+  --registrar="App\Console\EvalRegistrar"
 ```
 
 ```
@@ -460,7 +461,7 @@ Eval::dataset('rag.recall')
     EVAL_HARNESS_JUDGE_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   run: |
     php artisan eval-harness:run rag.factuality.fy2026 \
-      --registrar="App\\Console\\EvalRegistrar" \
+      --registrar="App\Console\EvalRegistrar" \
       --json --out=eval-report.json
 - uses: actions/upload-artifact@v4
   if: always()
@@ -552,6 +553,133 @@ file_put_contents(
     json_encode($result->manifest->toJson(), JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
 );
 ```
+
+---
+
+### Real-world usage recipes
+
+These are complete snippets you can paste into a Laravel app or CI job.
+
+#### Recipe A — PR-safe RAG regression gate
+
+Use one dataset, one artifact path, and a deterministic failure signal in CI:
+
+```bash
+cat > .github/workflows/eval-gate.yml <<'EOF'
+name: AI Regression Gate
+
+on:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'config/**'
+      - 'eval/**'
+      - 'resources/**'
+
+jobs:
+  eval-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+      - uses: shivammathur/setup-node@v3
+        with:
+          node-version: '20'
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Run eval gate
+        env:
+          EVAL_HARNESS_JUDGE_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          php artisan eval-harness:run rag.factuality.fy2026 \
+            --registrar="App\\Console\\EvalRegistrar" \
+            --batch=lazy-parallel \
+            --concurrency=4 \
+            --queue=default \
+            --timeout=60 \
+            --batch-timeout=180 \
+            --json \
+            --out=eval-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-report
+          path: eval-report.json
+EOF
+```
+
+#### Recipe B — nightly safety baseline refresh with manifest regression gate
+
+Run adversarial tests on a schedule, keep a bounded local manifest, and fail
+when behavior regresses:
+
+```bash
+php artisan eval-harness:adversarial \
+  --registrar="App\\Console\\EvalRegistrar" \
+  --category=prompt-injection \
+  --category=pii-leak \
+  --metric=refusal-quality \
+  --batch=lazy-parallel \
+  --concurrency=2 \
+  --queue=adversarial \
+  --manifest=storage/app/adversarial-runs.json \
+  --manifest-retain=10 \
+  --regression-gate \
+  --regression-max-drop=5 \
+  --regression-metric=refusal-quality:pass_rate \
+  --json \
+  --out=adversarial-nightly.json
+```
+
+In Laravel Scheduler, dispatch that command via the `schedule:run` pipeline
+and rotate artifacts with normal deployment hygiene.
+
+#### Recipe C — consume report API artifacts in your admin surface
+
+Use the opt-in Laravel report API as a source of truth for charts and CSV export:
+
+```bash
+curl -sS \
+  -H "Accept: application/json" \
+  "$APP_URL/admin/eval-harness/api/reports" \
+  | jq '.artifacts[] | select(.id|test("factuality")) | {id, type, size}'
+```
+
+```bash
+curl -sS \
+  "$APP_URL/admin/eval-harness/api/reports/<url-safe-id>/rows.csv" \
+  -H "Accept: text/csv" \
+  > eval-rows.csv
+```
+
+The examples above use stable API schema identifiers documented in
+[`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
+
+---
+
+## Contract stability and migration
+
+`v1.0` marks the package contract baseline and introduces explicit guidance on
+semantic compatibility:
+
+- Versioned, additive report and dataset schemas (`eval-harness.report.v1`,
+  `eval-harness.dataset.v1`).
+- API payload versioning (`eval-harness.api.v1`).
+- Queue manifest compatibility by report schema / dataset / metric set signatures.
+- Stable command contracts for `eval-harness:run` and
+  `eval-harness:adversarial` with additive extension.
+
+Read full details before a major upgrade:
+
+- [`docs/CONTRACT_STABILITY.md`](docs/CONTRACT_STABILITY.md)
+- [`docs/MIGRATION_FROM_PRE_1_0.md`](docs/MIGRATION_FROM_PRE_1_0.md)
+
+For end users upgrading from pre-1.0, also check the changelog and keep
+`composer` pins strict to avoid surprise majors.
 
 ---
 
@@ -651,7 +779,7 @@ Or run the built-in red-team lane directly from Artisan:
 
 ```bash
 php artisan eval-harness:adversarial \
-  --registrar="App\\Console\\EvalRegistrar" \
+  --registrar="App\Console\EvalRegistrar" \
   --category=prompt-injection \
   --category=pii-leak \
   --metric=refusal-quality \

@@ -2052,3 +2052,21 @@
 - Merged PR #33 into `task/report-api-ui-contract` at commit `91e3be5` with no corrective follow-up required.
 - Added `docs/REPORT_API_CONTRACT.md` with endpoint JSON examples (list/show/cohorts/histograms/rows/download) for UI contract consumers.
 - Linked API contract examples from README and marked the Macro 6 roadmap OpenAPI/JSON examples row as implemented.
+
+## 2026-05-04 (continuation)
+
+- Started Macro Task 7 subtask branch `task/v1-stabilization-release-stability-docs` from `task/v1-stabilization-release`.
+- Added contract-stability docs and README completion work for v1.0 stabilization:
+  - `docs/CONTRACT_STABILITY.md` with v1 contract surfaces and semver policy.
+  - `docs/MIGRATION_FROM_PRE_1_0.md` for practical upgrade playbook.
+  - `README.md` updates:
+    - comparison table normalized to explicit `✅ YES`, `⚠️ partial`, `❌ NO` cells,
+    - new **Contract stability and migration** section linked to migration guides,
+    - new **Real-world usage recipes** snippets for PR-safe RAG gates, scheduled adversarial baselines, and report API consumption.
+- Local gates passed before PR:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (576 tests, 1594 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M`
+  - `vendor/bin/pint --test`
+- README snippet fixes applied in comparison/recipe section for correct registrar escaping (`App\Console\EvalRegistrar`).
+- Merged PR #35 (`task/v1-stabilization-release-stability-docs` -> `task/v1-stabilization-release`) at merge commit `0aba050`.

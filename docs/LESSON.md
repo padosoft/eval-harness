@@ -306,3 +306,16 @@
 - List endpoints should be resilient to malformed artifacts already present on disk. Catch path-validation exceptions while building the collection response and skip bad entries instead of failing the entire listing, and surface storage listing failures as 5xx instead of a generic 500.
 - API routes that expose report internals should not overload the list endpoint with N+1 metadata lookups; provide dedicated manifest views (`cohorts`, `histograms`, `rows.csv`) and a dedicated download endpoint instead.
 - Keep artifact row export deterministic by using report-level metric names as column headers and emitting one row per sample/metric, including metric errors from `failures` when a score is absent.
+
+## 2026-05-04
+
+- Macro 7 docs slice confirms explicit v1 contract governance:
+  - added `docs/CONTRACT_STABILITY.md` as the canonical contract-stability playbook,
+  - added `docs/MIGRATION_FROM_PRE_1_0.md` as the practical upgrade guide.
+- `docs/ROADMAP_IMPLEMENTATION_PLAN.md` and `README.md` comparison matrix should stay in sync with implemented roadmap deltas:
+  - use explicit `✅ YES`, `⚠️ partial`, `❌ NO` icons (icons are not optional in comparison cells).
+- Keep real-world README examples operator-oriented and actionable:
+  - CI workflow YAML with report artifact upload,
+  - adversarial command examples with manifest+regression options,
+  - report API query/download examples.
+- README `--out` versus `--raw-path`: only switch to literal filesystem paths when required and document that relative `--raw-path` parent directories must exist.
