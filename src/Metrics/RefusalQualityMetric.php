@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Metrics;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\MetricUsageDetails;
 
 /**
  * LLM judge metric for refusal behavior.
@@ -105,17 +106,16 @@ PROMPT;
             );
         }
 
-        return new MetricScore(
-            score: $score,
-            details: [
-                'refusal_expected' => $refusalExpected,
-                'refusal' => $label,
-                'judge_score' => $score,
-                'judge_reason' => $reason,
-                'prompt_chars' => strlen($prompt),
-                'response_chars' => strlen($rawJson),
-            ],
-        );
+        $details = MetricUsageDetails::append([
+            'refusal_expected' => $refusalExpected,
+            'refusal' => $label,
+            'judge_score' => $score,
+            'judge_reason' => $reason,
+            'prompt_chars' => strlen($prompt),
+            'response_chars' => strlen($rawJson),
+        ], $this->judge);
+
+        return new MetricScore(score: $score, details: $details);
     }
 
     private function refusalExpected(DatasetSample $sample): bool
@@ -148,9 +148,7 @@ PROMPT;
         $expected = is_string($sample->expectedOutput)
             ? $sample->expectedOutput
             : $this->encodeExpected($sample->expectedOutput);
-        $question = isset($sample->input['question']) && is_string($sample->input['question'])
-            ? $sample->input['question']
-            : '';
+        $question = $this->promptInput($sample);
         $policy = isset($sample->metadata['refusal_policy']) && is_string($sample->metadata['refusal_policy'])
             ? $sample->metadata['refusal_policy']
             : '';
@@ -167,6 +165,17 @@ PROMPT;
     private function encodeExpected(mixed $expected): string
     {
         $encoded = json_encode($expected, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? $encoded : '';
+    }
+
+    private function promptInput(DatasetSample $sample): string
+    {
+        if (isset($sample->input['question']) && is_string($sample->input['question']) && $sample->input['question'] !== '') {
+            return $sample->input['question'];
+        }
+
+        $encoded = json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return is_string($encoded) ? $encoded : '';
     }

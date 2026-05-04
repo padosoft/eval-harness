@@ -7,22 +7,36 @@ namespace Padosoft\EvalHarness\Embeddings;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\ProviderHttpRetry;
+use Padosoft\EvalHarness\Support\ProviderUsageDetails;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * OpenAI-compatible embeddings transport used by built-in metrics.
  */
-final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
+final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient, ProvidesUsageDetails
 {
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly ConfigRepository $config,
     ) {}
 
+    public function usageDetails(): array
+    {
+        return $this->usageDetails;
+    }
+
     public function embedMany(array $texts): array
     {
+        $this->usageDetails = [];
+
         if ($texts === []) {
             return [];
         }
@@ -57,6 +71,7 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
             $request = $request->withToken($apiKey);
         }
 
+        $startedAt = microtime(true);
         $response = ProviderHttpRetry::post(
             request: $request,
             config: $this->config,
@@ -67,6 +82,7 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
             ],
             operation: 'Embeddings',
         );
+        $latencyMs = (microtime(true) - $startedAt) * 1000.0;
 
         if ($response->failed()) {
             throw new MetricException(
@@ -80,6 +96,8 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
 
         /** @var array<mixed> $body */
         $body = (array) $response->json();
+        $this->usageDetails = ProviderUsageDetails::fromResponseBody($body, $latencyMs);
+
         $data = $body['data'] ?? null;
 
         if (! is_array($data)) {
@@ -195,19 +213,35 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
     {
         $normalised = [];
         foreach ($vector as $componentIndex => $component) {
-            if (! is_numeric($component)) {
+            $value = $this->normalizeVectorComponent($component);
+            if ($value === null) {
                 throw new MetricException(
                     sprintf(
-                        'Embedding vector data[%d].embedding contains non-numeric component at index %d.',
+                        'Embedding vector data[%d].embedding contains non-numeric component or non-finite component at index %d.',
                         $entryIndex,
                         $componentIndex,
                     ),
                 );
             }
 
-            $normalised[] = (float) $component;
+            $normalised[] = $value;
         }
 
         return $normalised;
+    }
+
+    private function normalizeVectorComponent(mixed $component): ?float
+    {
+        if (! is_int($component) && ! is_float($component) && ! is_string($component)) {
+            return null;
+        }
+
+        if (! is_numeric($component)) {
+            return null;
+        }
+
+        $value = (float) $component;
+
+        return ! is_nan($value) && ! is_infinite($value) ? $value : null;
     }
 }

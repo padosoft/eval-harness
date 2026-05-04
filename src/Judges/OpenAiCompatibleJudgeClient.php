@@ -7,22 +7,36 @@ namespace Padosoft\EvalHarness\Judges;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Support\ProviderHttpRetry;
+use Padosoft\EvalHarness\Support\ProviderUsageDetails;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 
 /**
  * OpenAI-compatible chat completions transport for judge metrics.
  */
-final class OpenAiCompatibleJudgeClient implements JudgeClient
+final class OpenAiCompatibleJudgeClient implements JudgeClient, ProvidesUsageDetails
 {
+    /**
+     * @var array<string, int|float>
+     */
+    private array $usageDetails = [];
+
     public function __construct(
         private readonly HttpFactory $http,
         private readonly ConfigRepository $config,
     ) {}
 
+    public function usageDetails(): array
+    {
+        return $this->usageDetails;
+    }
+
     public function judge(string $prompt): string
     {
+        $this->usageDetails = [];
+
         $endpoint = (string) $this->config->get(
             'eval-harness.metrics.llm_as_judge.endpoint',
             'https://api.openai.com/v1/chat/completions',
@@ -45,6 +59,7 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient
             $request = $request->withToken($apiKey);
         }
 
+        $startedAt = microtime(true);
         $response = ProviderHttpRetry::post(
             request: $request,
             config: $this->config,
@@ -60,6 +75,7 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient
             ],
             operation: 'LLM judge',
         );
+        $latencyMs = (microtime(true) - $startedAt) * 1000.0;
 
         if ($response->failed()) {
             throw new MetricException(
@@ -73,6 +89,8 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient
 
         /** @var array<mixed> $body */
         $body = (array) $response->json();
+        $this->usageDetails = ProviderUsageDetails::fromResponseBody($body, $latencyMs);
+
         $content = $body['choices'][0]['message']['content'] ?? null;
 
         if (! is_string($content) || $content === '') {

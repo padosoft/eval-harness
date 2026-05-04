@@ -1291,3 +1291,17 @@
   - `vendor/bin/phpunit` => `OK (417 tests, 928 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+
+## 2026-05-04
+
+- Copilot reviewed Macro Task 4 PR #23 at head `0acb0b24` and generated five actionable comments: merge-safe `AGENTS.md` handoff text, shape-agnostic refusal prompt input, provider usage channels for embedding/judge metrics, and non-finite embedding component rejection.
+- Addressed those comments by making the current-priority handoff branch-neutral, adding the optional `ProvidesUsageDetails` usage channel, propagating built-in provider usage into metric details, falling back to JSON-encoded sample input for judge prompts without `question`, preserving the default judge prompt when `prompt_template` is null, and rejecting `INF`/`NaN` embedding components at the transport boundary.
+- Updated README usage/comparison documentation while preserving explicit `✅ YES` / `⚠️ PARTIAL` / `❌ NO` status prefixes in the comparison matrix.
+- Targeted validation passed for the PR #23 Copilot fix round:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/BertScoreLikeMetricTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php` => `OK (68 tests, 153 assertions)`
+- Full local gate passed after the PR #23 Copilot fix round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (426 tests, 968 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding provider-usage and prompt fallback tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `426 tests, 968 assertions` before re-requesting Copilot.

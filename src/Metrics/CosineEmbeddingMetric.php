@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Metrics;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\MetricUsageDetails;
 
 /**
  * Semantic-similarity metric: embed expected + actual via an
@@ -59,15 +60,14 @@ final class CosineEmbeddingMetric implements Metric
         // Clamp into [0, 1] — float math can produce 1.0000000000002.
         $clamped = max(0.0, min(1.0, $similarity));
 
-        return new MetricScore(
-            score: $clamped,
-            details: [
-                'expected_dim' => count($expectedVec),
-                'actual_dim' => count($actualVec),
-                'cosine_similarity' => $similarity,
-                'clamped_score' => $clamped,
-            ],
-        );
+        $details = MetricUsageDetails::append([
+            'expected_dim' => count($expectedVec),
+            'actual_dim' => count($actualVec),
+            'cosine_similarity' => $similarity,
+            'clamped_score' => $clamped,
+        ], $this->embeddings);
+
+        return new MetricScore(score: $clamped, details: $details);
     }
 
     /**

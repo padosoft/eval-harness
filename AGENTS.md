@@ -73,8 +73,12 @@ Frontend gates (`npm`, Vite, Vitest, Playwright) are not expected in this repo u
 
 ## Current Priority
 
-Do not assume the active branch from this file. Check `docs/PROGRESS.md` and `git status --short --branch` for the latest in-flight PR or branch.
+Do not assume the active branch from this file. Check `docs/PROGRESS.md`,
+`docs/ROADMAP_IMPLEMENTATION_PLAN.md`, and `git status --short --branch`
+for the latest in-flight PR, macro branch, or next roadmap task.
 
-Macro Task 4 is active for advanced metrics. Finish any open subtask or macro PR recorded in `docs/PROGRESS.md` before starting a new slice.
+If `docs/PROGRESS.md` records an open subtask or macro PR, finish that
+PR/Copilot/CI loop before starting new roadmap work.
 
-The current Macro Task 4 focus is fakeable provider contracts, advanced metric aliases, usage summaries, and runtime guardrails. After the embedding/BERTScore-like, refusal-quality, citation evidence, usage-summary, and runtime retry/exception slices are complete, open the Macro Task 4 PR into `main`. Once that macro PR merges, continue with the adversarial-regression roadmap task unless `docs/PROGRESS.md` records a newer priority.
+After a macro PR merges to `main`, start the next roadmap macro task from
+updated `main` unless `docs/PROGRESS.md` records a newer priority.

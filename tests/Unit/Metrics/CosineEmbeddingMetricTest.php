@@ -42,6 +42,35 @@ final class CosineEmbeddingMetricTest extends TestCase
         $this->assertSame(3, $score->details['actual_dim']);
     }
 
+    public function test_provider_usage_details_are_attached_to_metric_score(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['embedding' => [1.0]],
+                    ['embedding' => [1.0]],
+                ],
+                'usage' => [
+                    'prompt_tokens' => 4,
+                    'total_tokens' => 4,
+                    'cost_usd' => '0.0004',
+                ],
+            ]),
+        ]);
+
+        /** @var CosineEmbeddingMetric $metric */
+        $metric = $this->app->make(CosineEmbeddingMetric::class);
+        $score = $metric->score(
+            new DatasetSample(id: 'a', input: [], expectedOutput: 'expected'),
+            'actual',
+        );
+
+        $this->assertSame(4, $score->details['usage']['prompt_tokens']);
+        $this->assertSame(4, $score->details['usage']['total_tokens']);
+        $this->assertSame(0.0004, $score->details['usage']['cost_usd']);
+        $this->assertArrayHasKey('latency_ms', $score->details['usage']);
+    }
+
     public function test_orthogonal_vectors_score_zero(): void
     {
         // First embedded text returns [1,0,0], second [0,1,0].

@@ -45,6 +45,58 @@ final class LlmAsJudgeMetricTest extends TestCase
         $this->assertSame('Mostly correct, minor wording diff.', $score->details['judge_reason']);
     }
 
+    public function test_shape_agnostic_input_is_encoded_when_question_key_is_missing(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => '{"score": 1.0, "reason": "ok"}',
+                    ],
+                ]],
+            ]),
+        ]);
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+        $metric->score(new DatasetSample(id: 'a', input: ['q' => 'What is 2+2?'], expectedOutput: '4'), '4');
+
+        Http::assertSent(static function ($request): bool {
+            $prompt = $request->data()['messages'][0]['content'] ?? '';
+
+            return is_string($prompt) && str_contains($prompt, '"q":"What is 2+2?"');
+        });
+    }
+
+    public function test_provider_usage_details_are_attached_to_metric_score(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'content' => '{"score": 1.0, "reason": "ok"}',
+                    ],
+                ]],
+                'usage' => [
+                    'prompt_tokens' => 7,
+                    'completion_tokens' => 2,
+                    'total_tokens' => 9,
+                    'cost_usd' => '0.001',
+                ],
+            ]),
+        ]);
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+        $score = $metric->score(new DatasetSample(id: 'a', input: ['question' => 'q'], expectedOutput: 'e'), 'a');
+
+        $this->assertSame(7, $score->details['usage']['prompt_tokens']);
+        $this->assertSame(2, $score->details['usage']['completion_tokens']);
+        $this->assertSame(9, $score->details['usage']['total_tokens']);
+        $this->assertSame(0.001, $score->details['usage']['cost_usd']);
+        $this->assertArrayHasKey('latency_ms', $score->details['usage']);
+    }
+
     public function test_response_with_code_fence_is_unwrapped(): void
     {
         Http::fake([

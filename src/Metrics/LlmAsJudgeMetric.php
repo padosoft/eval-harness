@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\MetricUsageDetails;
 
 /**
  * LLM-as-judge metric: ask a model to grade `actual` against
@@ -70,10 +71,7 @@ PROMPT;
             $expected = is_string($encoded) ? $encoded : '';
         }
 
-        $question = '';
-        if (isset($sample->input['question']) && is_string($sample->input['question'])) {
-            $question = $sample->input['question'];
-        }
+        $question = $this->promptInput($sample);
 
         $prompt = $this->renderPrompt($expected, $actualOutput, $question);
 
@@ -102,23 +100,36 @@ PROMPT;
             );
         }
 
-        return new MetricScore(
-            score: $score,
-            details: [
-                'judge_score' => $score,
-                'judge_reason' => is_string($decoded['reason'] ?? null) ? $decoded['reason'] : null,
-                'prompt_chars' => strlen($prompt),
-                'response_chars' => strlen($rawJson),
-            ],
-        );
+        $details = MetricUsageDetails::append([
+            'judge_score' => $score,
+            'judge_reason' => is_string($decoded['reason'] ?? null) ? $decoded['reason'] : null,
+            'prompt_chars' => strlen($prompt),
+            'response_chars' => strlen($rawJson),
+        ], $this->judge);
+
+        return new MetricScore(score: $score, details: $details);
+    }
+
+    private function promptInput(DatasetSample $sample): string
+    {
+        if (isset($sample->input['question']) && is_string($sample->input['question']) && $sample->input['question'] !== '') {
+            return $sample->input['question'];
+        }
+
+        $encoded = json_encode($sample->input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? $encoded : '';
     }
 
     private function renderPrompt(string $expected, string $actual, string $question): string
     {
-        $template = (string) $this->config->get(
+        $rawTemplate = $this->config->get(
             'eval-harness.metrics.llm_as_judge.prompt_template',
             self::DEFAULT_PROMPT,
         );
+        $template = is_string($rawTemplate) && $rawTemplate !== ''
+            ? $rawTemplate
+            : self::DEFAULT_PROMPT;
 
         return strtr($template, [
             '{expected}' => $expected,

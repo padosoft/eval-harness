@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Judges;
 
 use Illuminate\Support\Facades\Http;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -34,6 +35,8 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
         $raw = $client->judge('grade this');
 
         $this->assertSame('{"score": 1.0, "reason": "ok"}', $raw);
+        $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
+        $this->assertArrayHasKey('latency_ms', $client->usageDetails());
         Http::assertSent(function ($request): bool {
             $body = $request->data();
 
@@ -45,6 +48,37 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
                 && (($body['response_format']['type'] ?? null) === 'json_object')
                 && (($body['messages'][0]['content'] ?? null) === 'grade this');
         });
+    }
+
+    public function test_provider_usage_details_are_exposed_from_response(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => '{"score": 1.0, "reason": "ok"}'],
+                ]],
+                'usage' => [
+                    'prompt_tokens' => 12,
+                    'completion_tokens' => '3',
+                    'total_tokens' => 15,
+                    'cost_usd' => '0.002',
+                ],
+            ]),
+        ]);
+
+        /** @var JudgeClient $client */
+        $client = $this->app->make(JudgeClient::class);
+        $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
+
+        $client->judge('grade this');
+        $usage = $client->usageDetails();
+
+        $this->assertSame(12, $usage['prompt_tokens']);
+        $this->assertSame(3, $usage['completion_tokens']);
+        $this->assertSame(15, $usage['total_tokens']);
+        $this->assertSame(0.002, $usage['cost_usd']);
+        $this->assertArrayHasKey('latency_ms', $usage);
+        $this->assertGreaterThanOrEqual(0.0, $usage['latency_ms']);
     }
 
     public function test_http_failure_throws_metric_exception(): void

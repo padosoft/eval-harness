@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Metrics;
 
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Metrics\BertScoreLikeMetric;
@@ -37,6 +38,20 @@ final class BertScoreLikeMetricTest extends TestCase
         $this->assertSame(['cat', 'sat', 'feline', 'sat'], $client->requests[0]);
         $this->assertSame(2, $score->details['expected_tokens']);
         $this->assertSame(2, $score->details['actual_tokens']);
+    }
+
+    public function test_provider_usage_details_are_attached_to_metric_score(): void
+    {
+        $metric = new BertScoreLikeMetric(new UsageEmbeddingClient);
+
+        $score = $metric->score(
+            new DatasetSample(id: 'a', input: [], expectedOutput: 'cat'),
+            'cat',
+        );
+
+        $this->assertSame(6, $score->details['usage']['prompt_tokens']);
+        $this->assertSame(6, $score->details['usage']['total_tokens']);
+        $this->assertSame(12.5, $score->details['usage']['latency_ms']);
     }
 
     public function test_partial_token_overlap_scores_precision_recall_f1(): void
@@ -175,5 +190,22 @@ final class FakeEmbeddingClient implements EmbeddingClient
             fn (string $text): array => $this->vectorsByText[$text] ?? [1.0],
             $texts,
         );
+    }
+}
+
+final class UsageEmbeddingClient implements EmbeddingClient, ProvidesUsageDetails
+{
+    public function embedMany(array $texts): array
+    {
+        return array_map(static fn (string $text): array => [1.0], $texts);
+    }
+
+    public function usageDetails(): array
+    {
+        return [
+            'prompt_tokens' => 6,
+            'total_tokens' => 6,
+            'latency_ms' => 12.5,
+        ];
     }
 }

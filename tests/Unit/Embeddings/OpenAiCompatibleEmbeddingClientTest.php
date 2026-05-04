@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\Embeddings;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
+use Padosoft\EvalHarness\Contracts\ProvidesUsageDetails;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -54,7 +55,38 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $client = $this->app->make(EmbeddingClient::class);
 
         $this->assertSame([], $client->embedMany([]));
+        $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
+        $this->assertSame([], $client->usageDetails());
         Http::assertNothingSent();
+    }
+
+    public function test_provider_usage_details_are_exposed_from_response(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [['embedding' => [1.0]]],
+                'usage' => [
+                    'prompt_tokens' => '3',
+                    'completion_tokens' => 0,
+                    'total_tokens' => 3,
+                    'total_cost_usd' => '0.0015',
+                ],
+            ]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+        $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
+
+        $client->embedMany(['one']);
+        $usage = $client->usageDetails();
+
+        $this->assertSame(3, $usage['prompt_tokens']);
+        $this->assertSame(0, $usage['completion_tokens']);
+        $this->assertSame(3, $usage['total_tokens']);
+        $this->assertSame(0.0015, $usage['cost_usd']);
+        $this->assertArrayHasKey('latency_ms', $usage);
+        $this->assertGreaterThanOrEqual(0.0, $usage['latency_ms']);
     }
 
     public function test_http_failure_throws_metric_exception(): void
@@ -247,6 +279,21 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
 
         $this->expectException(MetricException::class);
         $this->expectExceptionMessage('contains non-numeric component');
+
+        $client->embedMany(['one']);
+    }
+
+    public function test_non_finite_embedding_component_throws_metric_exception(): void
+    {
+        Http::fake([
+            '*' => Http::response(['data' => [['embedding' => ['1e309']]]]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('non-finite component');
 
         $client->embedMany(['one']);
     }

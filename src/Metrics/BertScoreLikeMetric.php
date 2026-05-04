@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Support\MetricUsageDetails;
 
 /**
  * BERTScore-like token overlap powered by the configured embedding client.
@@ -96,17 +97,16 @@ final class BertScoreLikeMetric implements Metric
             : (2.0 * $precision * $recall) / ($precision + $recall);
         $clampedScore = self::clampScore($rawScore);
 
-        return new MetricScore(
-            score: $clampedScore,
-            details: [
-                'expected_tokens' => $expectedCount,
-                'actual_tokens' => count($actualTokens),
-                'precision' => $precision,
-                'recall' => $recall,
-                'raw_score' => $rawScore,
-                'clamped_score' => $clampedScore,
-            ],
-        );
+        $details = MetricUsageDetails::append([
+            'expected_tokens' => $expectedCount,
+            'actual_tokens' => count($actualTokens),
+            'precision' => $precision,
+            'recall' => $recall,
+            'raw_score' => $rawScore,
+            'clamped_score' => $clampedScore,
+        ], $this->embeddings);
+
+        return new MetricScore(score: $clampedScore, details: $details);
     }
 
     /**

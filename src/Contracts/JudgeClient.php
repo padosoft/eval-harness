@@ -8,6 +8,9 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
 
 /**
  * Provider boundary for LLM judge-backed metrics.
+ *
+ * Implementations that can expose safe token/cost/latency metadata may
+ * also implement {@see ProvidesUsageDetails}.
  */
 interface JudgeClient
 {

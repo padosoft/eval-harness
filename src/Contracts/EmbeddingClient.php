@@ -11,7 +11,9 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  *
  * Implementations may call OpenAI-compatible endpoints, Laravel AI
  * providers, or deterministic fakes. They must preserve input order
- * and return one numeric vector per requested text.
+ * and return one numeric vector per requested text. Implementations
+ * that can expose safe token/cost/latency metadata may also implement
+ * {@see ProvidesUsageDetails}.
  */
 interface EmbeddingClient
 {
