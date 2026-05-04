@@ -790,6 +790,48 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_dispatch_ttl_scales_with_effective_chunk_size_when_smaller_than_concurrency(): void
+    {
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+
+        // 10 samples with concurrency=10 and chunk-size=1 means the
+        // command will iterate 10 producer windows, not 1. The TTL must
+        // size for the chunk-driven loop, not the concurrency estimate.
+        $samples = [];
+        for ($i = 0; $i < 10; $i++) {
+            $samples[] = new DatasetSample(
+                id: 's'.($i + 1),
+                input: ['answer' => 'a'.($i + 1)],
+                expectedOutput: 'a'.($i + 1),
+            );
+        }
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 10,
+                queue: 'evals',
+                waitTimeoutSeconds: 60,
+                chunkSize: 1,
+            ),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            // 10 windows * max(waitTimeout=60, timeout=0) = 600 seconds
+            return $job->resultTtlSeconds === 600;
+        });
+    }
+
     public function test_dispatch_uses_effective_chunk_size_for_producer_window(): void
     {
         Queue::fake();
@@ -868,6 +910,63 @@ final class LazyParallelBatchTest extends TestCase
                 ['samples_completed' => 4, 'total' => 4],
             ],
             $reporter->checkpoints,
+        );
+    }
+
+    public function test_run_emits_checkpoints_when_chunk_size_does_not_divide_interval(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        // Producer windows land on 4, 8, 12, 16, 20, 24 with chunk_size=4
+        // and checkpoint_every=10, so the cumulative count never lands
+        // exactly on a multiple of 10. The reporter must still fire when
+        // the cumulative count crosses each multiple-of-10 threshold
+        // instead of waiting only for end-of-batch.
+        $samples = [];
+        for ($i = 0; $i < 24; $i++) {
+            $samples[] = new DatasetSample(
+                id: 's'.($i + 1),
+                input: ['answer' => 'a'.($i + 1)],
+                expectedOutput: 'a'.($i + 1),
+            );
+        }
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 4,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                chunkSize: 4,
+                checkpointEvery: 10,
+            ),
+        );
+
+        $this->assertSame(
+            [
+                ['samples_completed' => 12, 'total' => 24],
+                ['samples_completed' => 20, 'total' => 24],
+                ['samples_completed' => 24, 'total' => 24],
+            ],
+            $reporter->checkpoints,
+            'Reporter must emit a checkpoint when each multiple-of-10 threshold is crossed plus a final checkpoint at end-of-batch.',
         );
     }
 

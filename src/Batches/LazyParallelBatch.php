@@ -70,6 +70,7 @@ final class LazyParallelBatch
         $rateLimiter = $this->rateLimitWindow($options);
         $checkpointEvery = $options->checkpointEvery;
         $samplesCompleted = 0;
+        $nextCheckpointThreshold = $checkpointEvery;
 
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
@@ -102,7 +103,13 @@ final class LazyParallelBatch
                 );
 
                 $samplesCompleted += count($sampleWindow);
-                $this->reportCheckpointIfDue($batchId, $samplesCompleted, $sampleCount, $checkpointEvery);
+                $nextCheckpointThreshold = $this->reportCheckpointIfDue(
+                    batchId: $batchId,
+                    samplesCompleted: $samplesCompleted,
+                    totalSamples: $sampleCount,
+                    checkpointEvery: $checkpointEvery,
+                    nextCheckpointThreshold: $nextCheckpointThreshold,
+                );
             }
 
             ksort($outputsByIndex);
@@ -522,20 +529,34 @@ final class LazyParallelBatch
         }
     }
 
-    private function reportCheckpointIfDue(string $batchId, int $samplesCompleted, int $totalSamples, ?int $checkpointEvery): void
-    {
-        if ($checkpointEvery === null) {
-            return;
+    private function reportCheckpointIfDue(
+        string $batchId,
+        int $samplesCompleted,
+        int $totalSamples,
+        ?int $checkpointEvery,
+        ?int $nextCheckpointThreshold,
+    ): ?int {
+        if ($checkpointEvery === null || $nextCheckpointThreshold === null) {
+            return $nextCheckpointThreshold;
         }
 
-        $atFinalSample = $samplesCompleted >= $totalSamples;
-        $atInterval = $samplesCompleted > 0 && $samplesCompleted % $checkpointEvery === 0;
+        // We honour `--checkpoint-every=N` even when the producer chunk does
+        // not divide N: an event fires whenever the cumulative completed
+        // count crosses the next multiple of N (the reported value is the
+        // actual cumulative count, which may be slightly above the threshold
+        // by up to chunk-size - 1). A final event always fires at end-of-batch.
+        $crossedThreshold = $samplesCompleted >= $nextCheckpointThreshold;
+        $atFinalSample = $samplesCompleted >= $totalSamples && $samplesCompleted > 0;
 
-        if (! $atInterval && ! $atFinalSample) {
-            return;
+        if ($crossedThreshold || $atFinalSample) {
+            $this->progressReporter->reportCheckpoint($batchId, $samplesCompleted, $totalSamples);
         }
 
-        $this->progressReporter->reportCheckpoint($batchId, $samplesCompleted, $totalSamples);
+        while ($samplesCompleted >= $nextCheckpointThreshold) {
+            $nextCheckpointThreshold += $checkpointEvery;
+        }
+
+        return $nextCheckpointThreshold;
     }
 
     /**
@@ -716,7 +737,12 @@ final class LazyParallelBatch
     {
         $windowWaitSeconds = 0;
         if ($sampleCount !== null) {
-            $windowCount = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
+            // Window count must mirror the effective producer window so the TTL
+            // covers the actual loop. When --chunk-size is smaller than
+            // --concurrency, the loop now waits across many more windows than
+            // a concurrency-based estimate would account for.
+            $effectiveChunkSize = $options->effectiveChunkSize();
+            $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
             $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
         }
 
