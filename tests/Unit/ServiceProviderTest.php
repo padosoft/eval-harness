@@ -17,6 +17,7 @@ use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\EvalHarnessServiceProvider;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class ServiceProviderTest extends TestCase
@@ -86,6 +87,17 @@ final class ServiceProviderTest extends TestCase
 
         $this->assertInstanceOf(AdversarialRegressionGate::class, $first);
         $this->assertSame($first, $second, 'AdversarialRegressionGate must be a container singleton so gate policy stays stable across command/store resolution.');
+    }
+
+    public function test_failed_sample_dataset_exporter_is_an_explicit_singleton(): void
+    {
+        $this->assertTrue($this->app->bound(FailedSampleDatasetExporter::class));
+
+        $first = $this->app->make(FailedSampleDatasetExporter::class);
+        $second = $this->app->make(FailedSampleDatasetExporter::class);
+
+        $this->assertInstanceOf(FailedSampleDatasetExporter::class, $first);
+        $this->assertSame($first, $second, 'FailedSampleDatasetExporter must be an explicit singleton binding, not only an auto-resolvable concrete class.');
     }
 
     public function test_config_is_merged(): void

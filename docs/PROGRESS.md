@@ -1915,3 +1915,20 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twenty-sixth PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `091163b` and generated no new comments. CI was green across PHP 8.3/8.4/8.5 and Laravel 12/13, so PR #28 merged into `task/adversarial-regression` at merge commit `e3dc0ad`.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-failure-promotion` from updated `task/adversarial-regression`.
+- Implemented adversarial failure promotion:
+  - added `FailedSampleDatasetExporter` to export low-scoring samples and samples with metric exceptions into reloadable dataset YAML,
+  - added `eval-harness:adversarial --promote-failures=<path> --promoted-dataset=<name>`,
+  - preserved sample input, expected output, and metadata while omitting actual model output and raw provider/metric error messages from the promoted seed,
+  - wrote promotion diagnostics to stderr/error output so JSON stdout stays report-only.
+- Updated README feature docs, adversarial command docs, roadmap text, and the comparison matrix with failure promotion while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial failure promotion slice:
+  - `vendor/bin/phpunit tests/Unit/Reports/FailedSampleDatasetExporterTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/ServiceProviderTest.php` => `OK (76 tests, 358 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the adversarial failure promotion slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (555 tests, 1525 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search after adding failure promotion tests. README still has no numeric PHPUnit test-count claim, the comparison prefix check passed with every comparison cell starting with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

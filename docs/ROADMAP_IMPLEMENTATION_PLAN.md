@@ -163,7 +163,7 @@ Implement:
   than N percentage points. Implemented through
   `AdversarialRegressionGate` and
   `eval-harness:adversarial --manifest=<path> --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`.
-- Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
+- Failure promotion workflow: export failed samples into a dataset seed for future regression coverage. Implemented through `eval-harness:adversarial --promote-failures=<path> --promoted-dataset=<name>`.
 
 Guardrails:
 
