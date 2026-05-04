@@ -82,6 +82,33 @@ final class MarkdownReportRendererTest extends TestCase
         $this->assertStringContainsString('| 1 | 7 | 3 | 10 | 0.001000 | 50.00 | 50.00 |', $md);
     }
 
+    public function test_usage_summary_renders_unreported_fields_as_not_available(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'e'),
+                    actualOutput: 'e',
+                    metricScores: [
+                        'latency-only' => new MetricScore(1.0, [
+                            'usage' => [
+                                'latency_ms' => 50,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $md = (new MarkdownReportRenderer)->render($report);
+
+        $this->assertStringContainsString('| 1 | n/a | n/a | n/a | n/a | 50.00 | 50.00 |', $md);
+    }
+
     public function test_failures_section_appears_when_failures_present(): void
     {
         $report = new EvalReport(

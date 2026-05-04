@@ -194,7 +194,7 @@ final class EvalReport
      * latency_ms. Unknown or malformed usage fields are ignored so
      * custom free-form metric details do not break report rendering.
      *
-     * @return array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, latency_ms: array{count: int, total: float, mean: float, max: float}}
+     * @return array{observations: int, prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, reported: array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: int, latency_ms: int}, latency_ms: array{count: int, total: float, mean: float, max: float}}
      */
     public function usageSummary(): array
     {
@@ -203,6 +203,10 @@ final class EvalReport
         $completionTokens = 0;
         $totalTokens = 0;
         $costUsd = 0.0;
+        $reportedPromptTokens = 0;
+        $reportedCompletionTokens = 0;
+        $reportedTotalTokens = 0;
+        $reportedCostUsd = 0;
         $latencyCount = 0;
         $latencyTotal = 0.0;
         $latencyMax = 0.0;
@@ -215,10 +219,25 @@ final class EvalReport
                 }
 
                 $observations++;
-                $promptTokens += $usage['prompt_tokens'];
-                $completionTokens += $usage['completion_tokens'];
-                $totalTokens += $usage['total_tokens'];
-                $costUsd += $usage['cost_usd'];
+                if ($usage['prompt_tokens'] !== null) {
+                    $reportedPromptTokens++;
+                    $promptTokens += $usage['prompt_tokens'];
+                }
+
+                if ($usage['completion_tokens'] !== null) {
+                    $reportedCompletionTokens++;
+                    $completionTokens += $usage['completion_tokens'];
+                }
+
+                if ($usage['total_tokens'] !== null) {
+                    $reportedTotalTokens++;
+                    $totalTokens += $usage['total_tokens'];
+                }
+
+                if ($usage['cost_usd'] !== null) {
+                    $reportedCostUsd++;
+                    $costUsd += $usage['cost_usd'];
+                }
 
                 if ($usage['latency_ms'] !== null) {
                     $latencyCount++;
@@ -234,6 +253,13 @@ final class EvalReport
             'completion_tokens' => $completionTokens,
             'total_tokens' => $totalTokens,
             'cost_usd' => $costUsd,
+            'reported' => [
+                'prompt_tokens' => $reportedPromptTokens,
+                'completion_tokens' => $reportedCompletionTokens,
+                'total_tokens' => $reportedTotalTokens,
+                'cost_usd' => $reportedCostUsd,
+                'latency_ms' => $latencyCount,
+            ],
             'latency_ms' => [
                 'count' => $latencyCount,
                 'total' => $latencyTotal,
@@ -417,7 +443,7 @@ final class EvalReport
 
     /**
      * @param  array<string, mixed>  $details
-     * @return array{prompt_tokens: int, completion_tokens: int, total_tokens: int, cost_usd: float, latency_ms: float|null}|null
+     * @return array{prompt_tokens: int|null, completion_tokens: int|null, total_tokens: int|null, cost_usd: float|null, latency_ms: float|null}|null
      */
     private function usageDetails(array $details): ?array
     {
@@ -426,15 +452,14 @@ final class EvalReport
             return null;
         }
 
-        $promptTokens = $this->nonNegativeInt($raw['prompt_tokens'] ?? null) ?? 0;
-        $completionTokens = $this->nonNegativeInt($raw['completion_tokens'] ?? null) ?? 0;
-        $totalTokens = $this->nonNegativeInt($raw['total_tokens'] ?? null) ?? ($promptTokens + $completionTokens);
+        $promptTokens = $this->nonNegativeInt($raw['prompt_tokens'] ?? null);
+        $completionTokens = $this->nonNegativeInt($raw['completion_tokens'] ?? null);
+        $totalTokens = $this->nonNegativeInt($raw['total_tokens'] ?? null);
         $costUsd = $this->nonNegativeFloat($raw['cost_usd'] ?? null)
-            ?? $this->nonNegativeFloat($raw['total_cost_usd'] ?? null)
-            ?? 0.0;
+            ?? $this->nonNegativeFloat($raw['total_cost_usd'] ?? null);
         $latencyMs = $this->nonNegativeFloat($raw['latency_ms'] ?? null);
 
-        if ($promptTokens === 0 && $completionTokens === 0 && $totalTokens === 0 && $costUsd === 0.0 && $latencyMs === null) {
+        if ($promptTokens === null && $completionTokens === null && $totalTokens === null && $costUsd === null && $latencyMs === null) {
             return null;
         }
 

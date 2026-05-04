@@ -1305,3 +1305,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding provider-usage and prompt fallback tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `426 tests, 968 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `2268271` and generated one actionable usage-summary comment: missing usage fields were normalized to zero and `total_tokens` was synthesized from partial provider data, making partial usage look like real zeroes in JSON/Markdown summaries.
+- Addressed the usage-summary comment by adding per-field `reported` counts, aggregating only explicitly reported token/cost fields, rendering unreported Markdown usage cells as `n/a`, and adding regression coverage for partial/latency-only usage details.
+- Targeted validation passed after the usage-summary review fix:
+  - `vendor/bin/phpunit tests/Unit/Reports/EvalReportTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php` => `OK (36 tests, 139 assertions)`
+- Full local gate passed after the usage-summary review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (428 tests, 983 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two report usage tests. README has no numeric PHPUnit test-count claim; PR #23 body must be updated to `428 tests, 983 assertions` before re-requesting Copilot.

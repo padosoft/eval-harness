@@ -621,7 +621,9 @@ new MetricScore(1.0, [
 
 The renderers aggregate those values into top-level JSON and Markdown
 usage summaries while leaving raw prompts/provider payloads out of the
-report contract.
+report contract. JSON summaries include per-field `reported` counts so
+consumers can distinguish "not reported" from a reported zero; Markdown
+renders unreported usage totals as `n/a`.
 
 The built-in OpenAI-compatible embedding and judge clients automatically
 attach safe usage details to their metric scores: token/cost fields from

@@ -191,6 +191,11 @@ final class JsonReportRendererTest extends TestCase
         $this->assertSame(3, $json['usage']['completion_tokens']);
         $this->assertSame(15, $json['usage']['total_tokens']);
         $this->assertSame(0.002, $json['usage']['cost_usd']);
+        $this->assertSame(1, $json['usage']['reported']['prompt_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['completion_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['total_tokens']);
+        $this->assertSame(1, $json['usage']['reported']['cost_usd']);
+        $this->assertSame(1, $json['usage']['reported']['latency_ms']);
         $this->assertSame(99.0, $json['usage']['latency_ms']['mean']);
     }
 

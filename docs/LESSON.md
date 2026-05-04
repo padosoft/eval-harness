@@ -219,3 +219,4 @@
 - Judge prompts should not assume dataset input has a `question` key. Use that key when present, but fall back to a JSON-encoded sample input so shape-agnostic samples such as `q` are not sent to judges as empty requests.
 - Nullable config values need explicit fallback handling before string casting. `prompt_template: null` should mean "use the package default", not cast to an empty prompt.
 - Embedding transports must reject non-finite vector components at the response boundary. `is_numeric('1e309')` is true, but casting it produces `INF`, which later turns metric math errors into confusing score failures.
+- Usage summaries should not synthesize missing fields. Track per-field `reported` counts and render missing Markdown values as `n/a` so latency-only or partial provider usage does not look like real zero token/cost usage.

@@ -366,8 +366,15 @@ final class EvalReportTest extends TestCase
             'observations' => 2,
             'prompt_tokens' => 18,
             'completion_tokens' => 6,
-            'total_tokens' => 24,
+            'total_tokens' => 14,
             'cost_usd' => 0.0015,
+            'reported' => [
+                'prompt_tokens' => 2,
+                'completion_tokens' => 2,
+                'total_tokens' => 1,
+                'cost_usd' => 2,
+                'latency_ms' => 2,
+            ],
             'latency_ms' => [
                 'count' => 2,
                 'total' => 200.5,
@@ -403,5 +410,41 @@ final class EvalReportTest extends TestCase
         );
 
         $this->assertSame(0, $report->usageSummary()['observations']);
+    }
+
+    public function test_usage_summary_distinguishes_unreported_fields_from_reported_zeroes(): void
+    {
+        $report = new EvalReport(
+            datasetName: 'demo',
+            sampleResults: [
+                new SampleResult(
+                    sample: new DatasetSample(id: 's1', input: [], expectedOutput: 'a'),
+                    actualOutput: 'a',
+                    metricScores: [
+                        'custom' => new MetricScore(1.0, [
+                            'usage' => [
+                                'completion_tokens' => 0,
+                                'latency_ms' => 42.0,
+                            ],
+                        ]),
+                    ],
+                ),
+            ],
+            failures: [],
+            startedAt: 0.0,
+            finishedAt: 1.0,
+        );
+
+        $summary = $report->usageSummary();
+
+        $this->assertSame(1, $summary['observations']);
+        $this->assertSame(0, $summary['prompt_tokens']);
+        $this->assertSame(0, $summary['completion_tokens']);
+        $this->assertSame(0, $summary['total_tokens']);
+        $this->assertSame(0, $summary['reported']['prompt_tokens']);
+        $this->assertSame(1, $summary['reported']['completion_tokens']);
+        $this->assertSame(0, $summary['reported']['total_tokens']);
+        $this->assertSame(1, $summary['reported']['latency_ms']);
+        $this->assertSame(42.0, $summary['latency_ms']['mean']);
     }
 }

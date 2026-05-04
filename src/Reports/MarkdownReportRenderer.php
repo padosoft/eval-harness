@@ -75,14 +75,14 @@ final class MarkdownReportRenderer
             $lines[] = '| observations | prompt tokens | completion tokens | total tokens | cost USD | mean latency ms | max latency ms |';
             $lines[] = '| --- | --- | --- | --- | --- | --- | --- |';
             $lines[] = sprintf(
-                '| %d | %d | %d | %d | %.6f | %.2f | %.2f |',
+                '| %d | %s | %s | %s | %s | %s | %s |',
                 $usage['observations'],
-                $usage['prompt_tokens'],
-                $usage['completion_tokens'],
-                $usage['total_tokens'],
-                $usage['cost_usd'],
-                $usage['latency_ms']['mean'],
-                $usage['latency_ms']['max'],
+                $this->usageIntCell($usage, 'prompt_tokens'),
+                $this->usageIntCell($usage, 'completion_tokens'),
+                $this->usageIntCell($usage, 'total_tokens'),
+                $this->usageCostCell($usage),
+                $this->usageLatencyCell($usage, 'mean'),
+                $this->usageLatencyCell($usage, 'max'),
             );
             $lines[] = '';
         }
@@ -194,5 +194,48 @@ final class MarkdownReportRenderer
     private function htmlText(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageIntCell(array $usage, string $key): string
+    {
+        $reported = $usage['reported'] ?? [];
+        if (! is_array($reported) || ($reported[$key] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        return (string) $usage[$key];
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageCostCell(array $usage): string
+    {
+        $reported = $usage['reported'] ?? [];
+        if (! is_array($reported) || ($reported['cost_usd'] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        $value = $usage['cost_usd'] ?? null;
+
+        return is_int($value) || is_float($value) ? sprintf('%.6f', (float) $value) : 'n/a';
+    }
+
+    /**
+     * @param  array<string, mixed>  $usage
+     */
+    private function usageLatencyCell(array $usage, string $key): string
+    {
+        $latency = $usage['latency_ms'] ?? [];
+        if (! is_array($latency) || ($latency['count'] ?? 0) === 0) {
+            return 'n/a';
+        }
+
+        $value = $latency[$key] ?? null;
+
+        return is_int($value) || is_float($value) ? sprintf('%.2f', (float) $value) : 'n/a';
     }
 }
