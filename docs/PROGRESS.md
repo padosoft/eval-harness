@@ -2018,3 +2018,5 @@
   - `vendor/bin/phpunit` => `OK (566 tests, 1561 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
+- Copilot left one new actionable review comment after the first PR #32 re-review: `all()` should not look like it pays per-file metadata reads, and `registerReportApiRoutes()` should not hard-reference `Illuminate\Foundation\Application`.
+- Addressed that second PR #32 review round by splitting report artifacts into explicit summary/detail builders and by guarding `routesAreCached()` with `method_exists()` instead of an `Application` type check.

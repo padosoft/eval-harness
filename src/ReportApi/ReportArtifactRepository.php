@@ -40,7 +40,7 @@ final class ReportArtifactRepository
                 continue;
             }
 
-            $artifacts[] = $this->artifactFor($disk, $relativePath, includeMetadata: false);
+            $artifacts[] = $this->summaryArtifactFor($disk, $relativePath);
         }
 
         usort($artifacts, static fn (ReportArtifact $left, ReportArtifact $right): int => strcmp($left->path, $right->path));
@@ -53,7 +53,7 @@ final class ReportArtifactRepository
         $relativePath = ReportArtifactId::decode($id);
         $disk = $this->disk();
 
-        return $this->artifactFor($disk, $relativePath, includeMetadata: true);
+        return $this->detailArtifactFor($disk, $relativePath);
     }
 
     public function contents(ReportArtifact $artifact): string
@@ -98,13 +98,24 @@ final class ReportArtifactRepository
         return $prefix === '' ? $relativePath : $prefix.'/'.$relativePath;
     }
 
-    private function artifactFor(Filesystem $disk, string $relativePath, bool $includeMetadata): ReportArtifact
+    private function summaryArtifactFor(Filesystem $disk, string $relativePath): ReportArtifact
+    {
+        ReportArtifactId::assertValidRelativePath($relativePath);
+
+        return new ReportArtifact(
+            id: ReportArtifactId::encode($relativePath),
+            path: $relativePath,
+            format: str_ends_with($relativePath, '.json') ? 'json' : 'markdown',
+            sizeBytes: null,
+            lastModified: null,
+        );
+    }
+
+    private function detailArtifactFor(Filesystem $disk, string $relativePath): ReportArtifact
     {
         ReportArtifactId::assertValidRelativePath($relativePath);
         $path = $this->storagePath($relativePath);
-        $metadata = $includeMetadata
-            ? $this->metadataFor($disk, $path)
-            : ['size_bytes' => null, 'last_modified' => null];
+        $metadata = $this->metadataFor($disk, $path);
 
         return new ReportArtifact(
             id: ReportArtifactId::encode($relativePath),

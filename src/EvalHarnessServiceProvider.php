@@ -8,7 +8,6 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
-use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -176,7 +175,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return;
         }
 
-        if ($this->app instanceof Application && $this->app->routesAreCached()) {
+        if (method_exists($this->app, 'routesAreCached') && $this->app->routesAreCached()) {
             return;
         }
 
