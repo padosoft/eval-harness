@@ -289,3 +289,5 @@
 - Reserved metadata object keys should reject list-shaped arrays and `null` when the key is present. PHP arrays blur lists and maps, so append-style writes can silently turn invalid user metadata into mixed list/object YAML.
 - Continuous adversarial monitoring should be host-app orchestration around existing package contracts, not a package daemon. Compose Laravel Scheduler or CI cron with persistent manifests, Horizon queues, regression gates, and failure promotion.
 - CI cron adversarial lanes need persistent manifest storage. If every scheduled run starts with an empty workspace, `--regression-gate` can only seed a new compatible baseline and will not detect historical regressions.
+- Report artifact examples that use literal filesystem paths need `--raw-path`. Without it, relative `--out` paths are intentionally written through the configured reports disk and prefix.
+- Adversarial command alerting docs must include captured metric exceptions as a non-zero exit case. Failure-promotion files can still be written before that non-zero exit, so artifact presence and exit code carry different signals.

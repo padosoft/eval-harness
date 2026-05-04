@@ -1960,3 +1960,15 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after adding continuous-monitoring guidance. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #30 at head `470be2e` and generated four actionable documentation comments:
+  - Scheduler and CI examples used relative `--out` paths without `--raw-path`, so the docs implied filesystem paths while the command would use the configured reports disk/prefix,
+  - alerting guidance omitted the non-zero exit path for captured metric exceptions,
+  - promotion-file alerting guidance did not distinguish runs that enabled `--promote-failures` from runs that never requested a promotion artifact.
+- The connector flagged the same exit-code issue and noted that failure-promotion writes can happen before a non-zero metric-exception exit.
+- Addressed the first PR #30 review round by adding `--raw-path` to literal report artifact examples, documenting reports-disk behavior for relative `--out`, and tightening alerting semantics for metric exceptions plus optional promotion artifacts.
+- Full local gate passed after the first PR #30 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the first PR #30 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
