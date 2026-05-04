@@ -382,6 +382,36 @@ final class AdversarialRunManifestTest extends TestCase
         );
     }
 
+    public function test_store_rejects_invalid_identifiers_before_creating_directory(): void
+    {
+        $store = new AdversarialRunManifestStore;
+
+        $this->assertStoreCallRejectsBeforeCreatingDirectory(
+            function (string $path) use ($store): void {
+                $store->record(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0),
+                    manifestName: ' run.dataset ',
+                    runId: 'run-invalid-manifest',
+                );
+            },
+            'manifest name must be a non-empty string without leading or trailing whitespace',
+        );
+
+        $this->assertStoreCallRejectsBeforeCreatingDirectory(
+            function (string $path) use ($store): void {
+                $store->recordWithRegressionGate(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0),
+                    gate: new AdversarialRegressionGate,
+                    maxDrop: 0.05,
+                    runId: ' run-invalid-id ',
+                );
+            },
+            'entry run_id must be a non-empty string without leading or trailing whitespace',
+        );
+    }
+
     public function test_store_skips_incompatible_latest_regression_baseline(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -753,6 +783,14 @@ final class AdversarialRunManifestTest extends TestCase
      */
     private function assertGatedStoreCallRejectsBeforeCreatingDirectory(callable $call, string $expectedMessage): void
     {
+        $this->assertStoreCallRejectsBeforeCreatingDirectory($call, $expectedMessage);
+    }
+
+    /**
+     * @param  callable(string): void  $call
+     */
+    private function assertStoreCallRejectsBeforeCreatingDirectory(callable $call, string $expectedMessage): void
+    {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
         $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
 
@@ -760,7 +798,7 @@ final class AdversarialRunManifestTest extends TestCase
             try {
                 $call($path);
 
-                $this->fail('Expected invalid gate configuration to fail before creating the manifest directory.');
+                $this->fail('Expected invalid store input to fail before creating the manifest directory.');
             } catch (EvalRunException $e) {
                 $this->assertStringContainsString($expectedMessage, $e->getMessage());
                 $this->assertDirectoryDoesNotExist($directory);

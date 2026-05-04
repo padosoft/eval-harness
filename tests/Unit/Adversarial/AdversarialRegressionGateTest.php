@@ -204,6 +204,28 @@ final class AdversarialRegressionGateTest extends TestCase
         );
     }
 
+    public function test_result_rejects_no_baseline_fail_with_score_drop_check(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('without a baseline can only contain missing-value checks');
+
+        new AdversarialRegressionGateResult(
+            status: AdversarialRegressionGateResult::STATUS_FAIL,
+            currentRunId: 'current',
+            baselineRunId: null,
+            checks: [
+                new AdversarialRegressionGateCheck(
+                    target: 'macro_f1',
+                    baselineScore: 1.0,
+                    currentScore: 0.80,
+                    drop: 0.20,
+                    maxDrop: 0.05,
+                    status: AdversarialRegressionGateCheck::STATUS_FAIL,
+                ),
+            ],
+        );
+    }
+
     /**
      * @param  array<string, array{mean: float, p50: float, p95: float, pass_rate: float}>|null  $metrics
      */

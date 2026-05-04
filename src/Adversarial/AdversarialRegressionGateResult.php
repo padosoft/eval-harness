@@ -72,6 +72,14 @@ final class AdversarialRegressionGateResult
             throw new EvalRunException('Adversarial regression gate fail results require at least one check.');
         }
 
+        if ($status === self::STATUS_FAIL && $baselineRunId === null) {
+            foreach ($checks as $check) {
+                if ($check->status !== AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
+                    throw new EvalRunException('Adversarial regression gate fail results without a baseline can only contain missing-value checks.');
+                }
+            }
+        }
+
         if ($recorded && $status === self::STATUS_FAIL) {
             throw new EvalRunException('Adversarial regression gate failed results cannot be marked as recorded.');
         }

@@ -22,8 +22,10 @@ final class AdversarialRunManifestStore
     ): AdversarialRunManifest {
         $this->assertPath($path);
         $this->assertRetention($maxRuns);
-        $this->ensureDirectory($path);
         $manifestName ??= $report->datasetName;
+        $this->assertManifestName($manifestName);
+        $this->assertRunId($runId);
+        $this->ensureDirectory($path);
 
         $lock = $this->openLock($path);
         try {
@@ -71,6 +73,8 @@ final class AdversarialRunManifestStore
     ): AdversarialRegressionGateResult {
         $this->assertPath($path);
         $manifestName ??= $report->datasetName;
+        $this->assertManifestName($manifestName);
+        $this->assertRunId($runId);
         $gate->assertConfiguration($maxDrop, $metricTargets);
         $this->assertRetention($maxRuns);
         $this->ensureDirectory($path);
@@ -198,6 +202,20 @@ final class AdversarialRunManifestStore
     {
         if ($path === '' || $path !== trim($path)) {
             throw new EvalRunException('Adversarial run manifest path must be a non-empty string without leading or trailing whitespace.');
+        }
+    }
+
+    private function assertManifestName(string $manifestName): void
+    {
+        if ($manifestName === '' || $manifestName !== trim($manifestName)) {
+            throw new EvalRunException('Adversarial run manifest name must be a non-empty string without leading or trailing whitespace.');
+        }
+    }
+
+    private function assertRunId(?string $runId): void
+    {
+        if ($runId !== null && ($runId === '' || $runId !== trim($runId))) {
+            throw new EvalRunException('Adversarial run manifest entry run_id must be a non-empty string without leading or trailing whitespace.');
         }
     }
 
