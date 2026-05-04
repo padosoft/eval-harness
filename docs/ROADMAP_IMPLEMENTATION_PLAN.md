@@ -161,7 +161,7 @@ Implement:
 - Regression gate: fail when macro-F1 or configured metric drops more
   than N percentage points. Implemented through
   `AdversarialRegressionGate` and
-  `eval-harness:adversarial --manifest=<path> --regression-gate --regression-max-drop=N`.
+  `eval-harness:adversarial --manifest=<path> --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`.
 - Failure promotion workflow: export failed samples into a dataset seed for future regression coverage.
 
 Guardrails:

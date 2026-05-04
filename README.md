@@ -635,11 +635,13 @@ precomputed responses, and reuses the same `--batch`,
 `--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
 options as `eval-harness:run`. Add `--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep only
-the newest N adversarial summaries. Add `--regression-gate` to compare
-the current run with the latest compatible existing manifest entry
-(same metric names and adversarial category/sample-count slice) before
-the current run is recorded. `--regression-max-drop=5` means five normalized
-percentage points. Repeat `--regression-metric=metric` or
+the newest N adversarial summaries while preserving the latest
+failure-free baseline when failed plain runs would otherwise evict it.
+Add `--regression-gate` to compare the current run with the latest
+compatible failure-free existing manifest entry (same metric names and
+adversarial category/sample-count slice) before the current run is
+recorded. `--regression-max-drop=5` means five normalized percentage
+points. Repeat `--regression-metric=metric` or
 `--regression-metric=metric:mean|p50|p95|pass_rate` for additional
 metric aggregate checks. If no compatible baseline exists, the command
 emits an explicit `missing-baseline` status. Runs are recorded for the

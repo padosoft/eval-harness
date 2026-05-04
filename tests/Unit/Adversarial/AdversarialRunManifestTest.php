@@ -239,6 +239,48 @@ final class AdversarialRunManifestTest extends TestCase
         }
     }
 
+    public function test_store_marks_passing_regression_gate_runs_as_recorded(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+        $gate = new AdversarialRegressionGate;
+
+        try {
+            $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 2,
+                runId: 'run-baseline',
+            );
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 2.0, 3.0, 0.98),
+                gate: $gate,
+                maxDrop: 0.05,
+                maxRuns: 2,
+                runId: 'run-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_PASS, $result->status);
+            $this->assertTrue($result->recorded);
+            $this->assertTrue($result->toJson()['recorded']);
+            $this->assertSame(['run-current', 'run-baseline'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
     public function test_store_rejects_invalid_regression_gate_retention_before_non_recorded_result(): void
     {
         $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
@@ -479,6 +521,52 @@ final class AdversarialRunManifestTest extends TestCase
                 maxDrop: 0.05,
                 metricTargets: ['exact-match:mean'],
                 maxRuns: 3,
+                runId: 'run-current',
+            );
+
+            $this->assertSame(AdversarialRegressionGateResult::STATUS_FAIL, $result->status);
+            $this->assertSame('run-clean-baseline', $result->baselineRunId);
+        } finally {
+            @unlink($path);
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
+            }
+        }
+    }
+
+    public function test_store_retention_preserves_latest_failure_free_baseline_over_failed_plain_runs(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR.'runs.json';
+        $store = new AdversarialRunManifestStore;
+
+        try {
+            $store->record(
+                path: $path,
+                report: $this->report('run.dataset', 1.0, 2.0, 1.0),
+                maxRuns: 1,
+                runId: 'run-clean-baseline',
+            );
+            $store->record(
+                path: $path,
+                report: $this->failedReport('run.dataset', 2.0, 3.0),
+                maxRuns: 1,
+                runId: 'run-failed-latest',
+            );
+
+            $this->assertSame(['run-clean-baseline'], array_map(
+                static fn (AdversarialRunManifestEntry $entry): string => $entry->runId,
+                $store->load($path)?->runs ?? [],
+            ));
+
+            $result = $store->recordWithRegressionGate(
+                path: $path,
+                report: $this->report('run.dataset', 3.0, 4.0, 0.0),
+                gate: new AdversarialRegressionGate,
+                maxDrop: 0.05,
+                metricTargets: ['exact-match:mean'],
+                maxRuns: 1,
                 runId: 'run-current',
             );
 
