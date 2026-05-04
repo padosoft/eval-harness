@@ -2031,4 +2031,4 @@
   - `vendor/bin/phpunit` => `OK (569 tests, 1565 assertions)`
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
-- Refreshed `gh` with `read:project`, so `gh pr edit --add-reviewer '@copilot'` is available again for PR #32. After the report API listing fix, the next remote step is to request a fresh Copilot review on the current head before merging.
+- Refreshed `gh` with `read:project`, requested a fresh Copilot review on PR #32 via `gh pr edit --add-reviewer '@copilot'`, and confirmed CI is green on head `98dc5b9`. Copilot review is now pending on the latest push before merge.
