@@ -2032,3 +2032,14 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Refreshed `gh` with `read:project`, requested a fresh Copilot review on PR #32 via `gh pr edit --add-reviewer '@copilot'`, and confirmed CI is green on head `98dc5b9`. Copilot review is now pending on the latest push before merge.
+
+## 2026-05-04
+
+- Opened subtask branch `task/report-api-ui-contract-api-endpoints` from `task/report-api-ui-contract`.
+- Extended the read-only report API contracts for separate UI consumers:
+  - implemented `GET /<prefix>/reports/{id}/cohorts`,
+  - implemented `GET /<prefix>/reports/{id}/histograms`,
+  - implemented `GET /<prefix>/reports/{id}/rows.csv` as deterministic row export,
+  - implemented `GET /<prefix>/reports/{id}/download` for direct artifact download.
+- Updated `docs/ROADMAP_IMPLEMENTATION_PLAN.md` and `README.md` comparison table/feature text to reflect completed API cohorts/histograms/download/CSV capabilities.
+- Added regression tests for new API route surfaces and failure modes in `tests/Unit/ReportApi/ReportApiRouteTest.php`.
