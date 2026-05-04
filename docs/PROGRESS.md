@@ -1590,3 +1590,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the fourth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `0dbbbff` and generated three actionable comments:
+  - padded `--manifest` paths should fail before eval execution even without `--regression-gate`,
+  - missing-baseline diagnostics should not say a metric-failure run was recorded when the store intentionally skips it,
+  - README should qualify first-run recording because metric-failure runs are not written as future baselines.
+- Addressed the fifth PR #28 review round by adding non-gated manifest preflight validation, refining the missing-baseline diagnostic for metric-failure runs, adding command coverage for both paths, and updating README first-run wording to say only failure-free runs seed future gates.
+- Targeted validation passed after the fifth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (65 tests, 212 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the fifth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (505 tests, 1322 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the fifth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

@@ -642,8 +642,9 @@ the current run is recorded. `--regression-max-drop=5` means five normalized
 percentage points. Repeat `--regression-metric=metric` or
 `--regression-metric=metric:mean|p50|p95|pass_rate` for additional
 metric aggregate checks. If no baseline exists, the command emits an
-explicit `missing-baseline` status and records the current run for the
-next gate.
+explicit `missing-baseline` status. Failure-free runs are recorded for
+the next gate; runs with metric failures are left out so they cannot
+seed broken baselines.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,

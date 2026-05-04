@@ -211,6 +211,38 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_manifest_rejects_padded_path_before_running_without_regression_gate(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => ' '.$manifest.' ',
+            ])
+                ->expectsOutputToContain('The --manifest option requires a non-empty file path without leading or trailing whitespace.')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+        }
+    }
+
     public function test_regression_gate_missing_baseline_is_explicit_and_non_failing(): void
     {
         $sample = $this->adversarialSample('ssrf');
@@ -241,6 +273,44 @@ final class AdversarialCommandTest extends TestCase
             $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
             $this->assertCount(1, $decoded['runs']);
             $this->assertEqualsWithDelta(1.0, $decoded['runs'][0]['macro_f1'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
+    public function test_regression_gate_missing_baseline_with_metric_failures_is_not_recorded(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['citation-groundedness'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--json' => true,
+                '--out' => $report,
+            ])
+                ->expectsOutputToContain('Adversarial regression gate: missing-baseline - no previous failure-free manifest run; current run has metric failures and was not recorded for future comparisons.')
+                ->assertExitCode(1);
+
+            $this->assertFileDoesNotExist($manifest);
         } finally {
             @unlink($outputs);
             @unlink($manifest);

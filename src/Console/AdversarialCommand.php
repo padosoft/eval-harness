@@ -90,7 +90,7 @@ final class AdversarialCommand extends Command
         }
 
         try {
-            $this->validateRegressionGateOptions();
+            $this->validateManifestAndRegressionGateOptions();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -151,6 +151,31 @@ final class AdversarialCommand extends Command
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
     }
 
+    private function validateManifestAndRegressionGateOptions(): void
+    {
+        if ($this->regressionGateEnabled()) {
+            $this->validateRegressionGateOptions();
+
+            return;
+        }
+
+        $this->validateManifestOptions();
+    }
+
+    private function validateManifestOptions(): void
+    {
+        $manifestPath = $this->option('manifest');
+        if ($manifestPath === null) {
+            return;
+        }
+
+        if (! is_string($manifestPath) || $manifestPath === '' || $manifestPath !== trim($manifestPath)) {
+            throw new EvalRunException('The --manifest option requires a non-empty file path without leading or trailing whitespace.');
+        }
+
+        $this->positiveIntegerOption('manifest-retain', 10);
+    }
+
     private function validateRegressionGateOptions(): void
     {
         if (! $this->regressionGateEnabled()) {
@@ -200,14 +225,20 @@ final class AdversarialCommand extends Command
             return null;
         }
 
-        $this->writeRegressionGateResult($result);
+        $this->writeRegressionGateResult($result, $report);
 
         return $result;
     }
 
-    private function writeRegressionGateResult(AdversarialRegressionGateResult $result): void
+    private function writeRegressionGateResult(AdversarialRegressionGateResult $result, EvalReport $report): void
     {
         if ($result->missingBaseline()) {
+            if ($report->totalFailures() > 0) {
+                $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no previous failure-free manifest run; current run has metric failures and was not recorded for future comparisons.');
+
+                return;
+            }
+
             $this->writeRegressionDiagnostic('Adversarial regression gate: missing-baseline - no previous manifest run; current run will be recorded for future comparisons.');
 
             return;
