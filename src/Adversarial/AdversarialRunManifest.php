@@ -70,7 +70,7 @@ final class AdversarialRunManifest
             $normalizedRuns[] = $run;
         }
 
-        $this->runs = $normalizedRuns;
+        $this->runs = self::sortRuns($normalizedRuns);
     }
 
     public static function empty(string $name, ?float $now = null): self
@@ -134,7 +134,7 @@ final class AdversarialRunManifest
             }
         }
 
-        $runs = $this->sortRuns($runs);
+        $runs = self::sortRuns($runs);
 
         return new self(
             name: $this->name,
@@ -199,14 +199,14 @@ final class AdversarialRunManifest
             $retainedCleanSignatures[$signature] = true;
         }
 
-        return $this->sortRuns($retained);
+        return self::sortRuns($retained);
     }
 
     /**
      * @param  list<AdversarialRunManifestEntry>  $runs
      * @return list<AdversarialRunManifestEntry>
      */
-    private function sortRuns(array $runs): array
+    private static function sortRuns(array $runs): array
     {
         usort($runs, static function (AdversarialRunManifestEntry $left, AdversarialRunManifestEntry $right): int {
             $byFinishedAt = $right->finishedAt <=> $left->finishedAt;

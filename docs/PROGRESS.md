@@ -1800,3 +1800,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the eighteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `953a1e8` and generated three actionable comments:
+  - README needed to say plain failure-free `--manifest` writes can also advance future baselines,
+  - `latestCompatibleBaseline()` no longer depended on manifest order, but `load()->latest()` still did for unsorted JSON,
+  - `--regression-max-drop` and `--regression-metric` were silently ignored without `--regression-gate`.
+- Addressed the nineteenth PR #28 review round by sorting manifest runs in the constructor/load path, documenting plain failure-free manifest writes as baseline-eligible, rejecting regression-only options unless `--regression-gate` is enabled, and adding command/store regression coverage for those cases.
+- Targeted validation passed after the nineteenth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (88 tests, 299 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the nineteenth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (528 tests, 1409 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the nineteenth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

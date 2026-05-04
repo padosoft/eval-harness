@@ -685,6 +685,8 @@ final class AdversarialRunManifestTest extends TestCase
                 updatedAt: 4.0,
             ));
 
+            $this->assertSame('run-newer-clean', $store->load($path)?->latest()?->runId);
+
             $result = $store->recordWithRegressionGate(
                 path: $path,
                 report: $this->report('run.dataset', 5.0, 6.0, 0.76),

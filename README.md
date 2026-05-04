@@ -654,9 +654,11 @@ metric aggregate checks. Configured regression metrics must exist in the
 current run; missing current aggregates fail closed even when no baseline
 exists yet. If no compatible failure-free baseline exists after that
 validation, the command emits an explicit `missing-baseline` status. Runs
-are recorded for the next gate only when they are failure-free and do not
-fail configured gate checks; metric failures and gate failures are left
-out so they cannot seed broken baselines.
+can advance the next compatible baseline whenever they are written to the
+manifest and failure-free, including plain `--manifest` writes without
+`--regression-gate`. Gated runs are recorded only when they are
+failure-free and do not fail configured gate checks; metric failures and
+gate failures are left out so they cannot seed broken baselines.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,

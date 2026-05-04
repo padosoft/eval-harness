@@ -153,9 +153,9 @@ final class AdversarialCommand extends Command
 
     private function validateManifestAndRegressionGateOptions(): void
     {
-        if ($this->regressionGateEnabled()) {
-            $this->validateRegressionGateOptions();
+        $this->validateRegressionGateOptions();
 
+        if ($this->regressionGateEnabled()) {
             return;
         }
 
@@ -175,6 +175,15 @@ final class AdversarialCommand extends Command
     private function validateRegressionGateOptions(): void
     {
         if (! $this->regressionGateEnabled()) {
+            $metricTargets = $this->option('regression-metric');
+            if (is_array($metricTargets) && $metricTargets !== []) {
+                throw new EvalRunException('The --regression-metric option requires --regression-gate.');
+            }
+
+            if ($this->optionWasProvided('regression-max-drop')) {
+                throw new EvalRunException('The --regression-max-drop option requires --regression-gate.');
+            }
+
             return;
         }
 
@@ -208,6 +217,11 @@ final class AdversarialCommand extends Command
         }
 
         return $manifestPath;
+    }
+
+    private function optionWasProvided(string $name): bool
+    {
+        return $this->input->hasParameterOption('--'.$name, true);
     }
 
     private function recordManifestWithRegressionGate(EvalReport $report): ?AdversarialRegressionGateResult

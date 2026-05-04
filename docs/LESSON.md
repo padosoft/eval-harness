@@ -263,3 +263,6 @@
 - Command tests for regression gates should assert operator-facing diagnostics as well as exit codes and manifest contents, especially score-drop failure summaries and stderr/stdout routing.
 - Compatibility signatures should normalize duplicate category summaries with a deterministic secondary key such as `sample_count`. `usort()` with only the category name can leave same-name duplicates order-dependent and make equivalent manifest slices hash differently.
 - `--regression-gate` manifest guidance should mention first-run seeding as well as comparisons. A manifest is required even when there is no previous baseline because the current clean run can become the first compatible baseline.
+- Plain `--manifest` writes can advance future regression baselines when they are failure-free. README wording should distinguish that general manifest rule from the stricter gated-write rule that skips metric failures and failed gate results.
+- Reject `--regression-max-drop` and `--regression-metric` unless `--regression-gate` is enabled. Otherwise a CI typo can silently run a plain manifest write and weaken the next baseline instead of failing fast.
+- Load/construct adversarial run manifests in newest-first order. If `latestCompatibleBaseline()` compensates for out-of-order JSON but `latest()` does not, public manifest APIs disagree about the latest run.
