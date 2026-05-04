@@ -1442,3 +1442,68 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README comparison prefix check after the severity fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- PR #26 merged into `task/adversarial-regression` at merge commit `ac4db2e`, then started the adversarial run manifest slice on `task/adversarial-regression-manifest`.
+- Implemented adversarial run manifests:
+  - added `AdversarialRunManifestEntry`, `AdversarialRunManifest`, and `AdversarialRunManifestStore` for versioned local JSON manifests that retain the latest N adversarial run summaries,
+  - bound the manifest store in the service provider,
+  - added `eval-harness:adversarial --manifest=<path> --manifest-retain=N`,
+  - kept manifest payloads to safe report summaries: schema versions, timestamps, sample/failure counts, macro-F1, metric aggregates, and normalized adversarial coverage.
+- Updated README's feature list, adversarial command docs, roadmap note, and comparison matrix with adversarial run history manifests while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial manifest slice:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (28 tests, 84 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the adversarial manifest slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (468 tests, 1194 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding nine adversarial manifest tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Opened PR #27 (`task/adversarial-regression-manifest` -> `task/adversarial-regression`) and requested official Copilot review through the GraphQL fallback after `gh pr edit 27 --add-reviewer copilot` failed with missing `read:project`.
+- PR #27 CI passed across the PHP 8.3/8.4/8.5 x Laravel 12/13 matrix. Copilot reviewed all 12 changed files and generated three actionable comments; Codex's automatic review also generated one actionable concurrency comment.
+- Started PR #27 review fixes:
+  - serialize manifest `record()` read/modify/write with a stable lock file,
+  - reject writing runs into an existing manifest with a different manifest name,
+  - create manifest directories with `0755`,
+  - make default run-id timestamp formatting locale-independent.
+- Targeted validation passed after the PR #27 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (30 tests, 87 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the PR #27 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (470 tests, 1197 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `eb31478` and generated four actionable comments: command tests left manifest lock files behind, nested adversarial category metric aggregates were normalized but not range-validated, and direct store callers defaulted the manifest name to an old unversioned dataset name.
+- Addressed the second PR #27 review round by cleaning up command-test lock files, validating nested category metric aggregates with the same [0,1] bounds as top-level metrics, deriving the default manifest name from `EvalReport::datasetName`, and adding regression coverage.
+- Targeted validation passed after the second PR #27 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 90 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the second PR #27 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (472 tests, 1200 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding two more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `e67170b` and generated two actionable comments: `macro_f1` needed an upper bound and manifest rehydration needed full validation for the normalized adversarial category/framework shapes.
+- Addressed the third PR #27 review round by bounding `macro_f1` to `[0, 1]`, validating category fields (`category`, `label`, nullable `severity`, `sample_count`, `compliance_frameworks`, `metrics`), validating compliance framework entries, and adding tampered-manifest regression coverage.
+- Targeted validation passed after the third PR #27 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (35 tests, 96 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the third PR #27 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (475 tests, 1206 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding three more review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #27 again at head `e3e1ba6` and generated one actionable documentation comment: the roadmap showed `--manifest` as if it were a boolean flag instead of `--manifest=<path>`.
+- Corrected the roadmap command note to `eval-harness:adversarial --manifest=<path> --manifest-retain=N`.
+- Full local gate passed after the roadmap PR #27 review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (475 tests, 1206 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the roadmap fix. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
