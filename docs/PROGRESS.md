@@ -1423,3 +1423,11 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding four adversarial reporting tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #26 at head `39ca3c5` and generated one actionable comment: the JSON report renderer docblock example omitted adversarial category `label` and `severity` fields that the renderer actually emits.
+- Addressed the PR #26 docblock contract comment by adding `label` and `severity` to the `JsonReportRenderer` JSON shape example and recording the synchronization lesson.
+- Full local gate passed after the PR #26 docblock fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (458 tests, 1152 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README comparison prefix check after the docblock fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

@@ -30,7 +30,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   ],
  *   "adversarial": {
  *     "total_samples": 2,
- *     "categories": [{"category": "prompt-injection", "sample_count": 1, "compliance_frameworks": ["OWASP LLM"], "metrics": {...}}],
+ *     "categories": [{"category": "prompt-injection", "label": "Prompt injection", "severity": "high", "sample_count": 1, "compliance_frameworks": ["OWASP LLM"], "metrics": {...}}],
  *     "compliance_frameworks": [{"framework": "OWASP LLM", "sample_count": 2, "categories": ["prompt-injection"]}]
  *   },
  *   "macro_f1": 0.8,
