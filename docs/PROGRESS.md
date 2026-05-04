@@ -1507,3 +1507,23 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the roadmap fix. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+
+## 2026-05-04
+
+- PR #27 merged into `task/adversarial-regression` at merge commit `2a0671d`, completing the adversarial run manifest slice.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-gate` from updated `task/adversarial-regression`.
+- Implemented the adversarial regression gate slice:
+  - added `AdversarialRegressionGate`, `AdversarialRegressionGateResult`, and `AdversarialRegressionGateCheck`,
+  - bound the gate in the service provider,
+  - added `eval-harness:adversarial --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`,
+  - compares the current run against the latest existing manifest entry before recording the current run,
+  - treats missing baseline as an explicit non-failing `missing-baseline` status and fails closed when configured metric aggregates are absent.
+- Updated README feature docs, adversarial command docs, roadmap text, and the comparison matrix with the adversarial regression gate while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial regression gate slice:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 103 assertions)`
+- Full local gate passed for the adversarial regression gate slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (485 tests, 1251 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding regression gate tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

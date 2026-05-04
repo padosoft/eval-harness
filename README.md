@@ -122,7 +122,8 @@ surface small and the offline path fast.
   seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
   abuse, and similar red-team categories. JSON/Markdown reports add
   category and compliance-framework summaries, and optional manifests
-  retain the last N adversarial run summaries for regression gates.
+  retain the last N adversarial run summaries; `--regression-gate`
+  fails CI when macro-F1 or configured metric aggregates drop.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -165,6 +166,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
 | Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
 | Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains last N adversarial summaries** |
+| Adversarial regression gate | ⚠️ PARTIAL - custom eval thresholds | ✅ YES - hosted experiment comparisons | ⚠️ PARTIAL - custom CI checks | ✅ YES - threshold/regression workflows | ✅ YES - test assertions/regression workflows | **✅ YES - `--regression-gate` fails on macro-F1 or metric drops from local manifests** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -619,6 +621,9 @@ php artisan eval-harness:adversarial \
   --category=pii-leak \
   --manifest=storage/eval/adversarial-runs.json \
   --manifest-retain=10 \
+  --regression-gate \
+  --regression-max-drop=5 \
+  --regression-metric=exact-match:mean \
   --json --out=adversarial.json
 ```
 
@@ -629,7 +634,14 @@ precomputed responses, and reuses the same `--batch`,
 `--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
 options as `eval-harness:run`. Add `--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep only
-the newest N adversarial summaries.
+the newest N adversarial summaries. Add `--regression-gate` to compare
+the current run with the latest existing manifest entry before the
+current run is recorded. `--regression-max-drop=5` means five normalized
+percentage points. Repeat `--regression-metric=metric` or
+`--regression-metric=metric:mean|p50|p95|pass_rate` for additional
+metric aggregate checks. If no baseline exists, the command emits an
+explicit `missing-baseline` status and records the current run for the
+next gate.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
@@ -846,8 +858,9 @@ accidentally and never burns API credits.
   `eval-harness:adversarial`; JSON/Markdown category and compliance
   framework summaries are implemented.
 - **Regression detection** — JSON manifests now store the last N
-  adversarial runs; a future slice will fail the gate when macro-F1 or
-  a configured metric drops more than X%.
+  adversarial runs, and `--regression-gate` fails the gate when macro-F1
+  or a configured metric aggregate drops more than the allowed
+  percentage points.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy

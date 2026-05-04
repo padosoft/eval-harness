@@ -6,6 +6,11 @@ namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateCheck;
+use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGateResult;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestEntry;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Console\Concerns\BuildsBatchOptions;
 use Padosoft\EvalHarness\Console\Concerns\DispatchesEvalRegistrars;
@@ -42,6 +47,9 @@ final class AdversarialCommand extends Command
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--manifest= : JSON manifest path to update with this adversarial run summary}
         {--manifest-retain=10 : Maximum number of adversarial runs to retain when --manifest is used}
+        {--regression-gate : Compare this run with the latest existing --manifest baseline and fail on score drops}
+        {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
+        {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
         {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
         {--queue= : Queue name for queue-backed batch modes}
@@ -77,6 +85,14 @@ final class AdversarialCommand extends Command
                 categories: $this->categoryOptions(),
                 metricSpecs: $this->metricOptions(),
             ));
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        try {
+            $baselineManifest = $this->regressionBaselineManifest($datasetName);
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -120,11 +136,170 @@ final class AdversarialCommand extends Command
             return self::FAILURE;
         }
 
+        try {
+            $regressionGate = $this->evaluateRegressionGate($report, $baselineManifest);
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
         if (! $this->recordManifest($report)) {
             return self::FAILURE;
         }
 
+        if ($regressionGate?->failed()) {
+            return self::FAILURE;
+        }
+
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function regressionBaselineManifest(string $datasetName): ?AdversarialRunManifest
+    {
+        if (! $this->regressionGateEnabled()) {
+            return null;
+        }
+
+        $manifestPath = $this->manifestPathForRegressionGate();
+        $this->regressionMaxDropRatio();
+
+        /** @var AdversarialRunManifestStore $store */
+        $store = $this->laravel->make(AdversarialRunManifestStore::class);
+        $manifest = $store->load($manifestPath);
+        if ($manifest !== null && $manifest->name !== $datasetName) {
+            throw new EvalRunException(sprintf(
+                "Adversarial run manifest '%s' belongs to manifest '%s', not '%s'.",
+                $manifestPath,
+                $manifest->name,
+                $datasetName,
+            ));
+        }
+
+        return $manifest;
+    }
+
+    private function manifestPathForRegressionGate(): string
+    {
+        $manifestPath = $this->option('manifest');
+        if (! is_string($manifestPath) || $manifestPath === '') {
+            throw new EvalRunException('The --regression-gate option requires --manifest=<path> so a previous adversarial run can be used as baseline.');
+        }
+
+        return $manifestPath;
+    }
+
+    private function evaluateRegressionGate(EvalReport $report, ?AdversarialRunManifest $baselineManifest): ?AdversarialRegressionGateResult
+    {
+        if (! $this->regressionGateEnabled()) {
+            return null;
+        }
+
+        /** @var AdversarialRegressionGate $gate */
+        $gate = $this->laravel->make(AdversarialRegressionGate::class);
+        $result = $gate->evaluate(
+            current: AdversarialRunManifestEntry::fromReport($report),
+            baseline: $baselineManifest?->latest(),
+            maxDrop: $this->regressionMaxDropRatio(),
+            metricTargets: $this->stringListOption('regression-metric'),
+        );
+
+        $this->writeRegressionGateResult($result);
+
+        return $result;
+    }
+
+    private function writeRegressionGateResult(AdversarialRegressionGateResult $result): void
+    {
+        $errorOutput = $this->output->getErrorStyle();
+
+        if ($result->missingBaseline()) {
+            $errorOutput->writeln('Adversarial regression gate: missing-baseline - no previous manifest run; current run will be recorded for future comparisons.');
+
+            return;
+        }
+
+        if (! $result->failed()) {
+            $maxDrop = $result->checks[0]->maxDrop ?? 0.0;
+            $errorOutput->writeln(sprintf(
+                'Adversarial regression gate: pass - %d check(s), max drop %s.',
+                count($result->checks),
+                $this->formatPercentagePoints($maxDrop),
+            ));
+
+            return;
+        }
+
+        $errorOutput->writeln('Adversarial regression gate: fail - '.$this->regressionGateFailureSummary($result));
+    }
+
+    private function regressionGateFailureSummary(AdversarialRegressionGateResult $result): string
+    {
+        $messages = [];
+        foreach ($result->checks as $check) {
+            if (! $check->failed()) {
+                continue;
+            }
+
+            if ($check->status === AdversarialRegressionGateCheck::STATUS_MISSING_VALUE) {
+                $missing = [];
+                if ($check->baselineScore === null) {
+                    $missing[] = 'baseline';
+                }
+                if ($check->currentScore === null) {
+                    $missing[] = 'current';
+                }
+
+                $messages[] = sprintf('%s missing from %s run', $check->target, implode(' and ', $missing));
+
+                continue;
+            }
+
+            $messages[] = sprintf(
+                '%s dropped by %s (baseline %s -> current %s, max %s)',
+                $check->target,
+                $this->formatPercentagePoints($check->drop ?? 0.0),
+                $this->formatScore($check->baselineScore ?? 0.0),
+                $this->formatScore($check->currentScore ?? 0.0),
+                $this->formatPercentagePoints($check->maxDrop),
+            );
+        }
+
+        return implode('; ', $messages);
+    }
+
+    private function regressionGateEnabled(): bool
+    {
+        return (bool) $this->option('regression-gate');
+    }
+
+    private function regressionMaxDropRatio(): float
+    {
+        $value = $this->option('regression-max-drop');
+        if ($value === null || $value === '') {
+            return 0.05;
+        }
+
+        if ((! is_string($value) && ! is_int($value) && ! is_float($value)) || (is_string($value) && $value !== trim($value)) || ! is_numeric($value)) {
+            throw new EvalRunException('The --regression-max-drop option must be a finite percentage in [0, 100].');
+        }
+
+        $percent = (float) $value;
+        if ($percent < 0.0 || $percent > 100.0 || is_nan($percent) || is_infinite($percent)) {
+            throw new EvalRunException('The --regression-max-drop option must be a finite percentage in [0, 100].');
+        }
+
+        return $percent / 100.0;
+    }
+
+    private function formatPercentagePoints(float $ratio): string
+    {
+        return number_format($ratio * 100.0, 2, '.', '').' percentage points';
+    }
+
+    private function formatScore(float $score): string
+    {
+        return number_format($score, 4, '.', '');
     }
 
     private function recordManifest(EvalReport $report): bool

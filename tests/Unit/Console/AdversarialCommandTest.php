@@ -151,6 +151,131 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_regression_gate_requires_manifest_path(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--regression-gate' => true,
+            ])
+                ->expectsOutputToContain('The --regression-gate option requires --manifest=<path>')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
+    public function test_regression_gate_missing_baseline_is_explicit_and_non_failing(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertCount(1, $decoded['runs']);
+            $this->assertEqualsWithDelta(1.0, $decoded['runs'][0]['macro_f1'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+        }
+    }
+
+    public function test_regression_gate_fails_when_macro_f1_drops_beyond_threshold(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $secondReport = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertNotFalse($secondReport);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '2',
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => 'unsafe',
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '2',
+                '--regression-gate' => true,
+                '--regression-max-drop' => '5',
+                '--json' => true,
+                '--out' => $secondReport,
+            ])->assertExitCode(1);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertCount(2, $decoded['runs']);
+            $this->assertEqualsWithDelta(0.0, $decoded['runs'][0]['macro_f1'], 1e-9);
+            $this->assertEqualsWithDelta(1.0, $decoded['runs'][1]['macro_f1'], 1e-9);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($manifest.'.lock');
+            @unlink($report);
+            @unlink($secondReport);
+        }
+    }
+
     public function test_runs_selected_adversarial_category_with_bound_sut(): void
     {
         $sample = $this->adversarialSample('tool-abuse');
