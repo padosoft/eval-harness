@@ -832,17 +832,23 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
-    public function test_dispatch_uses_effective_chunk_size_for_producer_window(): void
+    public function test_run_uses_effective_chunk_size_for_producer_window(): void
     {
-        Queue::fake();
+        // RecordingBatchResultStore captures one `outputs:` event per
+        // `collectIndexedOutputsOrNull()` call, and that helper is invoked
+        // exactly once per producer window under the sync queue (because
+        // sync workers write the result before the producer polls). So the
+        // count of `outputs:` events equals the number of producer windows
+        // and lets us prove the chunk size actually drives windowing,
+        // independent of the total dispatched job count.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
 
-        /** @var Dispatcher $dispatcher */
-        $dispatcher = $this->app->make(Dispatcher::class);
-        $batch = new LazyParallelBatch(
-            dispatcher: $dispatcher,
-            resultStore: new RecordingBatchResultStore,
-            resultTtlSeconds: 10,
-        );
+        $store = new RecordingBatchResultStore;
+        $this->app->instance(BatchResultStore::class, $store);
+
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
 
         $samples = [
             new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
@@ -851,18 +857,28 @@ final class LazyParallelBatchTest extends TestCase
             new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
         ];
 
-        $batch->dispatch(
+        $batch->run(
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: new LazyParallelAnswerRunner,
             options: BatchOptions::lazyParallel(
                 concurrency: 4,
                 queue: 'evals',
+                timeoutSeconds: 5,
                 chunkSize: 2,
             ),
         );
 
-        Queue::assertPushed(EvaluateSampleJob::class, 4);
+        $outputsReads = count(array_filter(
+            $store->events,
+            static fn (string $event): bool => str_starts_with($event, 'outputs:'),
+        ));
+
+        $this->assertSame(
+            2,
+            $outputsReads,
+            'chunkSize=2 with 4 samples must iterate two producer windows, not one.',
+        );
     }
 
     public function test_run_invokes_progress_reporter_at_checkpoint_intervals(): void
@@ -961,13 +977,106 @@ final class LazyParallelBatchTest extends TestCase
 
         $this->assertSame(
             [
-                ['samples_completed' => 12, 'total' => 24],
+                ['samples_completed' => 10, 'total' => 24],
                 ['samples_completed' => 20, 'total' => 24],
                 ['samples_completed' => 24, 'total' => 24],
             ],
             $reporter->checkpoints,
-            'Reporter must emit a checkpoint when each multiple-of-10 threshold is crossed plus a final checkpoint at end-of-batch.',
+            'Reporter must emit a checkpoint exactly at each multiple-of-N threshold crossed by the cumulative count, plus a final checkpoint at end-of-batch when the total is not itself a multiple of N.',
         );
+    }
+
+    public function test_run_emits_one_checkpoint_per_threshold_when_chunk_size_exceeds_interval(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        // chunkSize=10 with checkpoint_every=3 means a single producer
+        // window crosses thresholds 3, 6, and 9 at once. Every threshold
+        // must still emit, and a final checkpoint must fire at end-of-batch.
+        $samples = [];
+        for ($i = 0; $i < 10; $i++) {
+            $samples[] = new DatasetSample(
+                id: 's'.($i + 1),
+                input: ['answer' => 'a'.($i + 1)],
+                expectedOutput: 'a'.($i + 1),
+            );
+        }
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 10,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                chunkSize: 10,
+                checkpointEvery: 3,
+            ),
+        );
+
+        $this->assertSame(
+            [
+                ['samples_completed' => 3, 'total' => 10],
+                ['samples_completed' => 6, 'total' => 10],
+                ['samples_completed' => 9, 'total' => 10],
+                ['samples_completed' => 10, 'total' => 10],
+            ],
+            $reporter->checkpoints,
+            'Reporter must fire one event per crossed threshold even when a single window spans multiple intervals.',
+        );
+    }
+
+    public function test_run_completes_when_progress_reporter_throws(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: new ThrowingBatchProgressReporter,
+        );
+
+        $samples = $this->samples();
+
+        // A logging or metrics reporter that throws at checkpoint time
+        // must NOT abort the batch. The eval would otherwise flip green
+        // runs to exit 1 because of unrelated telemetry trouble.
+        $outputs = $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 1,
+            ),
+        );
+
+        $this->assertSame(['first output', 'second output'], $outputs);
     }
 
     public function test_run_emits_final_checkpoint_even_when_total_is_below_interval(): void
@@ -1821,5 +1930,13 @@ final class RecordingBatchProgressReporter implements BatchProgressReporter
             'samples_completed' => $samplesCompleted,
             'total' => $totalSamples,
         ];
+    }
+}
+
+final class ThrowingBatchProgressReporter implements BatchProgressReporter
+{
+    public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+    {
+        throw new \RuntimeException('telemetry sink unavailable');
     }
 }

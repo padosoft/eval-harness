@@ -8,8 +8,12 @@ use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Batches\BatchProfile;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
@@ -176,6 +180,59 @@ final class ServiceProviderTest extends TestCase
 
         $this->assertSame(3600, $ttl->getValue($batch));
         $this->assertSame(60, $wait->getValue($batch));
+    }
+
+    public function test_batch_profile_resolver_is_an_explicit_singleton_with_built_in_profiles(): void
+    {
+        $this->assertTrue($this->app->bound(BatchProfileResolver::class));
+
+        $first = $this->app->make(BatchProfileResolver::class);
+        $second = $this->app->make(BatchProfileResolver::class);
+
+        $this->assertInstanceOf(BatchProfileResolver::class, $first);
+        $this->assertSame($first, $second, 'BatchProfileResolver must be a container singleton.');
+        $this->assertContains(BatchProfile::NAME_CI, $first->names());
+        $this->assertContains(BatchProfile::NAME_SMOKE, $first->names());
+        $this->assertContains(BatchProfile::NAME_NIGHTLY, $first->names());
+    }
+
+    public function test_batch_profile_resolver_picks_up_config_overrides(): void
+    {
+        config(['eval-harness.batches.profiles' => [
+            'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $profile = $this->app->make(BatchProfileResolver::class)->resolve(BatchProfile::NAME_CI);
+
+        $this->assertSame(8, $profile->concurrency);
+        $this->assertSame(30, $profile->rateLimit);
+    }
+
+    public function test_default_batch_progress_reporter_is_no_op(): void
+    {
+        $reporter = $this->app->make(BatchProgressReporter::class);
+
+        $this->assertInstanceOf(NullBatchProgressReporter::class, $reporter);
+    }
+
+    public function test_lazy_parallel_batch_uses_bound_progress_reporter(): void
+    {
+        $custom = new class implements BatchProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchProgressReporter::class, $custom);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+
+        $reporterProperty = new \ReflectionProperty($batch, 'progressReporter');
+
+        $this->assertSame($custom, $reporterProperty->getValue($batch));
     }
 
     public function test_batch_result_store_uses_configured_cache_store(): void

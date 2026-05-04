@@ -2112,3 +2112,21 @@
   - `vendor/bin/phpunit` => `OK (612 tests, 1681 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` => no errors.
   - `vendor/bin/pint --test` => passed.
+- Opened subtask PR #37 (`task/enterprise-operations-scalability-batch-profiles` -> `task/enterprise-operations-scalability`); CI passed across PHP 8.3/8.4/8.5 x Laravel 12/13.
+- Codex review at head `74a1fa2e` flagged two real defects: TTL sizing ignored chunk-size (long runs with chunk-size < concurrency could expire metadata mid-run) and checkpoint emission missed thresholds when chunk-size did not divide checkpoint-every. Fixed both in commit `3ef198e`:
+  - `resultTtlSecondsFor()` now derives window count from `effectiveChunkSize()`.
+  - `reportCheckpointIfDue()` tracks the next-due threshold and fires when the cumulative count crosses it, plus an end-of-batch event.
+- Targeted validation passed after the Codex fixes: `vendor/bin/phpunit tests/Unit/Batches` => `OK (93 tests, 196 assertions)`.
+- Full local gate passed after the Codex fixes: `OK (614 tests, 1683 assertions)`, PHPStan no errors, Pint passed, composer validate clean.
+- Copilot review at head `3ef198e` (and previous `74a1fa2e` for two suppressed-confidence comments) generated 12 actionable comments covering: producer-side rate-limit time not in TTL, reporter exceptions could abort the batch, the chunk-size test only counted total dispatches, missing AdversarialCommandTest coverage for the new flags, --concurrency help text and earlier README/Horizon sections still claimed --concurrency was the producer window, BatchProfileResolver docblock referenced a nonexistent `register()` method, ServiceProviderTest did not cover BatchProfileResolver / BatchProgressReporter bindings, checkpoint emission was per-window instead of per-threshold-crossed, and the existing checkpoint test only exercised the aligned case where chunk_size matched checkpoint_every.
+- Addressed every Copilot comment in the next push:
+  - `resultTtlSecondsFor()` now also adds the worst-case rate-limit pause time (`(rateBatches - 1) * rateWindowSeconds`).
+  - `safeReportCheckpoint()` swallows reporter exceptions so a transient telemetry failure cannot abort an otherwise-green batch.
+  - `reportCheckpointIfDue()` now emits one event per multiple of N crossed by the cumulative count (so chunk_size=10 + checkpoint_every=3 fires at 3, 6, 9, 10), not just once per window. The reported `samples_completed` equals the threshold itself.
+  - Added `test_run_uses_effective_chunk_size_for_producer_window` (run-based, observes window iteration via `RecordingBatchResultStore` events, replaces the dispatch-based test that did not actually prove windowing).
+  - Added `test_run_emits_one_checkpoint_per_threshold_when_chunk_size_exceeds_interval` and `test_run_completes_when_progress_reporter_throws` to pin the new semantics.
+  - Added 5 new AdversarialCommandTest cases for `--batch-profile`, `--chunk-size`, `--rate-limit`, `--checkpoint-every` plus a serial-mode rejection.
+  - Updated `--concurrency` help text in both commands and reconciled the earlier README + Horizon sections to call out that `--chunk-size` overrides the producer window when set.
+  - Removed the false `register()` reference from the `BatchProfileResolver` docblock.
+  - Added 4 new ServiceProviderTest cases covering BatchProfileResolver singleton/built-ins/config-overrides and BatchProgressReporter default + LazyParallelBatch wiring.
+- Full local gate passed after the Copilot fixes: `composer validate --strict`, `vendor/bin/phpunit` => `OK (626 tests, 1709 assertions)`, PHPStan no errors, Pint passed.

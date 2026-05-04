@@ -53,7 +53,7 @@ final class AdversarialCommand extends Command
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
         {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults}
-        {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
+        {--concurrency=1 : Producer fan-out for lazy-parallel mode (also the default --chunk-size); --chunk-size overrides the dispatch window when set}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
         {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}

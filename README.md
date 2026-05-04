@@ -505,14 +505,16 @@ Use Laravel's `sync` queue driver for unit tests. In production, run
 Horizon workers on the chosen queue and set
 `EVAL_HARNESS_BATCH_CACHE_STORE` to a cache backend shared by the
 command process and workers so queued sample outputs can be collected
-for report assembly. `--concurrency` caps how many sample jobs this
-command dispatches before waiting for the current window; Horizon
-worker counts are configured in Horizon. `--timeout` is the per-sample
-job timeout; `--batch-timeout` is the maximum wait for each dispatch
-window to finish before the command reports missing queued outputs.
-Programmatic external `dispatch()` / `collectOutputs()` flows can set
-`BatchOptions::lazyParallel(resultTtlSeconds: ...)` to keep result
-metadata and sample outputs alive long enough for delayed collection.
+for report assembly. `--concurrency` is the lazy-parallel producer
+fan-out and is also the default dispatch window size; pass
+`--chunk-size` to override the producer window independently of
+fan-out. Horizon worker counts are configured in Horizon. `--timeout`
+is the per-sample job timeout; `--batch-timeout` is the maximum wait
+for each dispatch window to finish before the command reports missing
+queued outputs. Programmatic external `dispatch()` / `collectOutputs()`
+flows can set `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to
+keep result metadata and sample outputs alive long enough for delayed
+collection.
 See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
 Horizon supervisor, cache-store, and timeout sizing guidance.
 

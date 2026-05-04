@@ -540,23 +540,33 @@ final class LazyParallelBatch
             return $nextCheckpointThreshold;
         }
 
-        // We honour `--checkpoint-every=N` even when the producer chunk does
-        // not divide N: an event fires whenever the cumulative completed
-        // count crosses the next multiple of N (the reported value is the
-        // actual cumulative count, which may be slightly above the threshold
-        // by up to chunk-size - 1). A final event always fires at end-of-batch.
-        $crossedThreshold = $samplesCompleted >= $nextCheckpointThreshold;
-        $atFinalSample = $samplesCompleted >= $totalSamples && $samplesCompleted > 0;
-
-        if ($crossedThreshold || $atFinalSample) {
-            $this->progressReporter->reportCheckpoint($batchId, $samplesCompleted, $totalSamples);
-        }
-
-        while ($samplesCompleted >= $nextCheckpointThreshold) {
+        // Emit one event per multiple of N that the cumulative completed
+        // count has crossed since the last call. This matters when one
+        // producer window completes more than one interval at once
+        // (chunkSize >= checkpointEvery), e.g. chunkSize=100 + every=25
+        // => 25/50/75/100 instead of a single event at 100.
+        while ($samplesCompleted >= $nextCheckpointThreshold && $nextCheckpointThreshold <= $totalSamples) {
+            $this->safeReportCheckpoint($batchId, $nextCheckpointThreshold, $totalSamples);
             $nextCheckpointThreshold += $checkpointEvery;
         }
 
+        // Always emit a final event at end-of-batch, unless the threshold
+        // loop above already emitted exactly at totalSamples.
+        if ($samplesCompleted >= $totalSamples && $totalSamples > 0 && $totalSamples % $checkpointEvery !== 0) {
+            $this->safeReportCheckpoint($batchId, $totalSamples, $totalSamples);
+        }
+
         return $nextCheckpointThreshold;
+    }
+
+    private function safeReportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+    {
+        try {
+            $this->progressReporter->reportCheckpoint($batchId, $samplesCompleted, $totalSamples);
+        } catch (Throwable) {
+            // Reporter is best-effort. A transient logging or metrics failure
+            // must never abort an otherwise-healthy batch.
+        }
     }
 
     /**
@@ -736,6 +746,7 @@ final class LazyParallelBatch
     private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, ?int $sampleCount = null): int
     {
         $windowWaitSeconds = 0;
+        $rateLimitSeconds = 0;
         if ($sampleCount !== null) {
             // Window count must mirror the effective producer window so the TTL
             // covers the actual loop. When --chunk-size is smaller than
@@ -744,12 +755,23 @@ final class LazyParallelBatch
             $effectiveChunkSize = $options->effectiveChunkSize();
             $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
             $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
+
+            // Producer-side rate limiting also adds wall-clock delay before
+            // later samples are even enqueued. The worst case is a full
+            // rate-window pause between every full burst of `rateLimit`
+            // dispatches, so the TTL must cover dispatch + worker time
+            // together.
+            if ($options->rateLimit !== null) {
+                $rateWindow = $options->rateWindowSeconds ?? 60;
+                $rateBatches = max(1, intdiv($sampleCount + $options->rateLimit - 1, $options->rateLimit));
+                $rateLimitSeconds = ($rateBatches - 1) * $rateWindow;
+            }
         }
 
         return max(
             $this->resultTtlSeconds,
             $waitTimeoutSeconds,
-            $windowWaitSeconds,
+            $windowWaitSeconds + $rateLimitSeconds,
             $options->timeoutSeconds ?? 0,
             $options->resultTtlSeconds ?? 0,
         );

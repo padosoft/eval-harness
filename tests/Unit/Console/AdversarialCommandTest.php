@@ -1381,6 +1381,112 @@ final class AdversarialCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_smoke_profile_runs_serial_against_saved_outputs(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->assertIsString($sample->expectedOutput);
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-profile-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-profile-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            // smoke profile resolves to serial mode without an SUT binding;
+            // saved outputs should score cleanly without any queue plumbing.
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['prompt-injection'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--batch-profile' => 'smoke',
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_unknown_profile_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch-profile' => 'release',
+        ])
+            ->expectsOutputToContain("Unknown batch profile 'release'")
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_chunk_size_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--chunk-size' => 'abc',
+        ])
+            ->expectsOutputToContain('The --chunk-size option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_rate_limit_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-limit' => '-3',
+        ])
+            ->expectsOutputToContain('The --rate-limit option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_checkpoint_every_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--checkpoint-every' => 'abc',
+        ])
+            ->expectsOutputToContain('The --checkpoint-every option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_mode_rejects_explicit_chunk_size(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--chunk-size' => '4',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a chunk size.')
+            ->assertExitCode(1);
+    }
+
     private function adversarialSample(string $category): DatasetSample
     {
         /** @var AdversarialDatasetFactory $factory */

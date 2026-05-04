@@ -41,8 +41,9 @@ php artisan eval-harness:run rag.factuality.fy2026 \
   --out=evals/rag-factuality.json
 ```
 
-`--concurrency` is the producer window size: it controls how many sample jobs
-the command dispatches before waiting for that window. Actual worker
+`--concurrency` is the lazy-parallel producer fan-out and the default
+producer window size. Pass `--chunk-size=N` to override the window
+independently of fan-out (see Backpressure Knobs below). Actual worker
 concurrency is controlled by Horizon supervisor process counts.
 
 Use a queue-specific registrar, or update the host app's existing registrar, so
@@ -79,9 +80,10 @@ eval jobs when they should not compete with latency-sensitive queues.
 
 Tune `maxProcesses` for how many samples may run at the same time. Tune
 `--concurrency` for how many jobs this package feeds into the queue before
-collecting a window. They do not need to be equal: a larger producer window can
-keep a busy worker pool fed, while a smaller window reduces cache/result-store
-pressure.
+collecting a window (or `--chunk-size` for explicit window control when fan-out
+and dispatch window should differ). They do not need to be equal: a larger
+producer window can keep a busy worker pool fed, while a smaller window reduces
+cache/result-store pressure.
 
 ## Timeout Sizing
 

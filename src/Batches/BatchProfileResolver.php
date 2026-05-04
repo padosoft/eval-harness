@@ -18,8 +18,9 @@ final class BatchProfileResolver
 {
     /**
      * Built-in profiles. Host apps can override individual fields per profile
-     * via `eval-harness.batches.profiles.<name>` config or replace them
-     * entirely via {@see register()} during application boot.
+     * or register additional named profiles via the
+     * `eval-harness.batches.profiles.<name>` config map; built-in defaults are
+     * applied first and config overrides are layered on top.
      *
      * @var array<string, array{
      *     mode: string,
