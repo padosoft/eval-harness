@@ -1844,3 +1844,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twenty-first PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `1bb25c2` and generated two actionable comments:
+  - CLI manifest preflight still allowed non-existing directory-shaped paths ending in `/` or `\`,
+  - public store path validation had the same directory-shaped path gap for direct callers.
+- Addressed the twenty-second PR #28 review round by rejecting manifest paths that end in either directory separator in both the CLI and store validators, using one directory-path diagnostic for existing and non-existing directory targets, and adding command/store coverage that no eval mutation or filesystem work happens for directory-shaped paths.
+- Targeted validation passed after the twenty-second PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (96 tests, 333 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twenty-second PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (536 tests, 1443 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twenty-second PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

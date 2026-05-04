@@ -249,7 +249,7 @@ final class AdversarialCommandTest extends TestCase
                 '--manifest' => $manifest,
                 '--regression-gate' => true,
             ])
-                ->expectsOutputToContain('The --manifest option must point to a JSON file path, not an existing directory.')
+                ->expectsOutputToContain('The --manifest option must point to a JSON file path, not a directory path.')
                 ->assertExitCode(1);
 
             $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
@@ -260,6 +260,53 @@ final class AdversarialCommandTest extends TestCase
             @unlink($manifest.'.lock');
             if (is_dir($manifest)) {
                 @rmdir($manifest);
+            }
+        }
+    }
+
+    public function test_regression_gate_rejects_directory_shaped_manifest_path_before_running(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifestDirectory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-dir-shaped-'.uniqid('', true);
+        $manifest = $manifestDirectory.DIRECTORY_SEPARATOR;
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--regression-gate' => true,
+            ])
+                ->expectsOutputToContain('The --manifest option must point to a JSON file path, not a directory path.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+            $this->assertDirectoryDoesNotExist($manifestDirectory);
+            $this->assertFileDoesNotExist($manifest.'.lock');
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest.'.lock');
+            if (is_dir($manifestDirectory)) {
+                @rmdir($manifestDirectory);
             }
         }
     }

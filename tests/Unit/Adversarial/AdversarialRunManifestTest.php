@@ -209,7 +209,7 @@ final class AdversarialRunManifestTest extends TestCase
 
         try {
             $this->expectException(EvalRunException::class);
-            $this->expectExceptionMessage('path must point to a file path, not an existing directory');
+            $this->expectExceptionMessage('path must point to a file path, not a directory path');
 
             (new AdversarialRunManifestStore)->record(
                 path: $path,
@@ -220,6 +220,33 @@ final class AdversarialRunManifestTest extends TestCase
             @unlink($path.'.lock');
             if (is_dir($path)) {
                 @rmdir($path);
+            }
+        }
+    }
+
+    public function test_store_rejects_directory_shaped_manifest_path_before_filesystem_work(): void
+    {
+        $directory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-dir-shaped-'.uniqid('', true);
+        $path = $directory.DIRECTORY_SEPARATOR;
+
+        try {
+            try {
+                (new AdversarialRunManifestStore)->record(
+                    path: $path,
+                    report: $this->report('run.dataset', 1.0, 2.0),
+                    runId: 'run-directory-shaped-path',
+                );
+
+                $this->fail('Expected directory-shaped manifest path to fail before filesystem work.');
+            } catch (EvalRunException $e) {
+                $this->assertStringContainsString('path must point to a file path, not a directory path', $e->getMessage());
+                $this->assertDirectoryDoesNotExist($directory);
+                $this->assertFileDoesNotExist($path.'.lock');
+            }
+        } finally {
+            @unlink($path.'.lock');
+            if (is_dir($directory)) {
+                @rmdir($directory);
             }
         }
     }
