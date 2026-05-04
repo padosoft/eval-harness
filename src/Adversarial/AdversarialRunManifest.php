@@ -145,7 +145,7 @@ final class AdversarialRunManifest
 
         return new self(
             name: $this->name,
-            runs: array_slice($runs, 0, $maxRuns),
+            runs: $this->retainRuns($runs, $maxRuns),
             updatedAt: $now ?? microtime(true),
             schemaVersion: $this->schemaVersion,
         );
@@ -170,6 +170,32 @@ final class AdversarialRunManifest
                 $this->runs,
             ),
         ];
+    }
+
+    /**
+     * @param  list<AdversarialRunManifestEntry>  $runs
+     * @return list<AdversarialRunManifestEntry>
+     */
+    private function retainRuns(array $runs, int $maxRuns): array
+    {
+        $retained = array_slice($runs, 0, $maxRuns);
+        foreach ($retained as $run) {
+            if ($run->totalFailures === 0) {
+                return $retained;
+            }
+        }
+
+        foreach ($runs as $run) {
+            if ($run->totalFailures !== 0) {
+                continue;
+            }
+
+            $retained[$maxRuns - 1] = $run;
+
+            return $retained;
+        }
+
+        return $retained;
     }
 
     /**

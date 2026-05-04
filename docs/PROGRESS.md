@@ -1507,3 +1507,164 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the roadmap fix. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+
+## 2026-05-04
+
+- PR #27 merged into `task/adversarial-regression` at merge commit `2a0671d`, completing the adversarial run manifest slice.
+- Started the next Macro Task 5 subtask branch `task/adversarial-regression-gate` from updated `task/adversarial-regression`.
+- Implemented the adversarial regression gate slice:
+  - added `AdversarialRegressionGate`, `AdversarialRegressionGateResult`, and `AdversarialRegressionGateCheck`,
+  - bound the gate in the service provider,
+  - added `eval-harness:adversarial --regression-gate --regression-max-drop=N --regression-metric=metric[:aggregate]`,
+  - compares the current run against the latest existing manifest entry before recording the current run,
+  - treats missing baseline as an explicit non-failing `missing-baseline` status and fails closed when configured metric aggregates are absent.
+- Updated README feature docs, adversarial command docs, roadmap text, and the comparison matrix with the adversarial regression gate while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial regression gate slice:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (32 tests, 103 assertions)`
+- Full local gate passed for the adversarial regression gate slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (485 tests, 1251 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding regression gate tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 at head `091231e` and generated nine actionable comments:
+  - gate/check DTO statuses needed to reject contradictory payloads,
+  - the README example configured an `exact-match` regression metric without enabling that metric,
+  - the roadmap command note omitted the required `--manifest=<path>`,
+  - baseline comparison and manifest recording needed to happen under the same manifest lock,
+  - malformed `--regression-metric` values needed fail-fast CLI validation and command-level coverage,
+  - docs needed to say percentage points rather than relative percent.
+- Addressed the PR #28 review comments by validating DTO status consistency, adding fail-fast metric target parsing, moving regression gate compare+record into `AdversarialRunManifestStore::recordWithRegressionGate()` under the manifest lock, fixing README/roadmap wording, and adding command/store/DTO regression coverage.
+- Targeted validation passed after the PR #28 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (50 tests, 156 assertions)`
+- Full local gate passed after the PR #28 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (490 tests, 1266 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the PR #28 review fixes. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `3c4ad44` and generated five actionable comments:
+  - regression baselines needed to match the same adversarial category/metric slice, not just the same manifest name,
+  - padded `--manifest` paths needed fail-fast validation before running the eval,
+  - stderr diagnostics needed command coverage to keep JSON stdout parseable,
+  - the public gate max-drop error message needed to say ratio `[0, 1]`,
+  - invalid metric targets needed validation even when no baseline exists.
+- Addressed the second PR #28 review round by selecting the latest compatible baseline by metric names plus adversarial category/sample-count signature, rejecting padded manifest paths before execution, writing no-`--out` diagnostics directly to stderr, validating metric targets before missing-baseline return, and adding command/store/gate regression coverage.
+- Targeted validation passed after the second PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (54 tests, 170 assertions)`
+- Full local gate passed after the second PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (494 tests, 1280 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the second PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `c275ba8` and generated four actionable comments:
+  - store-level regression coverage needed to prove newer runs with different metric names are skipped as incompatible baselines,
+  - first gated runs needed to fail closed when configured metric targets are absent from the current report instead of returning `missing-baseline`,
+  - README needed to say the gate compares against the latest compatible manifest entry, not simply the latest entry,
+  - command tests needed direct coverage for invalid `--regression-max-drop` values.
+- Addressed the third PR #28 review round by failing no-baseline gates when configured current metrics are missing, avoiding manifest writes for missing-value gate failures, adding store coverage for incompatible metric signatures, adding command coverage for non-numeric and out-of-range `--regression-max-drop`, and updating README wording for compatible baselines.
+- Targeted validation passed after the third PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (60 tests, 196 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the third PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (500 tests, 1306 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the third PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `468de87` and generated four actionable comments:
+  - the no-baseline missing-current-metric diagnostic should point operators at the current run, not a nonexistent baseline,
+  - regression gate result/check JSON serialization needed direct DTO coverage,
+  - gated manifest recording should not persist runs that contain metric failures,
+  - compatible baseline lookup should skip manifest entries with `total_failures > 0`.
+- Addressed the fourth PR #28 review round by refining missing-current diagnostics, adding `toJson()` contract coverage for the gate result/check payload, preventing gated writes for metric-failure runs, skipping failed manifest entries as baselines, and adding store regression tests for both failure-run paths.
+- Targeted validation passed after the fourth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (63 tests, 201 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the fourth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (503 tests, 1311 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the fourth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `0dbbbff` and generated three actionable comments:
+  - padded `--manifest` paths should fail before eval execution even without `--regression-gate`,
+  - missing-baseline diagnostics should not say a metric-failure run was recorded when the store intentionally skips it,
+  - README should qualify first-run recording because metric-failure runs are not written as future baselines.
+- Addressed the fifth PR #28 review round by adding non-gated manifest preflight validation, refining the missing-baseline diagnostic for metric-failure runs, adding command coverage for both paths, and updating README first-run wording to say only failure-free runs seed future gates.
+- Targeted validation passed after the fifth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (65 tests, 212 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the fifth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (505 tests, 1322 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the fifth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `fef3c46` and generated four actionable comments:
+  - failed regression-gate runs should not be recorded because they can ratchet the next baseline downward,
+  - `recordWithRegressionGate()` should reject invalid retention before non-recorded paths return,
+  - pass diagnostics should mention when metric failures prevent manifest recording,
+  - README should align with the now-stricter rule that gate failures do not seed future baselines.
+- Addressed the sixth PR #28 review round by recording gated runs only when the gate did not fail and the report has no metric failures, validating `maxRuns` up front, updating diagnostics for pass/fail non-recorded outcomes, updating README, and adjusting store/command assertions for non-ratcheting baselines.
+- Targeted validation passed after the sixth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (66 tests, 213 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the sixth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (506 tests, 1323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the sixth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `4ad0b78` and generated four actionable comments:
+  - `missing-baseline` diagnostics should say no compatible baseline, not no previous manifest run,
+  - padded `--manifest` values under `--regression-gate` should show the same whitespace-specific guidance as plain manifest validation,
+  - README should say no compatible baseline exists when describing `missing-baseline`.
+- Addressed the seventh PR #28 review round by separating missing vs padded gated manifest validation, changing missing-baseline diagnostics to "compatible manifest baseline", updating command assertions, updating README wording, and recording the compatible-baseline lesson.
+- Targeted validation passed after the seventh PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (66 tests, 213 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the seventh PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (506 tests, 1323 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the seventh PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `f7c32e0` and generated four actionable comments:
+  - the gated manifest path needed test coverage for manifest-name mismatch protection,
+  - command help needed to say the gate compares against the latest compatible failure-free baseline,
+  - regression gate results needed to expose whether the current run was recorded,
+  - gated store validation should reject invalid options before creating manifest directories.
+- Addressed the eighth PR #28 review round by adding `AdversarialRegressionGateResult::$recorded` plus JSON serialization, returning recorded status from `recordWithRegressionGate()`, moving gated store validation before directory setup, updating the command help text, adding store/command/DTO coverage, and recording the persistence/validation lessons.
+- Targeted validation passed after the eighth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (69 tests, 227 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the eighth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (509 tests, 1337 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the eighth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- Copilot reviewed PR #28 again at head `b15e1a2` and generated four actionable comments:
+  - README should call out compatible baselines are also failure-free,
+  - roadmap CLI notes should mention `--regression-metric=metric[:aggregate]`,
+  - the normal passing gated write path needed `recorded=true` coverage,
+  - plain failed manifest writes should not evict the last usable failure-free baseline under tight retention.
+- Addressed the ninth PR #28 review round by preserving the latest failure-free retained run when failed entries would otherwise evict every clean baseline, adding pass-path `recorded=true` coverage, updating README and roadmap wording, and recording the retention lesson.
+- Targeted validation passed after the ninth PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (71 tests, 234 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the ninth PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (511 tests, 1344 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the ninth PR #28 review round. README still has no numeric PHPUnit test-count claim, and every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
