@@ -1932,3 +1932,18 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search after adding failure promotion tests. README still has no numeric PHPUnit test-count claim, the comparison prefix check passed with every comparison cell starting with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Opened PR #29 from `task/adversarial-regression-failure-promotion` into `task/adversarial-regression`; CI passed across the PHP/Laravel matrix and Copilot reviewed head `65f6e87`.
+- Copilot generated two actionable PR #29 comments:
+  - `eval-harness:adversarial --promote-failures` computed failed sample counts and YAML in separate exporter passes,
+  - `metadata.eval_harness` rejected scalar values but still accepted list-shaped arrays.
+- The connector also identified a stale artifact risk: if `--promote-failures` reused an existing file path and a later run had no failed samples, the command left old failures on disk.
+- Addressed the first PR #29 review round by returning YAML plus `sample_count` from one exporter API, rejecting list-shaped and null `metadata.eval_harness` values when the key is present, and clearing any stale promotion file when a run has no failed samples.
+- Targeted validation passed after the first PR #29 review fixes:
+  - `vendor/bin/phpunit tests/Unit/Reports/FailedSampleDatasetExporterTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/Reports/JsonReportRendererTest.php tests/Unit/Reports/MarkdownReportRendererTest.php tests/Unit/ServiceProviderTest.php` => `OK (78 tests, 363 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed after the first PR #29 review fixes:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (557 tests, 1530 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the first PR #29 review fixes. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

@@ -1292,7 +1292,7 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
-    public function test_promote_failures_skips_file_when_no_samples_failed(): void
+    public function test_promote_failures_clears_stale_file_when_no_samples_failed(): void
     {
         $sample = $this->adversarialSample('ssrf');
         $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
@@ -1303,6 +1303,7 @@ final class AdversarialCommandTest extends TestCase
         $this->assertIsString($sample->expectedOutput);
 
         try {
+            file_put_contents($promotion, 'stale failure seed');
             file_put_contents($outputs, json_encode([
                 'outputs' => [
                     $sample->id => $sample->expectedOutput,

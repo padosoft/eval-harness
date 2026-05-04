@@ -670,7 +670,9 @@ to control the dataset name inside that YAML; otherwise it defaults to
 expected output, and metadata, adds
 `metadata.eval_harness.promoted_failure` with the source dataset and
 failed metric names, and intentionally omits actual model output and raw
-provider error messages from the seed.
+provider error messages from the seed. If no samples fail, an existing
+promotion file at that path is removed so fixed CI artifact paths do not
+keep stale failure seeds.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,

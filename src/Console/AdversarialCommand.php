@@ -404,19 +404,19 @@ final class AdversarialCommand extends Command
 
             /** @var FailedSampleDatasetExporter $exporter */
             $exporter = $this->laravel->make(FailedSampleDatasetExporter::class);
-            $count = $exporter->failedSampleCount($report);
-            $yaml = $exporter->exportYaml($report, $this->promotedDatasetName($report));
+            $export = $exporter->export($report, $this->promotedDatasetName($report));
 
-            if ($yaml === null) {
+            if ($export === null) {
+                $this->clearPromotedFailuresFile($path);
                 $this->writeFailurePromotionDiagnostic('Failure promotion: no failed samples to export.');
 
                 return true;
             }
 
-            $this->writePromotedFailuresFile($path, $yaml);
+            $this->writePromotedFailuresFile($path, $export['yaml']);
             $this->writeFailurePromotionDiagnostic(sprintf(
                 'Failure promotion: wrote %d failed sample(s) to %s.',
-                $count,
+                $export['sample_count'],
                 $path,
             ));
 
@@ -425,6 +425,17 @@ final class AdversarialCommand extends Command
             $this->error($e->getMessage());
 
             return false;
+        }
+    }
+
+    private function clearPromotedFailuresFile(string $path): void
+    {
+        if (! is_file($path)) {
+            return;
+        }
+
+        if (! @unlink($path)) {
+            throw new EvalRunException(sprintf('Failed to clear stale failure promotion dataset: %s', $path));
         }
     }
 

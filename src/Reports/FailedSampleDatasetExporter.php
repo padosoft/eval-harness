@@ -23,13 +23,44 @@ final class FailedSampleDatasetExporter
         return count($this->failedMetricNamesBySample($report));
     }
 
-    public function exportYaml(EvalReport $report, ?string $datasetName = null): ?string
+    /**
+     * @return array{yaml: string, sample_count: int}|null
+     */
+    public function export(EvalReport $report, ?string $datasetName = null): ?array
     {
         $failedMetricNames = $this->failedMetricNamesBySample($report);
         if ($failedMetricNames === []) {
             return null;
         }
 
+        $samples = $this->promotedSamples($report, $failedMetricNames);
+        if ($samples === []) {
+            return null;
+        }
+
+        return [
+            'yaml' => Yaml::dump([
+                DatasetSchema::FIELD => DatasetSchema::VERSION,
+                'name' => $datasetName ?? $report->datasetName.'.failures',
+                'samples' => $samples,
+            ], 6, 2),
+            'sample_count' => count($samples),
+        ];
+    }
+
+    public function exportYaml(EvalReport $report, ?string $datasetName = null): ?string
+    {
+        $export = $this->export($report, $datasetName);
+
+        return $export['yaml'] ?? null;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $failedMetricNames
+     * @return list<array{id: string, input: array<string, mixed>, expected_output: mixed, metadata: array<string, mixed>}>
+     */
+    private function promotedSamples(EvalReport $report, array $failedMetricNames): array
+    {
         $samples = [];
         foreach ($report->sampleResults as $result) {
             $metricNames = $failedMetricNames[$result->sample->id] ?? null;
@@ -44,15 +75,7 @@ final class FailedSampleDatasetExporter
             );
         }
 
-        if ($samples === []) {
-            return null;
-        }
-
-        return Yaml::dump([
-            DatasetSchema::FIELD => DatasetSchema::VERSION,
-            'name' => $datasetName ?? $report->datasetName.'.failures',
-            'samples' => $samples,
-        ], 6, 2);
+        return $samples;
     }
 
     /**
@@ -97,15 +120,19 @@ final class FailedSampleDatasetExporter
             sprintf("sample '%s'.metadata", $sample->id),
         );
 
-        $existingHarnessMetadata = $metadata[self::FAILURE_METADATA_KEY] ?? [];
-        if ($existingHarnessMetadata !== [] && ! is_array($existingHarnessMetadata)) {
-            throw new EvalRunException(sprintf(
-                "Cannot promote sample '%s' because metadata.%s must be an object when present.",
-                $sample->id,
-                self::FAILURE_METADATA_KEY,
-            ));
+        $existingHarnessMetadata = [];
+        if (array_key_exists(self::FAILURE_METADATA_KEY, $metadata)) {
+            $existingHarnessMetadata = $metadata[self::FAILURE_METADATA_KEY];
+            if (! is_array($existingHarnessMetadata) || ($existingHarnessMetadata !== [] && array_is_list($existingHarnessMetadata))) {
+                throw new EvalRunException(sprintf(
+                    "Cannot promote sample '%s' because metadata.%s must be an object when present.",
+                    $sample->id,
+                    self::FAILURE_METADATA_KEY,
+                ));
+            }
         }
 
+        /** @var array<string, mixed> $existingHarnessMetadata */
         if (array_key_exists(self::FAILURE_PROMOTION_KEY, $existingHarnessMetadata)) {
             throw new EvalRunException(sprintf(
                 "Cannot promote sample '%s' because metadata.%s.%s is reserved for failure promotion metadata.",

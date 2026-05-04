@@ -284,3 +284,6 @@
 - Failure promotion seeds should be reloadable dataset YAML, not report excerpts. Export original input, expected output, and metadata plus safe promotion metadata, but do not write actual model output or raw provider/metric error messages into the seed.
 - Dataset YAML exporters need their own serializability guardrails because `DatasetSample` can be constructed programmatically with objects, resources, invalid UTF-8, or list-shaped top-level input that the YAML loader cannot reload.
 - CLI options that only make sense with a side-effect path, such as `--promoted-dataset`, should fail in preflight when the path option is absent so a typo does not run an eval while silently ignoring the option.
+- When a command writes to a fixed artifact path, no-result runs should remove or overwrite any previous artifact. Leaving a stale failure-promotion seed makes a clean run look like it still has failures.
+- Exporter APIs that need operator diagnostics should return the artifact and derived counts from the same computed result. Calling separate `count()` and `export()` paths invites duplicated scans and inconsistent diagnostics.
+- Reserved metadata object keys should reject list-shaped arrays and `null` when the key is present. PHP arrays blur lists and maps, so append-style writes can silently turn invalid user metadata into mixed list/object YAML.

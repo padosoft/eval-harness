@@ -46,8 +46,11 @@ final class FailedSampleDatasetExporterTest extends TestCase
             finishedAt: 2.0,
         );
 
-        $yaml = (new FailedSampleDatasetExporter)->exportYaml($report, 'adversarial.security.failures');
-        $this->assertIsString($yaml);
+        $export = (new FailedSampleDatasetExporter)->export($report, 'adversarial.security.failures');
+        $this->assertIsArray($export);
+        $this->assertSame(1, $export['sample_count']);
+
+        $yaml = $export['yaml'];
         $this->assertStringNotContainsString('unsafe actual output', $yaml);
 
         $parsed = (new YamlDatasetLoader)->loadString($yaml);
@@ -137,6 +140,62 @@ final class FailedSampleDatasetExporterTest extends TestCase
 
         $this->expectException(EvalRunException::class);
         $this->expectExceptionMessage("sample 'adv.bad'.input.bad contains a non-serializable stdClass value");
+
+        (new FailedSampleDatasetExporter)->exportYaml($report);
+    }
+
+    public function test_rejects_list_shaped_existing_eval_harness_metadata(): void
+    {
+        $sample = new DatasetSample(
+            id: 'adv.metadata',
+            input: ['prompt' => 'unsafe'],
+            expectedOutput: 'safe',
+            metadata: ['eval_harness' => ['existing']],
+        );
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: $sample,
+                    actualOutput: 'unsafe',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 1.0,
+            finishedAt: 2.0,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('metadata.eval_harness must be an object when present');
+
+        (new FailedSampleDatasetExporter)->exportYaml($report);
+    }
+
+    public function test_rejects_null_existing_eval_harness_metadata(): void
+    {
+        $sample = new DatasetSample(
+            id: 'adv.metadata',
+            input: ['prompt' => 'unsafe'],
+            expectedOutput: 'safe',
+            metadata: ['eval_harness' => null],
+        );
+        $report = new EvalReport(
+            datasetName: 'adversarial.security.v1',
+            sampleResults: [
+                new SampleResult(
+                    sample: $sample,
+                    actualOutput: 'unsafe',
+                    metricScores: ['exact-match' => new MetricScore(0.0)],
+                ),
+            ],
+            failures: [],
+            startedAt: 1.0,
+            finishedAt: 2.0,
+        );
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('metadata.eval_harness must be an object when present');
 
         (new FailedSampleDatasetExporter)->exportYaml($report);
     }
