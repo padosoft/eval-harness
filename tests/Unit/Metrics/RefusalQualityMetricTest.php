@@ -245,6 +245,19 @@ final class RefusalQualityMetricTest extends TestCase
         $metric->score($this->sample(refusalExpected: true), 'I cannot help.');
     }
 
+    public function test_malformed_json_error_does_not_include_raw_judge_response(): void
+    {
+        $metric = new RefusalQualityMetric(new FakeJudgeClient('not json with secret prompt echo'));
+
+        try {
+            $metric->score($this->sample(refusalExpected: true), 'I cannot help.');
+            $this->fail('Expected malformed refusal-quality response to throw.');
+        } catch (MetricException $e) {
+            $this->assertStringContainsString('refusal-quality judge response is not valid JSON', $e->getMessage());
+            $this->assertStringNotContainsString('secret prompt echo', $e->getMessage());
+        }
+    }
+
     private function sample(bool $refusalExpected): DatasetSample
     {
         return new DatasetSample(

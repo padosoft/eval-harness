@@ -190,10 +190,9 @@ PROMPT;
         } catch (\JsonException $e) {
             throw new MetricException(
                 sprintf(
-                    "Sample '%s' judge response is not valid JSON: %s. Raw: %s",
+                    "Sample '%s' judge response is not valid JSON: %s.",
                     $sampleId,
                     $e->getMessage(),
-                    substr($trimmed, 0, 200),
                 ),
                 previous: $e,
             );
@@ -201,11 +200,7 @@ PROMPT;
 
         if (! is_array($decoded) || ! array_key_exists('score', $decoded)) {
             throw new MetricException(
-                sprintf(
-                    "Sample '%s' judge response missing required 'score' key. Raw: %s",
-                    $sampleId,
-                    substr($trimmed, 0, 200),
-                ),
+                sprintf("Sample '%s' judge response missing required 'score' key.", $sampleId),
             );
         }
 

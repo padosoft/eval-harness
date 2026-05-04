@@ -36,7 +36,7 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
 
         $this->assertSame('{"score": 1.0, "reason": "ok"}', $raw);
         $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
-        $this->assertArrayHasKey('latency_ms', $client->usageDetails());
+        $this->assertSame([], $client->usageDetails());
         Http::assertSent(function ($request): bool {
             $body = $request->data();
 
@@ -62,6 +62,7 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
                     'completion_tokens' => '3',
                     'total_tokens' => 15,
                     'cost_usd' => '0.002',
+                    'latency_ms' => '24.5',
                 ],
             ]),
         ]);
@@ -77,8 +78,7 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
         $this->assertSame(3, $usage['completion_tokens']);
         $this->assertSame(15, $usage['total_tokens']);
         $this->assertSame(0.002, $usage['cost_usd']);
-        $this->assertArrayHasKey('latency_ms', $usage);
-        $this->assertGreaterThanOrEqual(0.0, $usage['latency_ms']);
+        $this->assertSame(24.5, $usage['latency_ms']);
     }
 
     public function test_http_failure_throws_metric_exception(): void
@@ -92,6 +92,22 @@ final class OpenAiCompatibleJudgeClientTest extends TestCase
         $this->expectExceptionMessage('LLM judge request failed');
 
         $client->judge('grade this');
+    }
+
+    public function test_http_failure_exception_does_not_include_response_body(): void
+    {
+        Http::fake(['*' => Http::response('secret prompt echo', 429)]);
+
+        /** @var JudgeClient $client */
+        $client = $this->app->make(JudgeClient::class);
+
+        try {
+            $client->judge('grade this');
+            $this->fail('Expected HTTP failure to throw.');
+        } catch (MetricException $e) {
+            $this->assertSame('LLM judge request failed: HTTP 429.', $e->getMessage());
+            $this->assertStringNotContainsString('secret prompt echo', $e->getMessage());
+        }
     }
 
     public function test_retryable_http_failures_are_retried(): void

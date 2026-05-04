@@ -629,7 +629,9 @@ malformed judge/embedding responses do not hide token or latency spend.
 
 The built-in OpenAI-compatible embedding and judge clients automatically
 attach safe usage details to their metric scores: token/cost fields from
-the provider's `usage` object when present, plus measured `latency_ms`.
+the provider's `usage` object when present, including provider-reported
+`latency_ms` when the backend returns it. They do not synthesize local
+wall-clock latency, keeping reports diff-friendly across repeated runs.
 
 ---
 
@@ -660,8 +662,8 @@ the provider's `usage` object when present, plus measured `latency_ms`.
 ┌────────────────────────────┐       ┌────────────────────────────┐
 │  Metrics                   │       │  Reports                   │
 │  - ExactMatchMetric        │       │  - EvalReport              │
-│  - CosineEmbeddingMetric   │       │  - MarkdownRenderer        │
-│  - BertScoreLikeMetric     │       │  - JsonRenderer            │
+│  - CosineEmbeddingMetric   │       │  - MarkdownReportRenderer  │
+│  - BertScoreLikeMetric     │       │  - JsonReportRenderer      │
 │  - LlmAsJudgeMetric        │       │  - cohorts + histograms    │
 │  - RefusalQualityMetric    │       │  - macroF1, p50, p95, mean │
 └────────────────────────────┘       └────────────────────────────┘

@@ -59,7 +59,6 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient, ProvidesUsageDet
             $request = $request->withToken($apiKey);
         }
 
-        $startedAt = microtime(true);
         $response = ProviderHttpRetry::post(
             request: $request,
             config: $this->config,
@@ -75,21 +74,16 @@ final class OpenAiCompatibleJudgeClient implements JudgeClient, ProvidesUsageDet
             ],
             operation: 'LLM judge',
         );
-        $latencyMs = (microtime(true) - $startedAt) * 1000.0;
 
         if ($response->failed()) {
             throw new MetricException(
-                sprintf(
-                    'LLM judge request failed: HTTP %d (%s).',
-                    $response->status(),
-                    substr((string) $response->body(), 0, 200),
-                ),
+                sprintf('LLM judge request failed: HTTP %d.', $response->status()),
             );
         }
 
         /** @var array<mixed> $body */
         $body = (array) $response->json();
-        $this->usageDetails = ProviderUsageDetails::fromResponseBody($body, $latencyMs);
+        $this->usageDetails = ProviderUsageDetails::fromResponseBody($body);
 
         $content = $body['choices'][0]['message']['content'] ?? null;
 

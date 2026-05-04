@@ -226,3 +226,5 @@
 - Judge metrics should fail closed when non-string `expected_output` cannot be JSON-encoded; an empty EXPECTED field lets dataset encoding bugs become scored judge prompts.
 - `ProvidesUsageDetails` implementations must reset usage before every request or score attempt. `EvalEngine` can snapshot usage from failures, so a third-party provider that keeps stale usage after an early throw can corrupt failure spend summaries.
 - `bertscore-like` uses context-free token embeddings, so duplicate normalized tokens should be embedded once per sample and then reused per occurrence. Re-embedding repeated tokens only adds provider cost and latency without changing the score.
+- Built-in provider clients should not synthesize wall-clock `latency_ms` into usage details. Local measured latency makes otherwise identical reports change on every run; only propagate explicit provider/custom-client latency fields.
+- Provider and judge exception messages are serialized into report failures. Do not include raw HTTP bodies or raw malformed judge responses in those messages because providers and models can echo prompts, sample inputs, or policy text.

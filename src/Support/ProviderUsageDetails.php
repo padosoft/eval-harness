@@ -13,7 +13,7 @@ final class ProviderUsageDetails
      * @param  array<mixed>  $body
      * @return array<string, int|float>
      */
-    public static function fromResponseBody(array $body, float $latencyMs): array
+    public static function fromResponseBody(array $body): array
     {
         $details = [];
         $rawUsage = $body['usage'] ?? null;
@@ -31,10 +31,11 @@ final class ProviderUsageDetails
             if ($costUsd !== null) {
                 $details['cost_usd'] = $costUsd;
             }
-        }
 
-        if ($latencyMs >= 0.0 && ! is_nan($latencyMs) && ! is_infinite($latencyMs)) {
-            $details['latency_ms'] = $latencyMs;
+            $latencyMs = self::nonNegativeFloat($rawUsage['latency_ms'] ?? null);
+            if ($latencyMs !== null) {
+                $details['latency_ms'] = $latencyMs;
+            }
         }
 
         return $details;

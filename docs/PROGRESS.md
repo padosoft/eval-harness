@@ -1345,3 +1345,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding one BERTScore-like regression test. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `437 tests, 1015 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `dfcde87` and generated five actionable comments: built-in provider clients should not synthesize wall-clock `latency_ms`, the README architecture diagram named non-existent renderer classes, and provider/judge error messages should not serialize raw HTTP bodies or malformed judge responses into report failures.
+- Addressed those comments by propagating only explicit provider-reported/custom-client latency fields, renaming the README diagram renderers to `MarkdownReportRenderer` and `JsonReportRenderer`, removing raw provider bodies from HTTP failure exceptions, removing raw judge responses from malformed response exceptions in both judge-backed metrics, and adding leakage regression tests.
+- Targeted validation passed after the latency/redaction/README review fix:
+  - `vendor/bin/phpunit tests/Unit/Embeddings/OpenAiCompatibleEmbeddingClientTest.php tests/Unit/Judges/OpenAiCompatibleJudgeClientTest.php tests/Unit/Metrics/CosineEmbeddingMetricTest.php tests/Unit/Metrics/LlmAsJudgeMetricTest.php tests/Unit/Metrics/RefusalQualityMetricTest.php` => `OK (66 tests, 150 assertions)`
+- Full local gate passed after the latency/redaction/README review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (441 tests, 1021 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding four review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `441 tests, 1021 assertions` before re-requesting Copilot.

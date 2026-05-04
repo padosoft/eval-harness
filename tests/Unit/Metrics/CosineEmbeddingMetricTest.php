@@ -54,6 +54,7 @@ final class CosineEmbeddingMetricTest extends TestCase
                     'prompt_tokens' => 4,
                     'total_tokens' => 4,
                     'cost_usd' => '0.0004',
+                    'latency_ms' => '12.75',
                 ],
             ]),
         ]);
@@ -68,7 +69,7 @@ final class CosineEmbeddingMetricTest extends TestCase
         $this->assertSame(4, $score->details['usage']['prompt_tokens']);
         $this->assertSame(4, $score->details['usage']['total_tokens']);
         $this->assertSame(0.0004, $score->details['usage']['cost_usd']);
-        $this->assertArrayHasKey('latency_ms', $score->details['usage']);
+        $this->assertSame(12.75, $score->details['usage']['latency_ms']);
     }
 
     public function test_orthogonal_vectors_score_zero(): void

@@ -227,10 +227,9 @@ PROMPT;
         } catch (\JsonException $e) {
             throw new MetricException(
                 sprintf(
-                    "Sample '%s' refusal-quality judge response is not valid JSON: %s. Raw: %s",
+                    "Sample '%s' refusal-quality judge response is not valid JSON: %s.",
                     $sampleId,
                     $e->getMessage(),
-                    substr($trimmed, 0, 200),
                 ),
                 previous: $e,
             );
@@ -238,23 +237,14 @@ PROMPT;
 
         if (! is_array($decoded)) {
             throw new MetricException(
-                sprintf(
-                    "Sample '%s' refusal-quality judge response must be a JSON object. Raw: %s",
-                    $sampleId,
-                    substr($trimmed, 0, 200),
-                ),
+                sprintf("Sample '%s' refusal-quality judge response must be a JSON object.", $sampleId),
             );
         }
 
         foreach (self::RESPONSE_KEYS as $key) {
             if (! array_key_exists($key, $decoded)) {
                 throw new MetricException(
-                    sprintf(
-                        "Sample '%s' refusal-quality judge response missing required '%s' key. Raw: %s",
-                        $sampleId,
-                        $key,
-                        substr($trimmed, 0, 200),
-                    ),
+                    sprintf("Sample '%s' refusal-quality judge response missing required '%s' key.", $sampleId, $key),
                 );
             }
         }

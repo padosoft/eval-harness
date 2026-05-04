@@ -146,6 +146,7 @@ final class LlmAsJudgeMetricTest extends TestCase
                     'completion_tokens' => 2,
                     'total_tokens' => 9,
                     'cost_usd' => '0.001',
+                    'latency_ms' => '31.5',
                 ],
             ]),
         ]);
@@ -158,7 +159,7 @@ final class LlmAsJudgeMetricTest extends TestCase
         $this->assertSame(2, $score->details['usage']['completion_tokens']);
         $this->assertSame(9, $score->details['usage']['total_tokens']);
         $this->assertSame(0.001, $score->details['usage']['cost_usd']);
-        $this->assertArrayHasKey('latency_ms', $score->details['usage']);
+        $this->assertSame(31.5, $score->details['usage']['latency_ms']);
     }
 
     public function test_response_with_code_fence_is_unwrapped(): void
@@ -200,6 +201,28 @@ final class LlmAsJudgeMetricTest extends TestCase
         $this->expectExceptionMessage('not valid JSON');
 
         $metric->score($sample, 'a');
+    }
+
+    public function test_malformed_json_error_does_not_include_raw_judge_response(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'choices' => [[
+                    'message' => ['content' => 'not json with secret prompt echo'],
+                ]],
+            ]),
+        ]);
+
+        /** @var LlmAsJudgeMetric $metric */
+        $metric = $this->app->make(LlmAsJudgeMetric::class);
+
+        try {
+            $metric->score(new DatasetSample(id: 'a', input: ['question' => 'q'], expectedOutput: 'e'), 'a');
+            $this->fail('Expected malformed judge response to throw.');
+        } catch (MetricException $e) {
+            $this->assertStringContainsString('judge response is not valid JSON', $e->getMessage());
+            $this->assertStringNotContainsString('secret prompt echo', $e->getMessage());
+        }
     }
 
     public function test_missing_score_key_throws(): void

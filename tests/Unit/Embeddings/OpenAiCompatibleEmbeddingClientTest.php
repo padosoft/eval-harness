@@ -37,6 +37,8 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $vectors = $client->embedMany(['first', 'second']);
 
         $this->assertSame([[1.0, 0.0], [0.0, 2.5]], $vectors);
+        $this->assertInstanceOf(ProvidesUsageDetails::class, $client);
+        $this->assertSame([], $client->usageDetails());
         Http::assertSent(function ($request): bool {
             $body = $request->data();
 
@@ -70,6 +72,7 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
                     'completion_tokens' => 0,
                     'total_tokens' => 3,
                     'total_cost_usd' => '0.0015',
+                    'latency_ms' => '18.25',
                 ],
             ]),
         ]);
@@ -85,8 +88,7 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $this->assertSame(0, $usage['completion_tokens']);
         $this->assertSame(3, $usage['total_tokens']);
         $this->assertSame(0.0015, $usage['cost_usd']);
-        $this->assertArrayHasKey('latency_ms', $usage);
-        $this->assertGreaterThanOrEqual(0.0, $usage['latency_ms']);
+        $this->assertSame(18.25, $usage['latency_ms']);
     }
 
     public function test_http_failure_throws_metric_exception(): void
@@ -100,6 +102,22 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         $this->expectExceptionMessage('Embeddings request failed');
 
         $client->embedMany(['one']);
+    }
+
+    public function test_http_failure_exception_does_not_include_response_body(): void
+    {
+        Http::fake(['*' => Http::response('secret prompt echo', 503)]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        try {
+            $client->embedMany(['one']);
+            $this->fail('Expected HTTP failure to throw.');
+        } catch (MetricException $e) {
+            $this->assertSame('Embeddings request failed: HTTP 503.', $e->getMessage());
+            $this->assertStringNotContainsString('secret prompt echo', $e->getMessage());
+        }
     }
 
     public function test_retryable_http_failures_are_retried(): void
