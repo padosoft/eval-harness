@@ -2069,3 +2069,4 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M`
   - `vendor/bin/pint --test`
 - README snippet fixes applied in comparison/recipe section for correct registrar escaping (`App\Console\EvalRegistrar`).
+- Merged PR #35 (`task/v1-stabilization-release-stability-docs` -> `task/v1-stabilization-release`) at merge commit `0aba050`.
