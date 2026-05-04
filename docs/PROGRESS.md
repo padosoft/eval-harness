@@ -1285,3 +1285,9 @@
   - `vendor/bin/pint --test`
 - Verified `origin/main` had not advanced relative to the Macro Task 4 branch before opening the macro PR (`git rev-list --left-right --count origin/main...HEAD` => `0 14`).
 - Opened Macro Task 4 PR #23 (`task/advanced-metrics` -> `main`) with summary, subtask PR list, guardrails, validation, and README comparison prefix check in the PR body.
+- The Codex connector review on PR #23 raised an actionable embedding transport edge case: provider responses can serialize `data[].index` as digit strings, causing out-of-order vectors to skip reordering. Fixed this by normalizing digit-string indexes, rejecting invalid/partial index payloads, and adding regression coverage.
+- Full local gate passed after the PR #23 embedding index fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (417 tests, 928 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`

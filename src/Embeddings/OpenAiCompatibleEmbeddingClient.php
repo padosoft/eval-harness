@@ -120,30 +120,71 @@ final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient
             );
         }
 
-        $hasIndexes = true;
+        $hasIndexes = false;
         foreach ($data as $entry) {
-            if (! is_array($entry) || ! is_int($entry['index'] ?? null)) {
-                $hasIndexes = false;
+            if (is_array($entry) && array_key_exists('index', $entry)) {
+                $hasIndexes = true;
                 break;
             }
         }
 
         if ($hasIndexes) {
+            foreach ($data as $position => &$entry) {
+                if (! is_array($entry) || ! array_key_exists('index', $entry)) {
+                    throw new MetricException(
+                        'Embeddings response indexes must be present on every data entry when any index is present.',
+                    );
+                }
+
+                $index = $this->normalizeResponseIndex($entry['index']);
+                if ($index === null) {
+                    throw new MetricException(
+                        sprintf('Embeddings response data[%d].index must be a non-negative integer or digit string.', $position),
+                    );
+                }
+
+                $entry['index'] = $index;
+            }
+            unset($entry);
+
+            /** @var list<array<mixed>> $indexedData */
+            $indexedData = array_values($data);
             usort(
-                $data,
+                $indexedData,
                 static fn (array $left, array $right): int => $left['index'] <=> $right['index'],
             );
 
-            foreach ($data as $position => $entry) {
+            foreach ($indexedData as $position => $entry) {
                 if (($entry['index'] ?? null) !== $position) {
                     throw new MetricException(
                         sprintf('Embeddings response index order is incomplete at position %d.', $position),
                     );
                 }
             }
+
+            return $indexedData;
         }
 
         return array_values($data);
+    }
+
+    private function normalizeResponseIndex(mixed $index): ?int
+    {
+        if (is_int($index)) {
+            return $index >= 0 ? $index : null;
+        }
+
+        if (! is_string($index) || ! ctype_digit($index)) {
+            return null;
+        }
+
+        $filtered = filter_var(
+            $index,
+            FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 0]],
+        );
+
+        return is_int($filtered) ? $filtered : null;
     }
 
     /**

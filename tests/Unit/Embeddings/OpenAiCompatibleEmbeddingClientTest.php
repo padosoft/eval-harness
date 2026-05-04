@@ -113,6 +113,62 @@ final class OpenAiCompatibleEmbeddingClientTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_digit_string_indexes_are_normalized_before_ordering(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['index' => '1', 'embedding' => [0, '2.5']],
+                    ['index' => '0', 'embedding' => [1, 0]],
+                ],
+            ]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->assertSame([[1.0, 0.0], [0.0, 2.5]], $client->embedMany(['first', 'second']));
+    }
+
+    public function test_invalid_response_index_throws_metric_exception(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['index' => 'first', 'embedding' => [1, 0]],
+                ],
+            ]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('index must be a non-negative integer or digit string');
+
+        $client->embedMany(['first']);
+    }
+
+    public function test_partial_response_indexes_throw_metric_exception(): void
+    {
+        Http::fake([
+            '*' => Http::response([
+                'data' => [
+                    ['index' => 0, 'embedding' => [1, 0]],
+                    ['embedding' => [0, 1]],
+                ],
+            ]),
+        ]);
+
+        /** @var EmbeddingClient $client */
+        $client = $this->app->make(EmbeddingClient::class);
+
+        $this->expectException(MetricException::class);
+        $this->expectExceptionMessage('indexes must be present on every data entry');
+
+        $client->embedMany(['first', 'second']);
+    }
+
     public function test_transport_errors_are_retried(): void
     {
         config([
