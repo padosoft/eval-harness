@@ -11,6 +11,7 @@ use Illuminate\Contracts\Container\Container;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
@@ -80,6 +81,10 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(AdversarialDatasetFactory::class, static function (Container $app): AdversarialDatasetFactory {
             return new AdversarialDatasetFactory($app->make(MetricResolver::class));
+        });
+
+        $this->app->singleton(AdversarialRunManifestStore::class, static function (): AdversarialRunManifestStore {
+            return new AdversarialRunManifestStore;
         });
 
         $this->app->singleton(SerialBatch::class, static function (): SerialBatch {

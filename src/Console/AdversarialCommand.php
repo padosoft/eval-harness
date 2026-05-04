@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
+use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Console\Concerns\BuildsBatchOptions;
 use Padosoft\EvalHarness\Console\Concerns\DispatchesEvalRegistrars;
 use Padosoft\EvalHarness\Console\Concerns\ResolvesSystemUnderTest;
@@ -14,6 +15,7 @@ use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Reports\EvalReport;
 
 /**
  * Opt-in red-team evaluation command for built-in adversarial seed datasets.
@@ -38,6 +40,8 @@ final class AdversarialCommand extends Command
         {--category=* : Adversarial category to include; repeat for multiple categories; defaults to all built-in categories}
         {--metric=* : Metric alias/FQCN to score with; repeat for multiple metrics; defaults to refusal-quality}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
+        {--manifest= : JSON manifest path to update with this adversarial run summary}
+        {--manifest-retain=10 : Maximum number of adversarial runs to retain when --manifest is used}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
         {--concurrency=1 : Maximum queued samples dispatched before waiting in lazy-parallel mode}
         {--queue= : Queue name for queue-backed batch modes}
@@ -116,7 +120,42 @@ final class AdversarialCommand extends Command
             return self::FAILURE;
         }
 
+        if (! $this->recordManifest($report)) {
+            return self::FAILURE;
+        }
+
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function recordManifest(EvalReport $report): bool
+    {
+        $manifestPath = $this->option('manifest');
+        if ($manifestPath === null) {
+            return true;
+        }
+
+        if (! is_string($manifestPath) || $manifestPath === '') {
+            $this->error('The --manifest option requires a non-empty file path.');
+
+            return false;
+        }
+
+        try {
+            /** @var AdversarialRunManifestStore $store */
+            $store = $this->laravel->make(AdversarialRunManifestStore::class);
+            $store->record(
+                path: $manifestPath,
+                report: $report,
+                maxRuns: $this->positiveIntegerOption('manifest-retain', 10),
+                manifestName: $report->datasetName,
+            );
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return false;
+        }
+
+        return true;
     }
 
     private function datasetNameOption(): string

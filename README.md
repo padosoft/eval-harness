@@ -121,7 +121,8 @@ surface small and the offline path fast.
   `php artisan eval-harness:adversarial` build/run safety regression
   seeds for prompt injection, jailbreaks, data leaks, SSRF, tool
   abuse, and similar red-team categories. JSON/Markdown reports add
-  category and compliance-framework summaries.
+  category and compliance-framework summaries, and optional manifests
+  retain the last N adversarial run summaries for regression gates.
 - **Standalone output assertions** — score saved JSON/YAML outputs
   with the same metrics and report contract, without invoking your
   agent in CI.
@@ -163,6 +164,7 @@ Status legend: `✅ YES` means first-class support, `⚠️ PARTIAL` means suppo
 | Adversarial red-team seeds | ⚠️ PARTIAL - custom eval registry | ⚠️ PARTIAL - custom datasets/evaluators | ⚠️ PARTIAL - RAG-focused tests | ✅ YES - red-team plugins | ✅ YES - safety test cases | **✅ YES - opt-in Laravel seed factory for 10 categories** |
 | Adversarial CLI lane | ⚠️ PARTIAL - custom eval runner scripts | ⚠️ PARTIAL - custom evaluator automation | ⚠️ PARTIAL - Python code orchestration | ✅ YES - red-team CLI workflow | ✅ YES - safety test runner | **✅ YES - `eval-harness:adversarial` with `eval:adversarial` alias, saved outputs, and batch options** |
 | Adversarial compliance mapping | ⚠️ PARTIAL - custom eval metadata | ⚠️ PARTIAL - custom evaluator metadata | ⚠️ PARTIAL - custom report code | ✅ YES - red-team category reporting | ⚠️ PARTIAL - safety metadata/reporting | **✅ YES - JSON/Markdown category + OWASP/NIST/EU AI Act summaries** |
+| Adversarial run history manifests | ⚠️ PARTIAL - custom eval logs | ✅ YES - hosted experiment history | ⚠️ PARTIAL - custom persistence | ✅ YES - monitoring/history workflows | ⚠️ PARTIAL - platform/history workflow | **✅ YES - local JSON manifest retains last N adversarial summaries** |
 | Citation evidence spans | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - custom evaluator workflow | ✅ YES - RAG faithfulness/context metrics | ⚠️ PARTIAL - custom assertions | ✅ YES - RAG faithfulness metrics | **✅ YES - citation_evidence requires marker + quote match** |
 | Cost/token/latency summaries | ⚠️ PARTIAL - custom logging | ✅ YES - experiment usage analytics | ✅ YES - usage/cost hooks | ⚠️ PARTIAL - provider output dependent | ⚠️ PARTIAL - metric/provider dependent | **✅ YES - built-in provider usage + JSON/Markdown summaries** |
 | Runtime retry / strict exception controls | ⚠️ PARTIAL - custom eval code | ⚠️ PARTIAL - SDK/platform behavior | ✅ YES - runtime metric settings | ⚠️ PARTIAL - provider/config dependent | ⚠️ PARTIAL - custom evaluator handling | **✅ YES - normalized timeouts, connection/429/5xx retries, optional raise_exceptions** |
@@ -615,6 +617,8 @@ php artisan eval-harness:adversarial \
   --registrar="App\\Console\\EvalRegistrar" \
   --category=prompt-injection \
   --category=pii-leak \
+  --manifest=storage/eval/adversarial-runs.json \
+  --manifest-retain=10 \
   --json --out=adversarial.json
 ```
 
@@ -623,7 +627,9 @@ only the selected adversarial seed dataset for that invocation, accepts
 `--metric=*` (default: `refusal-quality`), supports `--outputs` for
 precomputed responses, and reuses the same `--batch`,
 `--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
-options as `eval-harness:run`.
+options as `eval-harness:run`. Add `--manifest=<path>` to update a
+local JSON run-history manifest and `--manifest-retain=N` to keep only
+the newest N adversarial summaries.
 
 The default factory covers 10 categories: prompt injection, jailbreak,
 tool abuse, PII leak, SSRF, SQL/shell injection, ASCII smuggling,
@@ -637,7 +643,10 @@ text, and arbitrary sample metadata stay out of JSON sample rows.
 The top-level JSON `adversarial` block aggregates category metrics and
 framework counts for OWASP LLM, NIST AI RMF, and EU AI Act style
 security reporting; Markdown reports render the same data under
-`Adversarial coverage`.
+`Adversarial coverage`. Manifest files use
+`eval-harness.adversarial-runs.v1`, store stable metric aggregates plus
+the safe adversarial summary, and write through a temporary file before
+replacing the target path.
 
 Provider retries are opt-in. `EVAL_HARNESS_PROVIDER_RETRY_ATTEMPTS=2`
 means two extra attempts after the initial request, with
@@ -836,8 +845,9 @@ accidentally and never burns API credits.
   test datasets bundled (opt-in), including multi-input targets and
   `eval-harness:adversarial`; JSON/Markdown category and compliance
   framework summaries are implemented.
-- **Regression detection** — store the last N runs in a JSON
-  manifest and fail the gate when macro-F1 drops more than X%.
+- **Regression detection** — JSON manifests now store the last N
+  adversarial runs; a future slice will fail the gate when macro-F1 or
+  a configured metric drops more than X%.
 - **Report API contract for a separate UI package** — read-only
   Laravel routes/resources for JSON reports, cohorts, histograms,
   CSV export, and artifacts. No bundled UI in this package; deploy

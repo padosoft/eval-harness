@@ -1442,3 +1442,19 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README comparison prefix check after the severity fix; every comparison cell still starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.
+- PR #26 merged into `task/adversarial-regression` at merge commit `ac4db2e`, then started the adversarial run manifest slice on `task/adversarial-regression-manifest`.
+- Implemented adversarial run manifests:
+  - added `AdversarialRunManifestEntry`, `AdversarialRunManifest`, and `AdversarialRunManifestStore` for versioned local JSON manifests that retain the latest N adversarial run summaries,
+  - bound the manifest store in the service provider,
+  - added `eval-harness:adversarial --manifest=<path> --manifest-retain=N`,
+  - kept manifest payloads to safe report summaries: schema versions, timestamps, sample/failure counts, macro-F1, metric aggregates, and normalized adversarial coverage.
+- Updated README's feature list, adversarial command docs, roadmap note, and comparison matrix with adversarial run history manifests while preserving explicit `✅ YES`, `⚠️ PARTIAL`, and `❌ NO` prefixes in every comparison cell.
+- Targeted validation passed for the adversarial manifest slice:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (28 tests, 84 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+- Full local gate passed for the adversarial manifest slice:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (468 tests, 1194 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding nine adversarial manifest tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check confirmed every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`.

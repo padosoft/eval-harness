@@ -78,6 +78,77 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_scores_saved_outputs_and_records_manifest_when_requested(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '1',
+                '--json' => true,
+                '--out' => $report,
+            ])->assertExitCode(0);
+
+            $decoded = json_decode((string) file_get_contents($manifest), true, flags: JSON_THROW_ON_ERROR);
+            $this->assertSame('eval-harness.adversarial-runs.v1', $decoded['schema_version']);
+            $this->assertSame(AdversarialDatasetFactory::DEFAULT_DATASET_NAME, $decoded['manifest']);
+            $this->assertCount(1, $decoded['runs']);
+            $this->assertSame(AdversarialDatasetFactory::DEFAULT_DATASET_NAME, $decoded['runs'][0]['dataset']);
+            $this->assertSame(1, $decoded['runs'][0]['adversarial']['total_samples']);
+            $this->assertSame('ssrf', $decoded['runs'][0]['adversarial']['categories'][0]['category']);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+            @unlink($report);
+        }
+    }
+
+    public function test_manifest_retention_option_must_be_positive(): void
+    {
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-'.uniqid('', true).'.json';
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+                '--manifest-retain' => '0',
+            ])
+                ->expectsOutputToContain('The --manifest-retain option must be a positive integer.')
+                ->assertExitCode(1);
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest);
+        }
+    }
+
     public function test_runs_selected_adversarial_category_with_bound_sut(): void
     {
         $sample = $this->adversarialSample('tool-abuse');

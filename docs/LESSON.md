@@ -237,3 +237,5 @@
 - Adversarial report mapping should expose only a normalized safe subset (`category`, `label`, `severity`, `compliance_frameworks`). Do not serialize raw refusal policies, prompts, sample input, or arbitrary adversarial metadata into JSON rows.
 - JSON report renderer docblocks are part of the downstream UI contract. When adding fields such as adversarial `label` or `severity`, keep the shape example synchronized with the exact renderer payload.
 - Category-level adversarial severity must not depend on sample order. When several samples share a category, derive severity deterministically with explicit precedence instead of keeping the first sample's value.
+- Adversarial run manifests should treat `total_failures` as metric-level failures, not failed sample count. A single sample can produce multiple captured metric failures, so manifest entries must not require failures to be less than or equal to samples.
+- JSON manifest round trips should normalize numeric aggregates after decoding. PHP can decode `1.0` as `1`; rehydrate metric and adversarial aggregate fields back to floats so DTO JSON remains stable for strict comparisons and downstream UI contracts.
