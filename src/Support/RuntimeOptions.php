@@ -91,6 +91,21 @@ final class RuntimeOptions
                 return $safeDefault;
             }
 
+            if (ctype_digit($trimmed)) {
+                $normalized = ltrim($trimmed, '0');
+                if ($normalized === '') {
+                    $normalized = '0';
+                }
+
+                $filtered = filter_var(
+                    $normalized,
+                    FILTER_VALIDATE_INT,
+                    ['options' => ['min_range' => 0]],
+                );
+
+                return is_int($filtered) ? $filtered : $safeDefault;
+            }
+
             $filtered = filter_var(
                 $trimmed,
                 FILTER_VALIDATE_INT,
@@ -103,20 +118,25 @@ final class RuntimeOptions
 
             $float = filter_var($trimmed, FILTER_VALIDATE_FLOAT);
             if (is_float($float) && ! is_nan($float) && ! is_infinite($float) && $float >= 0.0) {
-                return (int) floor($float);
+                return self::floorToNonNegativeInt($float, $safeDefault);
             }
 
             return $safeDefault;
         }
 
         if (is_float($value)) {
-            if (is_nan($value) || is_infinite($value) || $value < 0.0) {
-                return $safeDefault;
-            }
-
-            return (int) floor($value);
+            return self::floorToNonNegativeInt($value, $safeDefault);
         }
 
         return $safeDefault;
+    }
+
+    private static function floorToNonNegativeInt(float $value, int $safeDefault): int
+    {
+        if (is_nan($value) || is_infinite($value) || $value < 0.0 || $value > (float) PHP_INT_MAX) {
+            return $safeDefault;
+        }
+
+        return (int) floor($value);
     }
 }

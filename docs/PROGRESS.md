@@ -1365,3 +1365,13 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Ran the README test-count sync search after adding two review regression tests. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1024 assertions` before re-requesting Copilot.
+- Copilot reviewed PR #23 again at head `f39951c` and generated one actionable comment: `RuntimeOptions::normalizeNonNegativeInt()` let oversized digit strings fall through to float parsing and cast to `PHP_INT_MAX`.
+- Addressed that comment by normalizing digit-only strings before float parsing, falling back to defaults on integer overflow, guarding oversized floats before int casts, and adding regression coverage.
+- Targeted validation passed after the runtime integer-normalizer review fix:
+  - `vendor/bin/phpunit tests/Unit/Support/RuntimeOptionsTest.php` => `OK (5 tests, 29 assertions)`
+- Full local gate passed after the runtime integer-normalizer review fix:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (443 tests, 1027 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Ran the README test-count sync search after adding runtime normalizer assertions. README has no numeric PHPUnit test-count claim, and the comparison matrix prefix check still confirms every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`; PR #23 body must be updated to `443 tests, 1027 assertions` before re-requesting Copilot.

@@ -230,3 +230,4 @@
 - Provider and judge exception messages are serialized into report failures. Do not include raw HTTP bodies or raw malformed judge responses in those messages because providers and models can echo prompts, sample inputs, or policy text.
 - Advanced `citation_evidence` metadata should fail closed on partially malformed quote lists. Silently discarding bad `quotes` entries lowers the required evidence count and can hide dataset authoring errors.
 - OpenAI-compatible embedding indexes can arrive as zero-padded digit strings such as `"01"`. Normalize leading zeroes before integer validation so ordering works while still rejecting non-digit or overflow values.
+- Runtime integer normalizers should treat digit-only strings separately before any float fallback. Oversized numeric strings can otherwise pass float validation and cast to `PHP_INT_MAX`, turning bad retry/sleep config into unsafe huge values.

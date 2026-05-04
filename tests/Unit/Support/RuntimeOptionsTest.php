@@ -35,6 +35,7 @@ final class RuntimeOptionsTest extends TestCase
     {
         $this->assertSame(0, RuntimeOptions::normalizeNonNegativeInt(0, 5));
         $this->assertSame(12, RuntimeOptions::normalizeNonNegativeInt('12', 5));
+        $this->assertSame(12, RuntimeOptions::normalizeNonNegativeInt('0012', 5));
         $this->assertSame(12, RuntimeOptions::normalizeNonNegativeInt(12.9, 5));
         $this->assertSame(12, RuntimeOptions::normalizeNonNegativeInt('12.9', 5));
     }
@@ -46,6 +47,8 @@ final class RuntimeOptionsTest extends TestCase
         $this->assertSame(5, RuntimeOptions::normalizeNonNegativeInt('', 5));
         $this->assertSame(5, RuntimeOptions::normalizeNonNegativeInt('abc', 5));
         $this->assertSame(5, RuntimeOptions::normalizeNonNegativeInt(INF, 5));
+        $this->assertSame(5, RuntimeOptions::normalizeNonNegativeInt('999999999999999999999', 5));
+        $this->assertSame(5, RuntimeOptions::normalizeNonNegativeInt(1.0e100, 5));
         $this->assertSame(0, RuntimeOptions::normalizeNonNegativeInt('abc', -1));
     }
 
