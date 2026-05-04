@@ -641,9 +641,9 @@ local JSON run-history manifest and `--manifest-retain=N` to keep a
 bounded set of adversarial summaries: the newest N summaries plus any
 additional failure-free baselines needed for compatible report schema,
 dataset, metric names, and adversarial category/sample-count slices. Size
-retention for the number of distinct report schema, dataset, metric,
-category, and sample-count slices you run, because each slice may need
-its own clean baseline.
+`--manifest-retain` for the number of distinct report schema, dataset,
+metric, category, and sample-count slices you run, because each slice may
+need its own clean baseline.
 Add `--regression-gate` to compare the current run with the latest
 compatible failure-free existing manifest entry (same report schema,
 dataset, metric names, and adversarial category/sample-count slice)

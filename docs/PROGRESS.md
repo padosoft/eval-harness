@@ -1858,3 +1858,17 @@
   - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
   - `vendor/bin/pint --test`
 - Re-ran the README test-count sync search and comparison prefix check after the twenty-second PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.
+- Copilot reviewed PR #28 again at head `bb3e317` and generated two actionable comments:
+  - README retention guidance said "Size retention" without naming `--manifest-retain`,
+  - directory and directory-shaped manifest path preflight needed coverage for the plain `--manifest` branch, not only `--regression-gate`.
+- Addressed the twenty-third PR #28 review round by naming `--manifest-retain` directly in README guidance and adding non-gated command tests for existing directory and directory-shaped manifest paths while asserting preflight still prevents dataset replacement and lock creation.
+- Targeted validation passed after the twenty-third PR #28 review round:
+  - `vendor/bin/phpunit tests/Unit/Adversarial/AdversarialRegressionGateTest.php tests/Unit/Adversarial/AdversarialRunManifestTest.php tests/Unit/Console/AdversarialCommandTest.php tests/Unit/ServiceProviderTest.php` => `OK (98 tests, 346 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Full local gate passed after the twenty-third PR #28 review round:
+  - `composer validate --strict`
+  - `vendor/bin/phpunit` => `OK (538 tests, 1456 assertions)`
+  - `vendor/bin/phpstan analyse --memory-limit=512M --no-progress`
+  - `vendor/bin/pint --test`
+- Re-ran the README test-count sync search and comparison prefix check after the twenty-third PR #28 review round. README still has no numeric PHPUnit test-count claim, every comparison cell starts with `✅ YES`, `⚠️ PARTIAL`, or `❌ NO`, and `git diff --check` is clean.

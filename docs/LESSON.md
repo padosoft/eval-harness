@@ -272,3 +272,5 @@
 - Shared adversarial manifests cannot treat `run_id` as the only replacement key. Allow same-`run_id` updates only for the same report schema, dataset, metric set, and adversarial slice signature; reject collisions across different slices.
 - Existing directories are invalid manifest paths. CLI preflight should reject `--manifest=<directory>` before running evals, and the public store should reject the same path shape before opening lock files or writing JSON.
 - Manifest path validation should reject directory-shaped strings as well as existing directories. A path ending in `/` or `\` is not a JSON file target even if it does not exist yet, and should fail before eval or store filesystem work starts.
+- Manifest CLI preflight has gated and non-gated branches. When a guardrail is shared by `--manifest` and `--regression-gate`, add command coverage for both branches so they cannot drift.
+- README operator guidance should name the exact option being tuned. Retention guidance should say `--manifest-retain`, not only "retention".

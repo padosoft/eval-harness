@@ -376,6 +376,97 @@ final class AdversarialCommandTest extends TestCase
         }
     }
 
+    public function test_manifest_rejects_directory_path_before_running_without_regression_gate(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifest = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-dir-'.uniqid('', true);
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+        mkdir($manifest);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+            ])
+                ->expectsOutputToContain('The --manifest option must point to a JSON file path, not a directory path.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+            $this->assertFileDoesNotExist($manifest.'.lock');
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest.'.lock');
+            if (is_dir($manifest)) {
+                @rmdir($manifest);
+            }
+        }
+    }
+
+    public function test_manifest_rejects_directory_shaped_path_before_running_without_regression_gate(): void
+    {
+        $factory = $this->app->make(AdversarialDatasetFactory::class);
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->registerDataset($factory->build(
+            name: AdversarialDatasetFactory::DEFAULT_DATASET_NAME,
+            categories: ['pii-leak'],
+            metricSpecs: ['exact-match'],
+        ));
+
+        $sample = $this->adversarialSample('ssrf');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $manifestDirectory = sys_get_temp_dir().DIRECTORY_SEPARATOR.'eval-adv-manifest-dir-shaped-'.uniqid('', true);
+        $manifest = $manifestDirectory.DIRECTORY_SEPARATOR;
+        $this->assertNotFalse($outputs);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $this->artisan('eval-harness:adversarial', [
+                '--category' => ['ssrf'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--manifest' => $manifest,
+            ])
+                ->expectsOutputToContain('The --manifest option must point to a JSON file path, not a directory path.')
+                ->assertExitCode(1);
+
+            $registered = $engine->getDataset(AdversarialDatasetFactory::DEFAULT_DATASET_NAME);
+            $this->assertSame('adv.pii-leak', $registered->samples[0]->id);
+            $this->assertDirectoryDoesNotExist($manifestDirectory);
+            $this->assertFileDoesNotExist($manifest.'.lock');
+        } finally {
+            @unlink($outputs);
+            @unlink($manifest.'.lock');
+            if (is_dir($manifestDirectory)) {
+                @rmdir($manifestDirectory);
+            }
+        }
+    }
+
     public function test_manifest_preflight_does_not_replace_registered_dataset(): void
     {
         $factory = $this->app->make(AdversarialDatasetFactory::class);
