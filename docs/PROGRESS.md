@@ -2451,3 +2451,46 @@
   - Macro 7 shipped v1.0 (tag `1.0`, 2026-05-04).
   - Macro 8 shipped v1.1.0 (tag `v1.1.0`, 2026-05-05) as the v1.x enterprise operations and scalability add-on without breaking any v1 contract.
   - Final main quality gates: PHPUnit `OK (699 tests, 1956 assertions)`, PHPStan `[OK] No errors`, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 second Copilot review fix
+
+- Second Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `b107ce9`) returned 1 new actionable comment: the first-round collision fix preserved two distinct rows internally but still emitted duplicate human-facing `tag: "__untagged__"` values, which lets UI clients that key by `tag` overwrite one row.
+- Addressed the comment by adding additive cohort diff fields:
+  - `key` is the stable client-facing discriminator (`tag:<literal-tag>` for real tags, `untagged` for the synthetic bucket).
+  - `is_untagged` exposes the synthetic-bucket flag directly.
+  - `tag` remains the backwards-compatible display label, so existing clients keep working while new clients can key safely.
+- Pinned the contract in `ReportDiffComputerTest::test_literal_double_underscore_untagged_tag_does_not_collide_with_synthetic_untagged_bucket`, asserting both duplicate display tags and distinct `key` / `is_untagged` values are present.
+- Full local gate passed after the second PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (724 tests, 2026 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 third Copilot review fix
+
+- Third Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `bf07914`) returned 2 new actionable documentation comments plus one stale metrics-type comment already fixed by the previous `metricsBlock()` regression coverage.
+- Addressed the docs comments by changing the README diff endpoint bullet from a hard-coded default prefix to `GET /<configured-prefix>/reports/{id}/diff/{otherId}` and explicitly documenting that `eval-harness.api.prefix` controls the mount point.
+- Added LESSON.md entries for the reusable discoveries: API resources need stable machine keys/discriminators in addition to display labels, and README endpoint bullets under configurable route prefixes should not hard-code only the default prefix.
+
+## 2026-05-06 — Macro 9 / PR #40 fourth Copilot review fix
+
+- Fourth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `e9b9542`) returned 1 new actionable comment plus two stale comments already addressed by prior rounds.
+- Addressed the schema mismatch diagnostic: non-string `schema_version` values now report their actual type/value (`int(123)`, JSON-encoded array/object where possible) instead of collapsing every mistyped value to `null`.
+- Added `ReportDiffComputerTest::test_mistyped_schema_version_message_includes_actual_type` to pin the operator-facing diagnostic.
+- Full local gate passed after the fourth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 fifth Copilot review fix
+
+- Fifth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `2ff2291`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Updated `ReportDiffComputer` class documentation to describe the real union-style diff contract: valid metric/cohort/category keys from either side are included, absent sides are treated as empty, and malformed nested fields are skipped or zeroed.
+- Extracted shared JSON report decoding into `ReportJsonDecoder` and used it from both `ReportArtifactController` and `ReportDiffController`, preventing malformed/object validation behavior from drifting between report show and report diff endpoints. Kept `ReportArtifactController` backwards-compatible for direct unit construction by defaulting the decoder when none is injected.
+- Full local gate passed after the fifth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 sixth Copilot review fix
+
+- Sixth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `cd5bc17`) returned 1 new actionable test-coverage comment plus stale comments from prior rounds.
+- Added `ReportJsonDecoderTest` covering both shared 422 paths: malformed JSON and non-object JSON. This pins the behavior used by both report show and report diff endpoints.
+- Full local gate passed after the sixth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (727 tests, 2032 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 seventh Copilot review fix
+
+- Seventh Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `9e4a7d7`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Addressed the code comment by making `ReportArtifactController::$jsonDecoder` non-nullable and assigning `ReportJsonDecoder` in the constructor when no decoder is injected. The property type now matches the class invariant.
+- Reconciled the PR #40 description with the current branch: updated test counts, checked local gate/Copilot status, documented the shared decoder, and updated the sample diff payload to include cohort `key` / `is_untagged`.
+- Full local gate passed after the seventh PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (727 tests, 2032 assertions)`, PHPStan no errors, Pint passed.
