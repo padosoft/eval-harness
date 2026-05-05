@@ -46,7 +46,12 @@ final class ManifestRouteTest extends TestCase
         sort($names);
 
         $this->assertSame(['agents-safety', 'rag-safety'], $names);
-        $this->assertEqualsWithDelta(0.76, $response->json('data.0.latest_macro_f1'), 0.0001);
+        $rowsByName = [];
+        foreach ($response->json('data') as $row) {
+            $rowsByName[$row['name']] = $row;
+        }
+
+        $this->assertEqualsWithDelta(0.76, $rowsByName['agents-safety']['latest_macro_f1'], 0.0001);
     }
 
     public function test_show_returns_full_manifest_with_runs(): void

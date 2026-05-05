@@ -2525,3 +2525,9 @@
   - `SCHEMA_DIFF`, `SCHEMA_ADVERSARIAL_MANIFESTS`, and `SCHEMA_ADVERSARIAL_MANIFEST` constants.
   - README bullets and PROGRESS history from both sub-PRs.
 - Full local gate passed after refreshing PR #41 on top of PR #40: `composer validate --strict`, `vendor/bin/phpunit` => `OK (737 tests, 2059 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 sixth Copilot review fix
+
+- Sixth Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `4cdb923`) returned 1 actionable comment on an order-dependent manifest index assertion plus stale comments from prior rounds.
+- Updated `ManifestRouteTest::test_index_returns_summaries_with_per_endpoint_discriminator` to look up the `agents-safety` row by manifest name before asserting `latest_macro_f1`, instead of assuming it stays at `data[0]`.
+- Full local gate passed after the sixth PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (737 tests, 2059 assertions)`, PHPStan no errors, Pint passed.
