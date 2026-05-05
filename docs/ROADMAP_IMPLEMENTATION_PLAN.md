@@ -285,6 +285,117 @@ Tests:
 - `EvalCommandTest` extensions for profile precedence, unknown-profile
   diagnostics, and serial/lazy-parallel option compatibility.
 
+## Macro Task 9 - Report API Completeness For Companion UI Package v1.2 [IN PROGRESS]
+
+Branch: `task/report-api-completeness-v9`
+
+Implement (additive — no breaking change to v1 contracts; the package
+stays headless and ships zero bundled UI assets):
+
+- Report diff endpoint: `GET /reports/{id}/diff/{otherId}` returns
+  macro_f1 delta, per-metric mean/pass_rate deltas, per-cohort diffs
+  (matched by tag with `added` / `removed` / `regressed` / `improved`
+  status), total_samples / total_failures deltas, and adversarial
+  category deltas when both reports carry an adversarial block.
+  Implemented through `ReportDiffComputer` (pure logic),
+  `ReportDiffController`, and `ReportDiffResource`.
+- Adversarial manifest discovery endpoints:
+  `GET /adversarial/manifests` (list) and
+  `GET /adversarial/manifests/{name}` (show). Reads parsed
+  `AdversarialRunManifest` files from a new opt-in config block
+  `eval-harness.adversarial.manifests.{disk,path_prefix}`. The CLI
+  `--adversarial-manifest=<path>` flag is preserved — the new config
+  block is purely additive for HTTP discovery. Endpoints respond
+  `404 + structured error "discovery_not_configured"` when the block
+  is absent so UI clients degrade gracefully.
+  Implemented through `ManifestRepository`, `ManifestController`,
+  and `ManifestResource`.
+- Live batch progress endpoints:
+  `GET /batches/live` and `GET /batches/{id}/progress`. Adds a new
+  cache-backed `BatchLiveRegistry` that `LazyParallelBatch::run()`
+  and `dispatch()` register/deregister against. The list endpoint
+  performs a self-healing read (filters expired registry entries and
+  IDs whose `CacheBatchResultStore` meta key is gone). Opt-out flag
+  `eval-harness.batches.live_registry.enabled` (default `true`).
+  Implemented through `BatchLiveRegistry`,
+  `BatchLiveController`, `BatchLiveResource`, and
+  `BatchProgressResource`.
+- Dataset trend endpoint: `GET /datasets/{name}/trend?limit=N`.
+  Aggregates the last `N` reports for a dataset (chronological by
+  `started_at`) and returns macro_f1, per-metric mean/pass_rate, and
+  per-cohort trend series, plus usage cost/latency series when
+  available.
+  Implemented through `DatasetTrendRepository`,
+  `DatasetTrendController`, and `DatasetTrendResource`.
+- Companion UI package specification document
+  `docs/UI_PACKAGE_SPEC.md` describing the future
+  `padosoft/eval-harness-ui` standalone package: mission, architecture,
+  auth-integration patterns, sections/screens with ASCII wireframes,
+  endpoint usage table per screen, performance / accessibility
+  requirements, and the UI package's own roadmap.
+
+Schema versioning:
+
+- `ReportApiSchema::VERSION` stays at `eval-harness.report-api.v1`;
+  the new endpoints add fields/payloads, they do not break existing
+  ones.
+- Each new payload carries a per-endpoint `schema` discriminator
+  (`...v1.diff`, `...v1.adversarial-manifests`,
+  `...v1.adversarial-manifest`, `...v1.batches-live`,
+  `...v1.batch-progress`, `...v1.trend`). Constants live in
+  `src/ReportApi/ReportApiSchema.php`. UI clients negotiate on the
+  per-payload field; the envelope version stays stable until
+  something genuinely breaks.
+
+Guardrails:
+
+- All five new routes inherit the existing `eval-harness.api.enabled`
+  gate (disabled by default).
+- Diff and trend endpoints inherit traversal protection from
+  `ReportArtifactId::decode()`.
+- Adversarial manifest discovery is opt-in via the new config block;
+  the existing CLI flag keeps working with arbitrary filesystem paths.
+- Batch live registry is cache-backed (no new persistence
+  requirement); concurrent dispatch is guarded with `Cache::lock()`,
+  with array-cache no-op shim in tests.
+- No hard Horizon dependency added; the live registry works on any
+  `CacheRepository` backend (Redis recommended in production for
+  atomic SADD/SREM but array/file/database also work).
+
+Slicing strategy:
+
+- `task/report-api-completeness-v9-diff` — sub-task PR 9.1 (lowest
+  risk, pure computation; ships first).
+- `task/report-api-completeness-v9-adversarial-manifests` — sub-task
+  PR 9.2 (isolated config + discovery endpoints).
+- `task/report-api-completeness-v9-batch-live` — sub-task PR 9.3
+  (only invasive change; touches `LazyParallelBatch`; ships after
+  9.1/9.2 to avoid rebase churn).
+- `task/report-api-completeness-v9-dataset-trend` — sub-task PR 9.4
+  (depends on stable report repository; ships last).
+- Macro PR `task/report-api-completeness-v9` → `main` after all four
+  sub-PRs land. Final tag `v1.2.0` with full release notes.
+
+Tests:
+
+- `ReportDiffComputerTest` — pure unit tests for diff math, cohort
+  matching, schema-version mismatch rejection, missing-fields
+  graceful handling.
+- `ReportDiffRouteTest` — happy path, traversal rejection on either
+  ID, markdown rejection, schema-version mismatch returns 422, both
+  reports missing returns 404.
+- `ManifestRouteTest` — index / show / empty-config 404 / traversal
+  rejection.
+- `BatchLiveRouteTest` — live list filtering, expired-entry
+  self-heal, opt-out flag returns 404.
+- `BatchProgressRouteTest` — active / finished / aborted / unknown
+  states.
+- `BatchLiveRegistryTest` — TTL race, abort-mid-flight cleanup,
+  concurrent dispatches.
+- `DatasetTrendRouteTest` — chronological ordering, limit param,
+  empty dataset returns empty arrays not 404, malformed report
+  skipped not fatal.
+
 ## Competitor-Informed Additions
 
 The README already compares against OpenAI Evals, LangSmith, Ragas, Promptfoo, and DeepEval. Keep that comparison current as these roadmap additions close parity gaps:
