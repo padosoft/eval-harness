@@ -163,6 +163,15 @@ surface small and the offline path fast.
   `BatchTerminalProgressReporter` sub-contract for explicit
   `success` / `failure` / `empty` terminal status with partial-wins
   tolerance on the failure path.
+- **Adversarial manifest discovery endpoints** —
+  `GET /eval-harness/api/adversarial/manifests` and
+  `GET /eval-harness/api/adversarial/manifests/{name}` enumerate
+  adversarial run manifests written to a configured disk so a
+  companion UI can browse compliance history without scraping the
+  filesystem. Opt-in via
+  `eval-harness.adversarial.manifests.{disk,path_prefix}`; the CLI
+  `--adversarial-manifest=<arbitrary-path>` flag is preserved for
+  existing operators.
 - **Report diff endpoint** —
   `GET /<configured-prefix>/reports/{id}/diff/{otherId}` computes signed
   deltas (macro_f1, per-metric mean/pass_rate, per-cohort status with

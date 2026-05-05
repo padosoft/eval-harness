@@ -22,4 +22,8 @@ final class ReportApiSchema
     public const VERSION = 'eval-harness.report-api.v1';
 
     public const SCHEMA_DIFF = 'eval-harness.report-api.v1.diff';
+
+    public const SCHEMA_ADVERSARIAL_MANIFESTS = 'eval-harness.report-api.v1.adversarial-manifests';
+
+    public const SCHEMA_ADVERSARIAL_MANIFEST = 'eval-harness.report-api.v1.adversarial-manifest';
 }
