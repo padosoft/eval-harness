@@ -2461,3 +2461,9 @@
   - `tag` remains the backwards-compatible display label, so existing clients keep working while new clients can key safely.
 - Pinned the contract in `ReportDiffComputerTest::test_literal_double_underscore_untagged_tag_does_not_collide_with_synthetic_untagged_bucket`, asserting both duplicate display tags and distinct `key` / `is_untagged` values are present.
 - Full local gate passed after the second PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (724 tests, 2026 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 third Copilot review fix
+
+- Third Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `bf07914`) returned 2 new actionable documentation comments plus one stale metrics-type comment already fixed by the previous `metricsBlock()` regression coverage.
+- Addressed the docs comments by changing the README diff endpoint bullet from a hard-coded default prefix to `GET /<configured-prefix>/reports/{id}/diff/{otherId}` and explicitly documenting that `eval-harness.api.prefix` controls the mount point.
+- Added LESSON.md entries for the reusable discoveries: API resources need stable machine keys/discriminators in addition to display labels, and README endpoint bullets under configurable route prefixes should not hard-code only the default prefix.
