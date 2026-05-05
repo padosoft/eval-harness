@@ -384,14 +384,24 @@ trait BuildsBatchOptions
     {
         if ($this->batchOptionWasProvided($name)) {
             $value = $this->option($name);
-            // Operator can pass `--flag=none` (or `--flag=null`) to
-            // explicitly clear a value inherited from a profile. Without
-            // this sentinel, profile-numeric defaults would otherwise be
-            // sticky because empty strings fall back to the profile.
+            // Explicit-clear path covers all operator surfaces:
+            //   - real CLI: `--flag=none` / `--flag=null` (string sentinels).
+            //   - programmatic Artisan::call(['--flag' => null]) (actual null).
+            // Empty string `--flag=` continues to fall through to
+            // the profile/baseline default (operators routinely
+            // pass unset CI variables via shell expansion).
+            // Without the actual-null branch, ArrayInput callers
+            // passing `null` would inherit the profile-numeric
+            // default instead of clearing it — the documented
+            // "none or null clears an inherited numeric value"
+            // contract would not hold on the programmatic path.
+            if ($value === null) {
+                return null;
+            }
             if (is_string($value) && in_array(strtolower(trim($value)), ['none', 'null'], true)) {
                 return null;
             }
-            if ($value !== null && $value !== '') {
+            if ($value !== '') {
                 return $this->assertPositiveInt($name, $value);
             }
         }

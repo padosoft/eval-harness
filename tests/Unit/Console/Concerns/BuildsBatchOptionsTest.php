@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Console\Concerns;
 
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Support\Facades\Artisan;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Tests\Fixtures\CapturingBatchOptionsCommand;
@@ -83,6 +84,53 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertSame(4, $captured->concurrency);
         $this->assertSame(120, $captured->waitTimeoutSeconds);
         $this->assertSame(4000, $captured->resultTtlSeconds);
+    }
+
+    public function test_actual_null_numeric_flag_via_artisan_call_clears_inherited_profile_value(): void
+    {
+        // Round-39 fix: programmatic Artisan::call(['--rate-limit'
+        // => null]) was hitting the early "value === null" branch
+        // BEFORE the trait's fix and falling through to the
+        // inherited profile-numeric default instead of clearing it.
+        // The documented "none or null clears an inherited numeric
+        // value" contract must hold on the programmatic
+        // (ArrayInput) path too — `null` from `env('FOO')` is the
+        // most common way operators pass an unset value through
+        // Artisan::call. Empty string '' continues to fall through
+        // to profile default per the existing
+        // `test_empty_new_batch_flags_fall_back_to_profile_defaults`
+        // test.
+        config(['eval-harness.batches.profiles.numeric-clear' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 8,
+            'queue' => 'evals',
+            'timeout_seconds' => 30,
+            'wait_timeout_seconds' => 120,
+            'rate_limit' => 30,
+            'rate_window_seconds' => 60,
+            'checkpoint_every' => 25,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        Artisan::call('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'numeric-clear',
+            '--rate-limit' => null,
+            '--rate-window-seconds' => null,
+            '--checkpoint-every' => null,
+        ]);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        // Programmatic null clears the inherited numeric value;
+        // null in BatchOptions means "use the runtime default for
+        // this field" (no rate-limit, no rate-window override, no
+        // checkpoint emission).
+        $this->assertNull($captured->rateLimit);
+        $this->assertNull($captured->rateWindowSeconds);
+        $this->assertNull($captured->checkpointEvery);
+        // Fields NOT explicitly cleared still inherit the profile.
+        $this->assertSame(8, $captured->concurrency);
+        $this->assertSame(120, $captured->waitTimeoutSeconds);
     }
 
     public function test_empty_new_batch_flags_fall_back_to_profile_defaults(): void

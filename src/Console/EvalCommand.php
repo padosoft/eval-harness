@@ -72,7 +72,7 @@ final class EvalCommand extends Command
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
         {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish (covers both rate-limit pauses and result collection)}
-        {--result-ttl-seconds= : Raise the lazy-parallel result-store TTL floor for this run (positive integer, or "none" to clear an inherited profile value). The runner takes max(this value, the package default 3600s, --batch-timeout, --timeout, profile floor); explicit values BELOW the package default cannot lower it — set the global floor in eval-harness.batches.lazy_parallel.result_ttl_seconds for that}
+        {--result-ttl-seconds= : Raise the lazy-parallel result-store TTL floor for this run (positive integer, or "none" to clear an inherited profile value). On the run() path the runner takes max(this value, the package default 3600s, --batch-timeout, --timeout, ceil(samples/chunkSize) * max(--batch-timeout, --timeout)); on the dispatch() path it takes max(this value, the package default, ceil(samples/concurrency) * --timeout). Explicit values BELOW the package default cannot lower it — set the global floor in eval-harness.batches.lazy_parallel.result_ttl_seconds for that}
         {--chunk-size= : Producer window size for lazy-parallel dispatch; defaults to --concurrency when unset and must be <= --concurrency}
         {--rate-limit= : Maximum samples dispatched per --rate-window-seconds in lazy-parallel mode}
         {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}
