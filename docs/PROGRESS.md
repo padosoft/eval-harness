@@ -2481,3 +2481,9 @@
 - Updated `ReportDiffComputer` class documentation to describe the real union-style diff contract: valid metric/cohort/category keys from either side are included, absent sides are treated as empty, and malformed nested fields are skipped or zeroed.
 - Extracted shared JSON report decoding into `ReportJsonDecoder` and used it from both `ReportArtifactController` and `ReportDiffController`, preventing malformed/object validation behavior from drifting between report show and report diff endpoints. Kept `ReportArtifactController` backwards-compatible for direct unit construction by defaulting the decoder when none is injected.
 - Full local gate passed after the fifth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 sixth Copilot review fix
+
+- Sixth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `cd5bc17`) returned 1 new actionable test-coverage comment plus stale comments from prior rounds.
+- Added `ReportJsonDecoderTest` covering both shared 422 paths: malformed JSON and non-object JSON. This pins the behavior used by both report show and report diff endpoints.
+- Full local gate passed after the sixth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (727 tests, 2032 assertions)`, PHPStan no errors, Pint passed.
