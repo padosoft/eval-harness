@@ -1583,6 +1583,53 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_run_returns_outputs_when_chunk_completes_at_or_past_deadline(): void
+    {
+        // Pins the false-positive fix: with fast workers or the sync
+        // queue driver, every sample in a window can finish inside the
+        // budget yet the post-loop microtime() can still cross the
+        // deadline by a few microseconds. The deadline check must NOT
+        // flip a healthy run to a `0 of N undispatched` failure when
+        // dispatch was actually complete — let waitForIndexedOutputs()
+        // collect the already-stored outputs and return normally.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            // 1-second wait timeout; the runner sleeps just over 1s so
+            // the post-dispatch microtime() check definitively crosses
+            // the deadline, but `dispatchedInWindow == count($window)`
+            // because every sample was handed to the dispatcher.
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'first'], expectedOutput: 'first'),
+            new DatasetSample(id: 's2', input: ['answer' => 'second'], expectedOutput: 'second'),
+        ];
+
+        $outputs = $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new SlowSyncSampleRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+            ),
+        );
+
+        $this->assertSame(['first', 'second'], $outputs);
+    }
+
     public function test_run_throttles_dispatch_under_low_rate_limit(): void
     {
         // Pins that run() consults `rateLimiter` for the dispatch pace.
@@ -1782,6 +1829,21 @@ final class LazyParallelFailingRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         throw new \RuntimeException('runner exploded');
+    }
+}
+
+final class SlowSyncSampleRunner implements SampleRunner
+{
+    // Hardcoded sleep duration (constructor parameters with scalar
+    // types are rejected by LazyParallelBatch's runner validation
+    // because queue workers cannot reproduce caller-supplied state).
+    public const SLEEP_MICROSECONDS = 600_000;
+
+    public function run(SampleInvocation $sample): string
+    {
+        usleep(self::SLEEP_MICROSECONDS);
+
+        return (string) $sample->input['answer'];
     }
 }
 

@@ -106,7 +106,17 @@ final class LazyParallelBatch
                     );
                 }
 
-                if (microtime(true) >= $chunkDeadline) {
+                $undispatched = count($sampleWindow) - $dispatchedInWindow;
+                // Only treat the deadline as exceeded when dispatch was
+                // actually aborted mid-window. With fast workers or the
+                // sync queue driver, every sample can finish inside the
+                // budget and still cross the deadline by a few
+                // microseconds during the post-loop microtime() call;
+                // in that case `dispatchedInWindow == count($window)`
+                // and the right thing to do is collect the outputs
+                // that are already there, not flip a healthy run to
+                // a `0 of N undispatched` false failure.
+                if ($undispatched > 0 && microtime(true) >= $chunkDeadline) {
                     // A real sample failure recorded by an earlier
                     // worker is more useful than the deadline
                     // diagnostic, so surface it first.
@@ -125,14 +135,12 @@ final class LazyParallelBatch
 
                     // Report the count of UNDISPATCHED samples, not the
                     // full chunk: when the deadline fires mid-window
-                    // some samples have already been handed to the
-                    // dispatcher and only the remainder were actually
-                    // blocked by the timeout. Operators tuning chunk
-                    // size / rate limits need that distinction.
+                    // only the remainder were actually blocked by the
+                    // timeout. Operators tuning chunk size / rate
+                    // limits need that distinction.
                     // Diagnostic stays neutral so library callers using
                     // EvalEngine::runBatch() / runEvalSet() do not get
                     // CLI-only remediation guidance.
-                    $undispatched = count($sampleWindow) - $dispatchedInWindow;
                     throw new EvalRunException(sprintf(
                         "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout with %d of %d sample(s) still undispatched before result collection started; lower the chunk size, relax the rate limit, or raise the wait timeout.",
                         $batchId,
@@ -643,6 +651,19 @@ final class LazyParallelBatch
             // capture completion time instead of dispatch time and a
             // slow sample would stretch the next throttle wait by its
             // own runtime.
+            //
+            // Wall-clock cap caveat: the chunk deadline is a hard cap
+            // when `dispatcher->dispatch()` returns immediately (Redis,
+            // database, beanstalk drivers — i.e. the documented Horizon
+            // path). On the `sync` queue driver dispatch executes the
+            // job INLINE, so a single slow sample can run arbitrarily
+            // longer than `--batch-timeout` before control returns and
+            // the deadline check fires. Producer-side throttling and
+            // the deadline check still bound dispatch wait time on
+            // sync, but per-sample runtime is bounded by `--timeout`,
+            // not `--batch-timeout`. Operators that need a hard
+            // wall-clock cap on the producer window should use a real
+            // queue driver in production.
             $rateLimiter?->record(microtime(true));
 
             $this->dispatcher->dispatch($job);
