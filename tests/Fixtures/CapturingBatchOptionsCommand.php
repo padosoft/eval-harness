@@ -27,6 +27,7 @@ final class CapturingBatchOptionsCommand extends Command
         {--queue= : Queue name}
         {--timeout= : Per-sample timeout seconds}
         {--batch-timeout= : Per-window wait timeout seconds}
+        {--result-ttl-seconds= : Result-store TTL override}
         {--chunk-size= : Producer dispatch window}
         {--rate-limit= : Maximum dispatches per rate window}
         {--rate-window-seconds= : Rolling rate window}

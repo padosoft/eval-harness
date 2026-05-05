@@ -71,7 +71,8 @@ final class EvalCommand extends Command
         {--concurrency=1 : Producer fan-out cap for lazy-parallel mode (also the default --chunk-size); --chunk-size narrows the dispatch window further but cannot exceed --concurrency}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
-        {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish}
+        {--batch-timeout= : Maximum seconds to wait for each lazy-parallel dispatch window to finish (covers both rate-limit pauses and result collection)}
+        {--result-ttl-seconds= : Override the lazy-parallel result-store TTL inherited from the profile/config (positive integer, or "none" to clear)}
         {--chunk-size= : Producer window size for lazy-parallel dispatch; defaults to --concurrency when unset and must be <= --concurrency}
         {--rate-limit= : Maximum samples dispatched per --rate-window-seconds in lazy-parallel mode}
         {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}

@@ -16,6 +16,7 @@ trait BuildsBatchOptions
         'queue',
         'timeout',
         'batch-timeout',
+        'result-ttl-seconds',
         'chunk-size',
         'rate-limit',
         'rate-window-seconds',
@@ -32,6 +33,7 @@ trait BuildsBatchOptions
         $queue = $this->resolveQueue($profile, $modeIsSerial);
         $timeoutSeconds = $this->resolveOptionalPositiveInt('timeout', $profile?->timeoutSeconds, $modeIsSerial);
         $waitTimeoutSeconds = $this->resolveOptionalPositiveInt('batch-timeout', $profile?->waitTimeoutSeconds, $modeIsSerial);
+        $resultTtlSeconds = $this->resolveOptionalPositiveInt('result-ttl-seconds', $profile?->resultTtlSeconds, $modeIsSerial);
         $chunkSize = $this->resolveOptionalPositiveInt('chunk-size', $profile?->chunkSize, $modeIsSerial);
         $rateLimit = $this->resolveOptionalPositiveInt('rate-limit', $profile?->rateLimit, $modeIsSerial);
         $rateWindowSeconds = $this->resolveOptionalPositiveInt('rate-window-seconds', $profile?->rateWindowSeconds, $modeIsSerial);
@@ -77,8 +79,7 @@ trait BuildsBatchOptions
             queue: $queue,
             timeoutSeconds: $timeoutSeconds,
             waitTimeoutSeconds: $waitTimeoutSeconds,
-            resultTtlSeconds: $modeIsSerial ? null : $profile?->resultTtlSeconds,
-            profile: $profile?->name,
+            resultTtlSeconds: $resultTtlSeconds,
             chunkSize: $chunkSize,
             rateLimit: $rateLimit,
             rateWindowSeconds: $rateWindowSeconds,

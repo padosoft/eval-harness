@@ -23,8 +23,6 @@ final class BatchOptions
 
     public readonly ?string $queue;
 
-    public readonly ?string $profile;
-
     public function __construct(
         public readonly string $mode = self::MODE_SERIAL,
         public readonly int $concurrency = 1,
@@ -32,7 +30,6 @@ final class BatchOptions
         public readonly ?int $timeoutSeconds = null,
         public readonly ?int $waitTimeoutSeconds = null,
         public readonly ?int $resultTtlSeconds = null,
-        ?string $profile = null,
         public readonly ?int $chunkSize = null,
         public readonly ?int $rateLimit = null,
         public readonly ?int $rateWindowSeconds = null,
@@ -56,13 +53,6 @@ final class BatchOptions
         }
 
         $this->queue = $normalizedQueue;
-
-        $normalizedProfile = $profile !== null ? trim($profile) : null;
-        if ($profile !== null && ($normalizedProfile === '' || $normalizedProfile !== $profile)) {
-            throw new EvalRunException('Batch profile name must be null or a non-empty string without leading or trailing whitespace.');
-        }
-
-        $this->profile = $normalizedProfile;
 
         if ($timeoutSeconds !== null && $timeoutSeconds < 1) {
             throw new EvalRunException('Queued sample timeout must be null or greater than or equal to 1 second.');
@@ -155,9 +145,9 @@ final class BatchOptions
         }
     }
 
-    public static function serial(?string $profile = null): self
+    public static function serial(): self
     {
-        return new self(profile: $profile);
+        return new self;
     }
 
     public static function lazyParallel(
@@ -166,7 +156,6 @@ final class BatchOptions
         ?int $timeoutSeconds = null,
         ?int $waitTimeoutSeconds = null,
         ?int $resultTtlSeconds = null,
-        ?string $profile = null,
         ?int $chunkSize = null,
         ?int $rateLimit = null,
         ?int $rateWindowSeconds = null,
@@ -179,7 +168,6 @@ final class BatchOptions
             timeoutSeconds: $timeoutSeconds,
             waitTimeoutSeconds: $waitTimeoutSeconds,
             resultTtlSeconds: $resultTtlSeconds,
-            profile: $profile,
             chunkSize: $chunkSize,
             rateLimit: $rateLimit,
             rateWindowSeconds: $rateWindowSeconds,

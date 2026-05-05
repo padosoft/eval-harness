@@ -126,21 +126,19 @@ final class BatchOptionsTest extends TestCase
         new BatchOptions(resultTtlSeconds: 60);
     }
 
-    public function test_lazy_parallel_supports_backpressure_and_profile_fields(): void
+    public function test_lazy_parallel_supports_backpressure_fields(): void
     {
         $options = BatchOptions::lazyParallel(
             concurrency: 8,
             queue: 'evals-nightly',
             timeoutSeconds: 60,
             waitTimeoutSeconds: 600,
-            profile: 'nightly',
             chunkSize: 4,
             rateLimit: 30,
             rateWindowSeconds: 60,
             checkpointEvery: 25,
         );
 
-        $this->assertSame('nightly', $options->profile);
         $this->assertSame(4, $options->chunkSize);
         $this->assertSame(4, $options->effectiveChunkSize());
         $this->assertSame(30, $options->rateLimit);
@@ -201,14 +199,6 @@ final class BatchOptionsTest extends TestCase
         $this->expectExceptionMessage('Batch checkpoint interval must be null or greater than or equal to 1.');
 
         BatchOptions::lazyParallel(checkpointEvery: 0);
-    }
-
-    public function test_rejects_padded_profile_name(): void
-    {
-        $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage('Batch profile name must be null or a non-empty string without leading or trailing whitespace.');
-
-        BatchOptions::lazyParallel(profile: ' ci ');
     }
 
     public function test_serial_mode_rejects_chunk_size(): void

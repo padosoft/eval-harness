@@ -51,7 +51,6 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertSame(30, $captured->timeoutSeconds);
         $this->assertSame(120, $captured->waitTimeoutSeconds);
         $this->assertSame(4000, $captured->resultTtlSeconds);
-        $this->assertSame('custom-ttl', $captured->profile);
     }
 
     public function test_explicit_cli_options_override_profile_defaults(): void
@@ -144,6 +143,53 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertNull($captured->rateLimit);
         $this->assertNull($captured->rateWindowSeconds);
         $this->assertNull($captured->checkpointEvery);
+    }
+
+    public function test_explicit_result_ttl_seconds_overrides_profile_default(): void
+    {
+        config(['eval-harness.batches.profiles.ttl-heavy' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 4,
+            'queue' => 'evals',
+            'timeout_seconds' => 30,
+            'wait_timeout_seconds' => 120,
+            'result_ttl_seconds' => 4000,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'ttl-heavy',
+            '--result-ttl-seconds' => '7200',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertSame(7200, $captured->resultTtlSeconds);
+    }
+
+    public function test_explicit_none_sentinel_clears_inherited_profile_result_ttl_seconds(): void
+    {
+        // result_ttl_seconds was previously sticky because no CLI flag
+        // could override it. Now it accepts the same `none` sentinel
+        // as the other nullable int fields.
+        config(['eval-harness.batches.profiles.ttl-heavy' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 4,
+            'queue' => 'evals',
+            'timeout_seconds' => 30,
+            'wait_timeout_seconds' => 120,
+            'result_ttl_seconds' => 4000,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'ttl-heavy',
+            '--result-ttl-seconds' => 'none',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertNull($captured->resultTtlSeconds);
     }
 
     public function test_explicit_lower_concurrency_caps_inherited_profile_chunk_size(): void
@@ -373,6 +419,5 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertNull($captured->timeoutSeconds);
         $this->assertNull($captured->waitTimeoutSeconds);
         $this->assertNull($captured->resultTtlSeconds);
-        $this->assertSame('custom-ttl', $captured->profile);
     }
 }

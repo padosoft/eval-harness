@@ -76,6 +76,15 @@ final class LazyParallelBatch
 
         try {
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
+                // The chunk deadline covers BOTH dispatch (which can
+                // include rate-limit pauses) and result collection so
+                // --batch-timeout always bounds the per-window wall
+                // clock. Without this, a low rateLimit with a large
+                // chunk could spend most of the operator-supplied
+                // budget sleeping inside dispatchSampleJobs() before
+                // waitForIndexedOutputs() even started.
+                $chunkDeadline = microtime(true) + $waitTimeoutSeconds;
+
                 try {
                     $this->dispatchSampleJobs(
                         batchId: $batchId,
@@ -95,11 +104,21 @@ final class LazyParallelBatch
                     );
                 }
 
+                $remainingSeconds = $chunkDeadline - microtime(true);
+                if ($remainingSeconds <= 0.0) {
+                    throw new EvalRunException(sprintf(
+                        "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout for %d sample(s) before result collection started; relax --rate-limit / --rate-window-seconds, lower --chunk-size, or raise --batch-timeout.",
+                        $batchId,
+                        $this->secondsLabel($waitTimeoutSeconds),
+                        count($sampleWindow),
+                    ));
+                }
+
                 $outputsByIndex += $this->waitForIndexedOutputs(
                     batchId: $batchId,
                     samples: $sampleWindow,
                     sampleCount: $sampleCount,
-                    timeoutSeconds: $waitTimeoutSeconds,
+                    timeoutSeconds: max(1, (int) ceil($remainingSeconds)),
                 );
 
                 $samplesCompleted += count($sampleWindow);
