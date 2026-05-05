@@ -7,17 +7,18 @@ namespace Padosoft\EvalHarness\ReportApi\Adversarial;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
-use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestEntry;
 
 /**
  * Envelope shape for an adversarial manifest show endpoint.
  *
  * Renders the parsed `AdversarialRunManifest` as plain associative
  * arrays so HTTP clients see the same shape the manifest file on disk
- * carries (delegates to `AdversarialRunManifest::toJson()` for the
- * top-level fields and `AdversarialRunManifestEntry::toJson()` per
- * run). Adds derived `latest_run_id` for UI convenience so a client
- * does not have to scan the runs array.
+ * carries: the resource calls `AdversarialRunManifest::toJson()` and
+ * remaps the on-disk `manifest` key to a UI-friendly `name`, plus two
+ * derived fields (`runs_count`, `latest_run_id`) so a client does not
+ * have to scan the runs array. Per-run rows pass through unmodified
+ * from `AdversarialRunManifestEntry::toJson()` (already wrapped in
+ * `toJson()` on the parent manifest).
  *
  * @property-read AdversarialRunManifest $resource
  */
@@ -36,18 +37,16 @@ final class ManifestResource extends JsonResource
     public function toArray(Request $request): array
     {
         $manifest = $this->resource;
+        $payload = $manifest->toJson();
         $latest = $manifest->latest();
 
         return [
-            'schema_version' => $manifest->schemaVersion,
-            'name' => $manifest->name,
-            'updated_at' => $manifest->updatedAt,
-            'runs_count' => count($manifest->runs),
+            'schema_version' => $payload['schema_version'],
+            'name' => $payload['manifest'],
+            'updated_at' => $payload['updated_at'],
+            'runs_count' => count($payload['runs']),
             'latest_run_id' => $latest?->runId,
-            'runs' => array_map(
-                static fn (AdversarialRunManifestEntry $entry): array => $entry->toJson(),
-                $manifest->runs,
-            ),
+            'runs' => $payload['runs'],
         ];
     }
 }

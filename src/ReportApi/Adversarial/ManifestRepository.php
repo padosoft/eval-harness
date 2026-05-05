@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\ReportApi\Adversarial;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Filesystem\FilesystemAdapter;
 use JsonException;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
@@ -142,7 +143,15 @@ final class ManifestRepository
     private function loadManifestFromPath(Filesystem $disk, string $path): AdversarialRunManifest
     {
         try {
-            if (! $disk->exists($path)) {
+            // Mirror ReportArtifactRepository::metadataFor(): branch on
+            // FilesystemAdapter so we use the Flysystem v3 fileExists()
+            // path when available and fall back to the contract's
+            // generic exists() for non-adapter filesystems / fakes.
+            if ($disk instanceof FilesystemAdapter) {
+                if (! $disk->fileExists($path)) {
+                    throw new EvalRunException('Adversarial manifest not found.');
+                }
+            } elseif (! $disk->exists($path)) {
                 throw new EvalRunException('Adversarial manifest not found.');
             }
 

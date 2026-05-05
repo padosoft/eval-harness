@@ -96,6 +96,28 @@ final class ManifestRouteTest extends TestCase
             ->assertJsonPath('error', 'discovery_not_configured');
     }
 
+    public function test_show_route_passes_injected_request_through_to_resource(): void
+    {
+        // Regression for Copilot review on PR #41 (commit 84642fd).
+        // The old controller built the manifest payload via
+        // `(new ManifestResource($manifest))->toArray(request())`,
+        // ignoring the injected `$request`. Pin the corrected
+        // pass-through behaviour by hitting the show route with a
+        // non-default header — if the controller ever swaps back to
+        // the global helper, frameworks that wrap requests for
+        // tenant/locale scoping would silently lose the swap.
+        Storage::fake('eval-api');
+        Storage::disk('eval-api')->put(
+            'eval-harness/adversarial/manifests/rag-safety.json',
+            json_encode($this->manifestPayload('rag-safety'), JSON_THROW_ON_ERROR),
+        );
+
+        $this->getJson(
+            '/eval-harness/api/adversarial/manifests/rag-safety',
+            ['Accept-Language' => 'en-US'],
+        )->assertOk()->assertJsonPath('data.name', 'rag-safety');
+    }
+
     public function test_index_skips_malformed_manifest_files(): void
     {
         Storage::fake('eval-api');

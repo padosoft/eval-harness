@@ -6,7 +6,6 @@ namespace Padosoft\EvalHarness\ReportApi\Adversarial;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
@@ -51,16 +50,8 @@ final class ManifestController
         return new JsonResponse([
             'schema_version' => ReportApiSchema::VERSION,
             'schema' => ReportApiSchema::SCHEMA_ADVERSARIAL_MANIFEST,
-            'data' => $this->resourceFor($manifest),
+            'data' => (new ManifestResource($manifest))->toArray($request),
         ]);
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function resourceFor(AdversarialRunManifest $manifest): array
-    {
-        return (new ManifestResource($manifest))->toArray(request());
     }
 
     private function discoveryNotConfigured(): JsonResponse
