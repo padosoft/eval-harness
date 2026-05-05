@@ -669,6 +669,25 @@ final class EvalCommandTest extends TestCase
         ])->assertExitCode(0);
     }
 
+    public function test_invalid_rate_limit_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-rate-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-rate-limit',
+            '--batch' => 'lazy-parallel',
+            '--rate-limit' => '-3',
+        ])
+            ->expectsOutputToContain('The --rate-limit option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
     public function test_serial_mode_rejects_explicit_rate_limit(): void
     {
         /** @var EvalEngine $engine */

@@ -134,16 +134,18 @@ final class BatchOptions
         // limit would otherwise be a silent no-op because LazyParallelBatch
         // only constructs a RateLimitWindow when rateLimit !== null.
         if ($rateWindowSeconds !== null && $rateLimit === null) {
-            throw new EvalRunException('Batch rate window seconds is only meaningful with a rate limit; pass --rate-limit=N or unset --rate-window-seconds.');
+            throw new EvalRunException(
+                'Batch rate window seconds is only meaningful with a rate limit; set the rateLimit option (--rate-limit at the CLI) or unset rateWindowSeconds (--rate-window-seconds).'
+            );
         }
 
         // Concurrency caps the producer fan-out; chunk-size only narrows
         // the dispatch window further. Reject chunk-size > concurrency so
-        // operators do not accidentally oversubscribe by setting a chunk
+        // callers do not accidentally oversubscribe by setting a chunk
         // size larger than the configured fan-out.
         if ($chunkSize !== null && $chunkSize > $concurrency) {
             throw new EvalRunException(sprintf(
-                'Batch chunk size (%d) cannot exceed concurrency (%d). --concurrency caps the producer fan-out; --chunk-size only narrows the dispatch window.',
+                'Batch chunk size (%d) cannot exceed concurrency (%d). The concurrency option (--concurrency at the CLI) caps the producer fan-out; chunkSize (--chunk-size) only narrows the dispatch window.',
                 $chunkSize,
                 $concurrency,
             ));

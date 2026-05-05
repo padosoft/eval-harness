@@ -41,9 +41,10 @@ php artisan eval-harness:run rag.factuality.fy2026 \
   --out=evals/rag-factuality.json
 ```
 
-`--concurrency` is the lazy-parallel producer fan-out and the default
-producer window size. Pass `--chunk-size=N` to override the window
-independently of fan-out (see Backpressure Knobs below). Actual worker
+`--concurrency` is the lazy-parallel producer fan-out cap and the
+default producer window size. Pass `--chunk-size=N` to narrow the
+window further (must be `<= --concurrency`, since `--concurrency` is
+the fan-out cap; see Backpressure Knobs below). Actual worker
 concurrency is controlled by Horizon supervisor process counts.
 
 Use a queue-specific registrar, or update the host app's existing registrar, so
