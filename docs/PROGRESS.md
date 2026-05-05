@@ -2420,3 +2420,20 @@
   - Replaced the double `expectExceptionMessage()` with a manual `try/catch` block plus two `assertStringContainsString()` assertions on `$e->getMessage()`. Documents the PHPUnit overwrite gotcha inline so future contributors don't reintroduce the pattern.
   - Renamed `$deadlineMicrotime` → `$deadlineMonotonicSeconds` and `$chunkDeadlineMicrotime` → `$chunkDeadlineMonotonicSeconds` across `LazyParallelBatch::run()`, `dispatchSampleJobs()`, `waitForIndexedOutputs()`, and `throttleDispatch()`. Aligns the parameter names with the actual time domain (hrtime-derived monotonic seconds) so the wall-clock vs monotonic distinction is visible at every call site.
 - Full local gate passed after the first macro-PR Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`, PHPStan no errors, Pint passed.
+
+## Macro PR #38 — second Copilot review round and merge into main (roadmap complete)
+
+- Second Copilot review on macro PR #38 head `16e25ea` (review id `PRR_kwDOSPC3Ys78J_MJ`) returned a proper review and 3 inline comments. All three were stale or already addressed by the round-1 push:
+  - Two parameter-name comments at `LazyParallelBatch.php` lines 502 and 769 still referenced `$deadlineMicrotime` / `$chunkDeadlineMicrotime`, but those names had already been renamed to `$deadlineMonotonicSeconds` / `$chunkDeadlineMonotonicSeconds` in commit `16e25ea`. Verified at the exact lines on the merge commit — no further change required.
+  - One comment on `docs/ROADMAP_IMPLEMENTATION_PLAN.md` line 238 said `docs/PROGRESS.md` had not been updated for the macro PR work; in fact PROGRESS.md already had extensive 2026-05-05 entries covering every per-round push, the sub-task PR #37 merge, and the macro PR #38 round-1 fix.
+- Per the user's prior `1` directive on PR #37 (merge as-is when Copilot rounds reach diminishing returns) and `procedi in auto mode fino alla fine della roadmap` (autonomous mode until the end of the roadmap), proceeded to merge the macro PR.
+- CI was green across the full PHP 8.3 / 8.4 / 8.5 × Laravel 12 / 13 matrix on `16e25ea`. PR state: OPEN / MERGEABLE / CLEAN.
+- Merged macro PR #38 into `main` via `gh pr merge 38 --merge --delete-branch=false` at 2026-05-05T18:05:07Z. Merge commit `3e202cef27ef24b33ff516c9ef5eb33fdcfcdd78`.
+- 50 commits fast-forwarded onto local `main` covering the full Macro 8 deliverable surface (28 files changed; +6488 / -177 lines) plus the per-round Copilot fix commits preserved in history.
+- Final local gate on `main`:
+  - `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` => `[OK] No errors`.
+  - `vendor/bin/pint --test` => passed.
+- Marked Macro Task 8 `[DONE 2026-05-05]` in `docs/ROADMAP_IMPLEMENTATION_PLAN.md`.
+- Roadmap status: all eight macro tasks (0 through 8) are now complete. Macro 7 shipped v1.0; Macro 8 shipped the v1.x enterprise operations and scalability add-on (operational batch profiles, producer-side backpressure, progress checkpointing, optional terminal status reporting, and operator-facing Horizon sizing guidance) without breaking any v1 contract.
+- Pending operator action: tag `v1.1.0` and create the corresponding GitHub release. The merge of the macro PR was already in motion when the system flagged remaining release actions as high-severity — the operator should explicitly authorize tag creation, tag push, and release publication before those steps run.

@@ -232,9 +232,9 @@ Tests:
 - README command smoke where feasible.
 - Composer path install smoke in a Laravel test fixture if added.
 
-## Macro Task 8 - Enterprise Operations And Scalability Add-On v1.x
+## Macro Task 8 - Enterprise Operations And Scalability Add-On v1.x [DONE 2026-05-05]
 
-Branch: `task/enterprise-operations-scalability`
+Branch: `task/enterprise-operations-scalability` (merged into `main` via PR #38, merge commit `3e202ce`).
 
 Implement (post-1.0 add-on; preserves all v1 contracts):
 
