@@ -84,9 +84,10 @@ final class LazyParallelBatch
                 // budget sleeping inside dispatchSampleJobs() before
                 // collection started.
                 $chunkDeadline = microtime(true) + $waitTimeoutSeconds;
+                $dispatchedInWindow = 0;
 
                 try {
-                    $this->dispatchSampleJobs(
+                    $dispatchedInWindow = $this->dispatchSampleJobs(
                         batchId: $batchId,
                         samples: $sampleWindow,
                         sampleInvocations: $sampleInvocations,
@@ -122,13 +123,21 @@ final class LazyParallelBatch
                         ));
                     }
 
+                    // Report the count of UNDISPATCHED samples, not the
+                    // full chunk: when the deadline fires mid-window
+                    // some samples have already been handed to the
+                    // dispatcher and only the remainder were actually
+                    // blocked by the timeout. Operators tuning chunk
+                    // size / rate limits need that distinction.
                     // Diagnostic stays neutral so library callers using
                     // EvalEngine::runBatch() / runEvalSet() do not get
                     // CLI-only remediation guidance.
+                    $undispatched = count($sampleWindow) - $dispatchedInWindow;
                     throw new EvalRunException(sprintf(
-                        "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout for %d sample(s) before result collection started; lower the chunk size, relax the rate limit, or raise the wait timeout.",
+                        "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout with %d of %d sample(s) still undispatched before result collection started; lower the chunk size, relax the rate limit, or raise the wait timeout.",
                         $batchId,
                         $this->secondsLabel($waitTimeoutSeconds),
+                        $undispatched,
                         count($sampleWindow),
                     ));
                 }
@@ -573,6 +582,14 @@ final class LazyParallelBatch
      * @param  array<int, DatasetSample>  $samples
      * @param  list<SampleInvocation>  $sampleInvocations
      * @param  class-string<SampleRunner>  $runnerClass
+     * @return int Number of samples actually dispatched. Lower than
+     *             count($samples) when the chunk deadline aborted the
+     *             loop mid-window. Used by the deadline-exceeded
+     *             diagnostic so it reports the count of UNDISPATCHED
+     *             samples instead of the full chunk size — operators
+     *             tuning chunk size / rate limits need to know how
+     *             many samples were actually still blocked when the
+     *             timeout fired.
      */
     private function dispatchSampleJobs(
         string $batchId,
@@ -583,7 +600,8 @@ final class LazyParallelBatch
         int $resultTtlSeconds,
         ?RateLimitWindow $rateLimiter = null,
         ?float $chunkDeadlineMicrotime = null,
-    ): void {
+    ): int {
+        $dispatched = 0;
         foreach ($samples as $index => $sample) {
             // Stop dispatching when the chunk deadline has been
             // reached. Without this check, throttleDispatch() could
@@ -592,7 +610,7 @@ final class LazyParallelBatch
             // cap on the producer window. The caller will surface a
             // stored failure first or the deadline-exceeded error.
             if ($chunkDeadlineMicrotime !== null && microtime(true) >= $chunkDeadlineMicrotime) {
-                return;
+                return $dispatched;
             }
 
             $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
@@ -601,7 +619,7 @@ final class LazyParallelBatch
                 // throttleDispatch() may have woken early at the
                 // deadline; bail before recording a dispatch we did
                 // not actually make.
-                return;
+                return $dispatched;
             }
 
             $sampleInvocation = $sampleInvocations[$index];
@@ -628,7 +646,10 @@ final class LazyParallelBatch
             $rateLimiter?->record(microtime(true));
 
             $this->dispatcher->dispatch($job);
+            $dispatched++;
         }
+
+        return $dispatched;
     }
 
     private function rateLimitWindow(BatchOptions $options): ?RateLimitWindow

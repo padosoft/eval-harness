@@ -1557,6 +1557,17 @@ final class LazyParallelBatchTest extends TestCase
             $this->fail('Expected EvalRunException because the rate-limit pause consumed the chunk deadline.');
         } catch (EvalRunException $e) {
             $this->assertStringContainsString('chunk dispatch consumed the full', $e->getMessage());
+            // The diagnostic must distinguish dispatched samples from
+            // undispatched ones: with rateLimit=1 only the first sample
+            // of the window can dispatch, so 4 of 5 must be reported as
+            // still undispatched. Reporting the full chunk size (5)
+            // would overstate the impact and mislead operators tuning
+            // chunk size or rate limits.
+            $this->assertMatchesRegularExpression(
+                '/with [1-4] of 5 sample\(s\) still undispatched/',
+                $e->getMessage(),
+                'Diagnostic must report the count of undispatched samples, not the full chunk size.',
+            );
         }
         $elapsed = microtime(true) - $start;
 

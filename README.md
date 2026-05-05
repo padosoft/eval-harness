@@ -515,8 +515,16 @@ Size Horizon worker pool capacity for the chunk-size you actually use,
 not the concurrency upper bound. Worker counts themselves are
 configured in Horizon.
 `--timeout` is the per-sample job timeout; `--batch-timeout` is the
-maximum wait for each dispatch window to finish before the command
-reports missing queued outputs. Programmatic external `dispatch()` / `collectOutputs()`
+hard wall-clock cap on each dispatch window. It bounds BOTH the
+dispatch phase (including any producer-side `--rate-limit` pauses) AND
+the result-collection phase: when the timeout fires before all queued
+outputs land the command reports the missing samples; when dispatch
+itself consumes the budget (for example because a low rate limit
+throttles the producer) the command fails with an explicit
+"chunk dispatch consumed the full ... wait timeout" diagnostic that
+reports how many samples were still undispatched. Lower
+`--chunk-size`, relax `--rate-limit`, or raise `--batch-timeout` to
+fix it. Programmatic external `dispatch()` / `collectOutputs()`
 flows can set `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to
 keep result metadata and sample outputs alive long enough for delayed
 collection.
