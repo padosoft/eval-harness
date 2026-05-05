@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Illuminate\Support\Facades\Artisan;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -193,6 +194,89 @@ final class EvalCommandTest extends TestCase
         ])
             ->expectsOutputToContain('Serial batch mode does not use a wait timeout')
             ->assertExitCode(1);
+    }
+
+    public function test_outputs_warns_when_batch_flags_are_passed(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // --outputs bypasses the batch dispatch path, so passing
+            // --batch-profile / --rate-limit alongside --outputs is
+            // a misuse: the trait validation never runs and operators
+            // get no signal that the values are dropped. The runtime
+            // warning is the only safety net catching typos like
+            // `--rate-limit=abc`. Use Artisan::call so we can read the
+            // captured output directly (the PendingCommand wrapper
+            // routes assertions through a different output path that
+            // does not see <comment>-styled `line()` writes).
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-cli',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--rate-limit' => '5',
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output run with extra batch flags must still exit 0; got output: '.$output);
+            $this->assertStringContainsString('Ignoring batch flags', $output);
+            $this->assertStringContainsString('--batch-profile', $output);
+            $this->assertStringContainsString('--rate-limit', $output);
+            $this->assertStringContainsString('--outputs is set', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_does_not_warn_when_no_batch_flags_passed(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-quiet-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // No batch flags passed → no warning. Documents the
+            // false-positive guard: the warning only fires for flags
+            // the operator actually passed, not for defaulted values.
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-quiet-cli',
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit);
+            $this->assertStringNotContainsString('Ignoring batch flags', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
     }
 
     public function test_outputs_option_runs_without_bound_sut(): void

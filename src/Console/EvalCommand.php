@@ -153,39 +153,4 @@ final class EvalCommand extends Command
 
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
     }
-
-    /**
-     * Operators using `--outputs` score precomputed sample outputs;
-     * the batch dispatch path is bypassed entirely, so any batch
-     * flags (or typos in those flags) are silently dropped without
-     * the trait's validation getting a chance to run. Emit a single
-     * warning line so operators see the misuse instead of being
-     * surprised that `--rate-limit=abc` or `--batch-profile=ci`
-     * had no effect.
-     */
-    private function warnIfBatchFlagsIgnored(): void
-    {
-        $batchFlags = [
-            '--batch', '--batch-profile', '--concurrency', '--queue',
-            '--timeout', '--batch-timeout', '--result-ttl-seconds',
-            '--chunk-size', '--rate-limit', '--rate-window-seconds',
-            '--checkpoint-every',
-        ];
-
-        $passed = [];
-        foreach ($batchFlags as $flag) {
-            if ($this->input->hasParameterOption($flag, true)) {
-                $passed[] = $flag;
-            }
-        }
-
-        if ($passed === []) {
-            return;
-        }
-
-        $this->warn(sprintf(
-            'Ignoring batch flags (%s) because --outputs is set; saved-output scoring bypasses the batch dispatch path.',
-            implode(', ', $passed),
-        ));
-    }
 }

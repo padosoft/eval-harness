@@ -23,6 +23,104 @@ trait BuildsBatchOptions
         'checkpoint-every',
     ];
 
+    /**
+     * Single source of truth for the CLI batch-flag surface.
+     *
+     * `eval-harness:run` and `eval-harness:adversarial` skip
+     * `batchOptions()` whenever `--outputs` is set, so any batch
+     * flags the operator passed are silently dropped on that path.
+     * `warnIfBatchFlagsIgnored()` consults this list to emit a
+     * runtime warning that names the actual flags passed. Keeping
+     * the list here means new batch flags only need to be added
+     * once: future drift between the two commands' warning helpers
+     * (and the help-text recap) is impossible.
+     *
+     * @var list<string>
+     */
+    private const BATCH_FLAGS = [
+        '--batch',
+        '--batch-profile',
+        '--concurrency',
+        '--queue',
+        '--timeout',
+        '--batch-timeout',
+        '--result-ttl-seconds',
+        '--chunk-size',
+        '--rate-limit',
+        '--rate-window-seconds',
+        '--checkpoint-every',
+    ];
+
+    /**
+     * Operators using `--outputs` score precomputed sample outputs;
+     * the batch dispatch path is bypassed entirely, so any batch
+     * flags (or typos in those flags) are silently dropped without
+     * `BatchOptions` validation getting a chance to run. Emit a
+     * single warning line listing every batch flag the operator
+     * passed alongside `--outputs` so the misuse is visible at
+     * runtime.
+     */
+    private function warnIfBatchFlagsIgnored(): void
+    {
+        $passed = [];
+        foreach (self::BATCH_FLAGS as $flag) {
+            if ($this->batchFlagWasPassed($flag)) {
+                $passed[] = $flag;
+            }
+        }
+
+        if ($passed === []) {
+            return;
+        }
+
+        // Use line() with explicit comment styling instead of warn().
+        // warn() routes through SymfonyStyle::warning() which prints a
+        // multi-line block with padding that interleaves padding lines
+        // between the prefix and the flag list, making
+        // expectsOutputToContain() assertions on individual flag names
+        // brittle in tests. A plain styled line keeps the message on a
+        // single line and is still visually distinct in terminal use.
+        $this->line(sprintf(
+            '<comment>Warning: Ignoring batch flags (%s) because --outputs is set; saved-output scoring bypasses the batch dispatch path.</comment>',
+            implode(', ', $passed),
+        ));
+    }
+
+    /**
+     * Detect whether the operator explicitly passed a batch flag.
+     *
+     * `hasParameterOption()` works when Artisan parsed real CLI
+     * tokens, but in `$this->artisan('cmd', [...])` tests Laravel's
+     * `ArrayInput` populates the parsed-options bag directly without
+     * tokens, so the token check returns false. Fall back to
+     * comparing the option value against the signature default —
+     * any non-null, non-empty value that differs from the default
+     * counts as explicitly passed in both contexts.
+     */
+    private function batchFlagWasPassed(string $flag): bool
+    {
+        $name = ltrim($flag, '-');
+        if (! $this->getDefinition()->hasOption($name)) {
+            return false;
+        }
+
+        if ($this->input->hasParameterOption($flag, true)) {
+            return true;
+        }
+
+        $value = $this->option($name);
+        if ($value === null || $value === '') {
+            return false;
+        }
+
+        $default = $this->getDefinition()->getOption($name)->getDefault();
+        if ($default === null) {
+            return true;
+        }
+
+        return (string) $value !== (string) $default;
+    }
+
     private function batchOptions(): BatchOptions
     {
         $profile = $this->resolveBatchProfile();
