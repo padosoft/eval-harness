@@ -10,9 +10,12 @@ use Padosoft\EvalHarness\Reports\ReportSchema;
  * Pure-logic diff between two decoded JSON eval-harness reports.
  *
  * Both reports must share `schema_version === ReportSchema::VERSION`.
- * Missing / mistyped fields are tolerated — the diff returns whatever
- * fields are present on both sides and skips the rest, so a partial
- * report still produces a useful payload instead of a 500.
+ * Missing / mistyped fields are tolerated. Diff blocks are built from
+ * the union of valid metric/cohort/category keys on both sides, using
+ * an empty block for a key that exists on only one side, while fields
+ * that are absent or mistyped within a block fall back to zero or are
+ * skipped. This keeps partial reports useful instead of producing a
+ * 500.
  *
  * Returned shape (top-level):
  *
