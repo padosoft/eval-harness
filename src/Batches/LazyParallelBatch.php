@@ -30,6 +30,16 @@ final class LazyParallelBatch
     private const MAX_POLL_INTERVAL_MICROSECONDS = 1_000_000;
 
     /**
+     * Fallback per-drain-batch runtime in seconds for the
+     * dispatch() TTL math when `BatchOptions::timeoutSeconds`
+     * is null. Intentionally a fixed constant (matches typical
+     * queue worker default) rather than a config-driven value,
+     * so the dispatch path's TTL stays decoupled from
+     * `eval-harness.batches.lazy_parallel.wait_timeout_seconds`.
+     */
+    private const DISPATCH_PER_DRAIN_BATCH_FALLBACK_SECONDS = 60;
+
+    /**
      * Monotonic seconds for deadline / throttle math.
      *
      * `microtime(true)` follows wall-clock time and can step
@@ -1255,14 +1265,23 @@ final class LazyParallelBatch
     {
         $drainBatches = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
         // When `--timeout` is null (the documented default — callers
-        // rely on the queue worker's own timeout), fall back to the
-        // package's default wait-timeout floor so per-drain-batch
-        // runtime is non-zero. Otherwise drainSeconds collapses to
-        // 0 and long externally-dispatched batches would expire
-        // after only the constructor floor (default 3600s)
-        // regardless of sample count, breaking delayed
-        // collectOutputs() flows on big batches.
-        $perDrainBatchSeconds = $options->timeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+        // rely on the queue worker's own timeout), fall back to a
+        // fixed per-drain-batch floor (60s, matching the typical
+        // queue worker default) so drainSeconds is non-zero on
+        // large batches.
+        //
+        // The fallback is INTENTIONALLY a fixed constant rather
+        // than the constructor's `defaultWaitTimeoutSeconds`. Tying
+        // it to the wait-timeout config would re-couple the
+        // dispatch path's TTL to `eval-harness.batches.lazy_parallel
+        // .wait_timeout_seconds` — operators raising the producer-
+        // side wait timeout for `run()` would then also inflate
+        // dispatch-path cache retention, which this fallback
+        // explicitly aims to avoid. Operators with longer-running
+        // jobs should set `timeoutSeconds` (or
+        // `BatchOptions::lazyParallel(resultTtlSeconds: ...)`) to
+        // get a larger drain window.
+        $perDrainBatchSeconds = $options->timeoutSeconds ?? self::DISPATCH_PER_DRAIN_BATCH_FALLBACK_SECONDS;
         $drainSeconds = $drainBatches * $perDrainBatchSeconds;
 
         return max(

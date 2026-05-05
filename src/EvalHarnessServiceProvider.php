@@ -164,6 +164,22 @@ class EvalHarnessServiceProvider extends ServiceProvider
             }
         });
 
+        // Asymmetry note: the "bind under either key" contract is
+        // ONE-WAY by design. Host apps that bind a terminal-capable
+        // reporter under `BatchProgressReporter::class` only get
+        // terminal events through `LazyParallelBatch::run()`
+        // (which type-checks via `instanceof
+        // BatchTerminalProgressReporter` at emission time). Code
+        // that resolves `BatchTerminalProgressReporter::class`
+        // directly will still throw when no terminal binding
+        // exists. Adding a reverse alias here is unsafe: the
+        // singletonIf would re-enter the parent resolution chain
+        // through `extend()`, potentially recursing on host
+        // bindings that themselves alias terminal back to parent.
+        // Operators wanting to expose a single instance under
+        // both keys should bind both explicitly in their own
+        // service provider — typical Laravel container hygiene.
+
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);

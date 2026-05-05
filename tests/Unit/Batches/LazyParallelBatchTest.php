@@ -168,23 +168,29 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
-    public function test_dispatch_ttl_uses_default_wait_timeout_floor_when_per_job_timeout_is_null(): void
+    public function test_dispatch_ttl_uses_fixed_fallback_when_per_job_timeout_is_null(): void
     {
-        // Round-43 fix: BatchOptions::lazyParallel(timeoutSeconds:
-        // null) is the documented default — callers rely on the
-        // queue worker's own timeout. Without a fallback, drainSeconds
-        // collapses to 0 and large dispatched batches expire after
-        // only the constructor floor (default 3600s) regardless of
-        // sample count, breaking delayed collectOutputs() flows.
+        // Round-44 fix: dispatch() TTL falls back to a FIXED
+        // per-drain-batch constant (60s) when timeoutSeconds is
+        // null — NOT to the constructor's
+        // defaultWaitTimeoutSeconds. Tying it to the wait-timeout
+        // config would re-couple the dispatch path's TTL to
+        // eval-harness.batches.lazy_parallel.wait_timeout_seconds:
+        // operators raising the producer-side wait timeout for
+        // run() would then also inflate dispatch-path cache
+        // retention, which the dispatch fallback explicitly aims
+        // to avoid.
         Queue::fake();
 
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->app->make(Dispatcher::class);
+        // Construct with a NON-default defaultWaitTimeoutSeconds
+        // (300s) to prove the dispatch fallback ignores it.
         $batch = new LazyParallelBatch(
             dispatcher: $dispatcher,
             resultStore: new RecordingBatchResultStore,
             resultTtlSeconds: 10,
-            defaultWaitTimeoutSeconds: 60,
+            defaultWaitTimeoutSeconds: 300,
         );
         // 100 samples, concurrency 1 → 100 drain batches.
         $samples = [];
@@ -204,8 +210,14 @@ final class LazyParallelBatchTest extends TestCase
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
             // drainBatches = 100, perDrainBatchSeconds =
-            // defaultWaitTimeoutSeconds = 60. drainSeconds = 6000.
-            // Constructor floor 10 < 6000, so TTL = 6000.
+            // DISPATCH_PER_DRAIN_BATCH_FALLBACK_SECONDS = 60
+            // (NOT defaultWaitTimeoutSeconds 300, which is what a
+            // re-coupled implementation would have used).
+            // drainSeconds = 100 * 60 = 6000. Constructor
+            // resultTtlSeconds floor 10 < 6000, so TTL = 6000.
+            // If the dispatch path were re-coupled to
+            // defaultWaitTimeoutSeconds, the assertion would fail
+            // with TTL = 30000 (100 * 300).
             return $job->resultTtlSeconds === 6000;
         });
     }
