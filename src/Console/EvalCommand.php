@@ -67,7 +67,7 @@ final class EvalCommand extends Command
         {--registrar= : FQCN of an invokable class that registers the dataset + drives the SUT}
         {--outputs= : JSON/YAML file containing precomputed sample outputs to score without invoking the SUT}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
-        {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults; pass `none` to a numeric/queue flag to clear an inherited profile value}
+        {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults; pass `none` to a numeric flag (e.g. --rate-limit=none) to clear an inherited profile value}
         {--concurrency=1 : Producer fan-out cap for lazy-parallel mode (also the default --chunk-size); --chunk-size narrows the dispatch window further but cannot exceed --concurrency}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}

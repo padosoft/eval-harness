@@ -111,4 +111,60 @@ final class RateLimitWindowTest extends TestCase
             'Underlying storage must stay bounded under saturated steady-state traffic.',
         );
     }
+
+    public function test_steady_state_window_uses_lazy_head_offset_compaction(): void
+    {
+        // Pinning regression for the head-offset + lazy-compaction
+        // behaviour itself, not just the final buffer size. A naive
+        // implementation that re-slices the array on every prune would
+        // also produce a bounded final size, but it would copy the live
+        // region on every dispatch and turn the limiter into the new
+        // hot path. Inspect the head property directly to prove the
+        // lazy-compaction strategy is active.
+        //
+        // Setup: rateLimit=50 with rateWindowSeconds=50 and 1s spacing
+        // gives a saturated steady state where each new record expires
+        // exactly one prior entry. Initial fill keeps every entry alive
+        // (49s span within a 50s window), then 100 steady-state records
+        // each advance the head by 1 without compacting (compaction
+        // threshold is 256).
+        $rateLimit = 50;
+        $rateWindowSeconds = 50;
+        $window = new RateLimitWindow(rateLimit: $rateLimit, rateWindowSeconds: $rateWindowSeconds);
+
+        for ($i = 0; $i < $rateLimit; $i++) {
+            $window->record((float) $i);
+        }
+
+        $steadyStateRecords = 100;
+        for ($i = 0; $i < $steadyStateRecords; $i++) {
+            $window->record((float) ($rateWindowSeconds + $i));
+        }
+
+        $headProperty = new \ReflectionProperty(RateLimitWindow::class, 'head');
+        $timestampsProperty = new \ReflectionProperty(RateLimitWindow::class, 'timestamps');
+        $headProperty->setAccessible(true);
+        $timestampsProperty->setAccessible(true);
+
+        $head = $headProperty->getValue($window);
+        $storage = $timestampsProperty->getValue($window);
+
+        $this->assertSame(
+            $steadyStateRecords,
+            $head,
+            'Head offset must advance once per steady-state dispatch (eager per-prune compaction would keep head at 0).',
+        );
+        $this->assertSame(
+            $rateLimit + $steadyStateRecords,
+            count($storage),
+            'Underlying storage must still hold expired-but-not-yet-compacted entries (eager per-prune compaction would shrink storage to rateLimit).',
+        );
+
+        // Live region (storage - head) is exactly the rateLimit window.
+        $this->assertSame(
+            $rateLimit,
+            count($storage) - $head,
+            'Live entry count must equal rateLimit so nextWaitMicroseconds() can answer correctly.',
+        );
+    }
 }

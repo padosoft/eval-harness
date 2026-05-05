@@ -184,8 +184,13 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertSame(8, $captured->chunkSize);
     }
 
-    public function test_explicit_none_sentinel_clears_inherited_profile_queue(): void
+    public function test_queue_none_is_treated_as_a_real_queue_name(): void
     {
+        // Regression: queue names are arbitrary strings, so the `none`
+        // sentinel that clears integer fields must NOT swallow real
+        // queue names. Some host apps legitimately dispatch eval jobs
+        // to a queue literally called `none` or `null`; the CLI must
+        // pass those through as queue names.
         config(['eval-harness.batches.profiles.queue-default' => [
             'mode' => BatchOptions::MODE_LAZY_PARALLEL,
             'concurrency' => 4,
@@ -200,7 +205,7 @@ final class BuildsBatchOptionsTest extends TestCase
 
         $captured = $this->command->captured;
         $this->assertNotNull($captured);
-        $this->assertNull($captured->queue);
+        $this->assertSame('none', $captured->queue);
     }
 
     public function test_profile_lazy_only_fields_drop_when_explicit_batch_serial(): void
