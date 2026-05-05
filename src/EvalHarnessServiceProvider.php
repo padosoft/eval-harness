@@ -119,17 +119,22 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new BatchProfileResolver($app->make(ConfigRepository::class));
         });
 
-        $this->app->singletonIf(BatchProgressReporter::class, static function (): BatchProgressReporter {
-            return new NullBatchProgressReporter;
+        // Host apps may bind their reporter under either
+        // `BatchProgressReporter::class` (the parent interface) or
+        // `BatchTerminalProgressReporter::class` (the optional
+        // status-aware sub-contract). When ONLY the sub-contract is
+        // bound, the parent-interface resolution must also return
+        // the same instance — otherwise any consumer type-hinting
+        // `BatchProgressReporter` (LazyParallelBatch's factory below
+        // prefers the sub-contract, but downstream user code that
+        // type-hints the parent does not) would silently get the
+        // package's `NullBatchProgressReporter` instead of the host
+        // app's reporter.
+        $this->app->singletonIf(BatchProgressReporter::class, static function (Container $app): BatchProgressReporter {
+            return $app->bound(BatchTerminalProgressReporter::class)
+                ? $app->make(BatchTerminalProgressReporter::class)
+                : new NullBatchProgressReporter;
         });
-
-        // Host apps that implement the optional terminal-status
-        // sub-contract may bind their reporter under either
-        // `BatchProgressReporter::class` (the parent interface that
-        // LazyParallelBatch consumes) or `BatchTerminalProgressReporter::class`.
-        // The LazyParallelBatch factory below prefers the sub-contract
-        // binding when present so the host app does not need to bind
-        // under both keys.
 
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */

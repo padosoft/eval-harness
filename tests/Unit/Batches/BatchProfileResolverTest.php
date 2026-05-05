@@ -293,6 +293,31 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_resolver_rejects_explicit_null_profiles_config(): void
+    {
+        // Round-33/34 fix: explicit `profiles => null` (env-backed
+        // `'profiles' => env('FOO')` with the env var unset) must
+        // fail loud instead of silently falling back to built-in
+        // defaults — otherwise host-app overrides would disappear
+        // in production. The resolver uses a sentinel-default
+        // `Repository::get(...)` round-trip rather than `has()`
+        // because Laravel's `Arr::has` reports `false` for null
+        // leaf values in some flows. This test pins the explicit-
+        // null branch directly.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => null,
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('eval-harness.batches.profiles is null.');
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_profile_rejects_chunk_size_without_concurrency(): void
     {
         // chunk_size with no explicit concurrency would silently clamp

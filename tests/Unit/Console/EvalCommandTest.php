@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
 use Illuminate\Support\Facades\Artisan;
+use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -14,6 +15,12 @@ use Padosoft\EvalHarness\Tests\Fixtures\SavedOutputsOnlyRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\ConsoleSectionOutput;
+use Symfony\Component\Console\Output\Output;
+use Symfony\Component\Console\Output\OutputInterface;
 
 final class EvalCommandTest extends TestCase
 {
@@ -196,6 +203,92 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_outputs_warning_routes_to_stderr_on_console_output_interface(): void
+    {
+        // Round-32 fix: when the active output supports STDERR
+        // (real CLI via ConsoleOutputInterface), the warning must
+        // go to STDERR — not to the regular line writer — so
+        // `eval-harness:run --outputs ... --json` can pipe stdout
+        // to a JSON parser without contamination. This test
+        // bypasses the artisan invocation harness and drives
+        // EvalCommand directly with a ConsoleOutput so STDERR/STDOUT
+        // are distinguishable.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-stderr-route')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            /** @var EvalCommand $command */
+            $command = $this->app->make(EvalCommand::class);
+            $command->setLaravel($this->app);
+
+            $stdout = new BufferedOutput;
+            $stderr = new BufferedOutput;
+            $output = new class($stdout, $stderr) extends Output implements ConsoleOutputInterface
+            {
+                public function __construct(
+                    private BufferedOutput $stdout,
+                    private BufferedOutput $stderr,
+                ) {
+                    parent::__construct();
+                }
+
+                protected function doWrite(string $message, bool $newline): void
+                {
+                    $this->stdout->write($message, $newline);
+                }
+
+                public function getErrorOutput(): OutputInterface
+                {
+                    return $this->stderr;
+                }
+
+                public function setErrorOutput(OutputInterface $error): void
+                {
+                    //
+                }
+
+                public function section(): ConsoleSectionOutput
+                {
+                    throw new \LogicException('not used');
+                }
+            };
+
+            $input = new ArrayInput([
+                'dataset' => 'saved-output-stderr-route',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--json' => true,
+                '--out' => $report,
+            ], $command->getDefinition());
+
+            $command->run($input, $output);
+
+            $stdoutText = $stdout->fetch();
+            $stderrText = $stderr->fetch();
+
+            // Warning must be on STDERR only, leaving stdout
+            // available for any payload writers without
+            // contamination.
+            $this->assertStringContainsString('Ignoring batch flags', $stderrText);
+            $this->assertStringContainsString('--batch-profile', $stderrText);
+            $this->assertStringNotContainsString('Ignoring batch flags', $stdoutText);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
     public function test_outputs_warns_when_batch_flags_are_passed(): void
     {
         /** @var EvalEngine $engine */
@@ -284,6 +377,50 @@ final class EvalCommandTest extends TestCase
             $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
         } finally {
             @unlink($outputs);
+        }
+    }
+
+    public function test_outputs_warning_detects_explicit_default_valued_flag_via_sentinel(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-default-valued')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // Round-32 sentinel-based fallback: explicit
+            // default-valued flag `--batch=serial` (matches the
+            // signature default 'serial') passed via Artisan::call
+            // must still fire the warning. hasParameterOption +
+            // value-vs-default comparison alone misses this case
+            // because the resolved value matches the default; only
+            // the sentinel `getParameterOption` round-trip catches
+            // it. A regression here would silently let explicitly-
+            // passed default values bypass the runtime warning.
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-default-valued',
+                '--outputs' => $outputs,
+                '--batch' => 'serial',
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output run with explicit default-valued batch flag must still exit 0; got: '.$output);
+            $this->assertStringContainsString('Ignoring batch flags', $output);
+            $this->assertStringContainsString('--batch', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
         }
     }
 

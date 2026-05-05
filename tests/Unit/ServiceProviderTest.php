@@ -263,6 +263,38 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame($custom, $reporterProperty->getValue($batch));
     }
 
+    public function test_parent_progress_reporter_resolves_to_terminal_binding_when_only_terminal_is_bound(): void
+    {
+        // Round-35 fix: the "bind under either key" contract only
+        // worked inside the LazyParallelBatch factory. Any consumer
+        // type-hinting the parent BatchProgressReporter interface
+        // (host-app code, tests, downstream services) would silently
+        // resolve to the package's NullBatchProgressReporter even
+        // when the host app had bound a real reporter under the
+        // sub-contract. This test pins the bidirectional alias:
+        // when ONLY BatchTerminalProgressReporter is bound,
+        // BatchProgressReporter resolution returns the same
+        // instance.
+        $custom = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchTerminalProgressReporter::class, $custom);
+        $this->app->forgetInstance(BatchProgressReporter::class);
+
+        $resolved = $this->app->make(BatchProgressReporter::class);
+
+        $this->assertSame($custom, $resolved);
+    }
+
     public function test_batch_result_store_uses_configured_cache_store(): void
     {
         /** @var CacheFactory $cacheFactory */
