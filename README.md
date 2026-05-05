@@ -507,9 +507,13 @@ Horizon workers on the chosen queue and set
 command process and workers so queued sample outputs can be collected
 for report assembly. `--concurrency` is the lazy-parallel producer
 fan-out cap and is also the default dispatch window size; pass
-`--chunk-size=N` to narrow the dispatch window further (must be
-`<= --concurrency`) for tighter backpressure without changing the
-fan-out cap. Horizon worker counts are configured in Horizon.
+`--chunk-size=N` (must be `<= --concurrency`) for tighter backpressure.
+The producer waits after each chunk completes before dispatching the
+next, so when `--chunk-size < --concurrency`, **chunk-size becomes the
+effective in-flight limit per producer process**, not concurrency.
+Size Horizon worker pool capacity for the chunk-size you actually use,
+not the concurrency upper bound. Worker counts themselves are
+configured in Horizon.
 `--timeout` is the per-sample job timeout; `--batch-timeout` is the
 maximum wait for each dispatch window to finish before the command
 reports missing queued outputs. Programmatic external `dispatch()` / `collectOutputs()`

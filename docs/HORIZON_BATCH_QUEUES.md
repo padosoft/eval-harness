@@ -43,9 +43,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 `--concurrency` is the lazy-parallel producer fan-out cap and the
 default producer window size. Pass `--chunk-size=N` to narrow the
-window further (must be `<= --concurrency`, since `--concurrency` is
-the fan-out cap; see Backpressure Knobs below). Actual worker
-concurrency is controlled by Horizon supervisor process counts.
+window further (must be `<= --concurrency`; see Backpressure Knobs
+below). The producer waits after each chunk completes before
+dispatching the next chunk, so **when `--chunk-size < --concurrency`,
+chunk-size is the effective in-flight job count per producer process**
+— not concurrency. Actual worker concurrency across the whole pool is
+controlled by Horizon supervisor process counts.
 
 Use a queue-specific registrar, or update the host app's existing registrar, so
 it binds the SUT to a concrete `SampleRunner` class:
@@ -79,12 +82,15 @@ eval jobs when they should not compete with latency-sensitive queues.
 ],
 ```
 
-Tune `maxProcesses` for how many samples may run at the same time. Tune
-`--concurrency` for how many jobs this package feeds into the queue before
-collecting a window (or `--chunk-size` for explicit window control when fan-out
-and dispatch window should differ). They do not need to be equal: a larger
-producer window can keep a busy worker pool fed, while a smaller window reduces
-cache/result-store pressure.
+Tune `maxProcesses` for how many samples may run at the same time across the
+whole Horizon pool. Tune `--concurrency` for the maximum producer window
+allowed (and the default dispatch window). When you need tighter backpressure
+than the fan-out cap, set `--chunk-size` lower and remember the runner waits
+after each chunk: in that case chunk-size — not concurrency — is the actual
+in-flight count per producer process. Size `maxProcesses` for the chunk-size
+you actually use under load, not the upper bound. Larger windows keep a busy
+worker pool fed; smaller windows reduce cache/result-store pressure but limit
+producer throughput per command.
 
 ## Timeout Sizing
 

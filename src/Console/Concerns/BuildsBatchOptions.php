@@ -113,6 +113,12 @@ trait BuildsBatchOptions
     {
         if ($this->batchOptionWasProvided('queue')) {
             $value = $this->option('queue');
+            // Same `none` / `null` sentinel as the integer options: lets
+            // operators clear an inherited profile queue for a one-off
+            // run without redefining the profile itself.
+            if (is_string($value) && in_array(strtolower(trim($value)), ['none', 'null'], true)) {
+                return null;
+            }
             if ($value === null || $value === '') {
                 // Empty: treat as not provided.
             } else {
@@ -135,6 +141,13 @@ trait BuildsBatchOptions
     {
         if ($this->batchOptionWasProvided($name)) {
             $value = $this->option($name);
+            // Operator can pass `--flag=none` (or `--flag=null`) to
+            // explicitly clear a value inherited from a profile. Without
+            // this sentinel, profile-numeric defaults would otherwise be
+            // sticky because empty strings fall back to the profile.
+            if (is_string($value) && in_array(strtolower(trim($value)), ['none', 'null'], true)) {
+                return null;
+            }
             if ($value !== null && $value !== '') {
                 return $this->assertPositiveInt($name, $value);
             }

@@ -13,11 +13,26 @@ use Padosoft\EvalHarness\Exceptions\EvalRunException;
  * answers "how many microseconds before the next dispatch is allowed".
  * Callers are responsible for sleeping or otherwise applying the delay.
  * Keeping the helper side-effect free makes it easy to unit-test.
+ *
+ * Storage uses a head-offset queue with lazy compaction so prune is
+ * amortized O(1) per dispatch. A naive `array_shift()` per expired
+ * entry, or a single `array_slice()` per call, both copy the live
+ * tail on every dispatch — that becomes the new hot path under
+ * saturated steady-state traffic with large `rateLimit` values.
  */
 final class RateLimitWindow
 {
     /** @var list<float> */
     private array $timestamps = [];
+
+    private int $head = 0;
+
+    /**
+     * Compact the underlying array when the head offset has consumed at
+     * least this many slots AND at least half the storage is stale.
+     * Tuned to absorb steady-state churn without unbounded growth.
+     */
+    private const COMPACT_AFTER_HEAD = 256;
 
     public function __construct(
         public readonly int $rateLimit,
@@ -40,11 +55,12 @@ final class RateLimitWindow
     public function nextWaitMicroseconds(float $now): int
     {
         $this->prune($now);
-        if (count($this->timestamps) < $this->rateLimit) {
+        $alive = count($this->timestamps) - $this->head;
+        if ($alive < $this->rateLimit) {
             return 0;
         }
 
-        $oldest = $this->timestamps[0];
+        $oldest = $this->timestamps[$this->head];
         $waitSeconds = ($oldest + $this->rateWindowSeconds) - $now;
         if ($waitSeconds <= 0.0) {
             return 0;
@@ -62,19 +78,22 @@ final class RateLimitWindow
     private function prune(float $now): void
     {
         $cutoff = $now - $this->rateWindowSeconds;
-        $expired = 0;
         $count = count($this->timestamps);
-        while ($expired < $count && $this->timestamps[$expired] <= $cutoff) {
-            $expired++;
+        while ($this->head < $count && $this->timestamps[$this->head] <= $cutoff) {
+            $this->head++;
         }
 
-        if ($expired === 0) {
-            return;
+        // Only compact when the head has crossed both an absolute and a
+        // relative threshold. Steady-state traffic keeps `head` and
+        // `count` growing in lockstep (one timestamp expires per
+        // dispatch), so without these guards we would copy on every
+        // single call and turn the limiter into a quadratic hot path
+        // under high `rateLimit`. Lazy compaction keeps the live region
+        // bounded around `rateLimit` while paying the O(rateLimit) copy
+        // at most once per ~rateLimit dispatches.
+        if ($this->head >= self::COMPACT_AFTER_HEAD && $this->head * 2 >= $count) {
+            $this->timestamps = array_slice($this->timestamps, $this->head);
+            $this->head = 0;
         }
-
-        // Single O(count) slice instead of N array_shift() reindex passes.
-        // array_shift would otherwise turn long high-throughput runs into
-        // a quadratic CPU hot path inside the dispatch loop.
-        $this->timestamps = array_slice($this->timestamps, $expired);
     }
 }

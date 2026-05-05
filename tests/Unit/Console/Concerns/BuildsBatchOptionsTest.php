@@ -146,6 +146,63 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertNull($captured->checkpointEvery);
     }
 
+    public function test_explicit_none_sentinel_clears_inherited_profile_int_fields(): void
+    {
+        // Documented contract: pass `--flag=none` (or `null`) to clear
+        // a numeric value inherited from a profile. Without the
+        // sentinel the profile would be sticky because empty strings
+        // fall back to the profile default.
+        config(['eval-harness.batches.profiles.nightly-strict' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 8,
+            'queue' => 'evals-nightly',
+            'timeout_seconds' => 60,
+            'wait_timeout_seconds' => 600,
+            'chunk_size' => 8,
+            'rate_limit' => 60,
+            'rate_window_seconds' => 60,
+            'checkpoint_every' => 100,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'nightly-strict',
+            '--rate-limit' => 'none',
+            '--rate-window-seconds' => 'none',
+            '--checkpoint-every' => 'NONE',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertNull($captured->rateLimit);
+        $this->assertNull($captured->rateWindowSeconds);
+        $this->assertNull($captured->checkpointEvery);
+        // Other profile fields stay applied because they were not cleared.
+        $this->assertSame(8, $captured->concurrency);
+        $this->assertSame('evals-nightly', $captured->queue);
+        $this->assertSame(60, $captured->timeoutSeconds);
+        $this->assertSame(8, $captured->chunkSize);
+    }
+
+    public function test_explicit_none_sentinel_clears_inherited_profile_queue(): void
+    {
+        config(['eval-harness.batches.profiles.queue-default' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 4,
+            'queue' => 'evals-default',
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'queue-default',
+            '--queue' => 'none',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertNull($captured->queue);
+    }
+
     public function test_profile_lazy_only_fields_drop_when_explicit_batch_serial(): void
     {
         // Pair to the profile/serial flip behaviour: explicit

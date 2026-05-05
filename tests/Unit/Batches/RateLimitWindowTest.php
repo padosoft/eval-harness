@@ -78,4 +78,37 @@ final class RateLimitWindowTest extends TestCase
         $window->record(300.0);
         $this->assertSame(0, $window->nextWaitMicroseconds(300.5));
     }
+
+    public function test_steady_state_window_keeps_storage_bounded(): void
+    {
+        // Regression for the saturated steady state where one timestamp
+        // expires per dispatch. Without head-offset + lazy compaction,
+        // every prune would copy the entire live region (O(rateLimit)
+        // per sample => O(n * rateLimit) per batch). Verify that after
+        // many dispatches the underlying array stays bounded around
+        // rateLimit instead of accumulating every recorded timestamp.
+        $rateLimit = 50;
+        $rateWindowSeconds = 10;
+        $window = new RateLimitWindow(rateLimit: $rateLimit, rateWindowSeconds: $rateWindowSeconds);
+
+        $start = 1000.0;
+        for ($i = 0; $i < 5000; $i++) {
+            // One dispatch every 1s so the window is constantly full.
+            $now = $start + $i;
+            $window->record($now);
+        }
+
+        $reflection = new \ReflectionProperty(RateLimitWindow::class, 'timestamps');
+        $reflection->setAccessible(true);
+        $storage = $reflection->getValue($window);
+
+        // Stored slots should stay close to the live window size (rateLimit
+        // items + at most COMPACT_AFTER_HEAD - 1 stale slots before
+        // compaction kicks in).
+        $this->assertLessThanOrEqual(
+            $rateLimit + 256,
+            count($storage),
+            'Underlying storage must stay bounded under saturated steady-state traffic.',
+        );
+    }
 }

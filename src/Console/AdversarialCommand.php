@@ -52,7 +52,7 @@ final class AdversarialCommand extends Command
         {--regression-max-drop=5 : Maximum allowed regression drop in percentage points (0-100)}
         {--regression-metric=* : Additional metric aggregate to gate; use metric or metric:mean|p50|p95|pass_rate}
         {--batch=serial : Batch mode for invoking the SUT; supports serial or lazy-parallel}
-        {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults}
+        {--batch-profile= : Operational profile preset (ci, smoke, nightly, or custom); explicit options override profile defaults; pass `none` to a numeric/queue flag to clear an inherited profile value}
         {--concurrency=1 : Producer fan-out cap for lazy-parallel mode (also the default --chunk-size); --chunk-size narrows the dispatch window further but cannot exceed --concurrency}
         {--queue= : Queue name for queue-backed batch modes}
         {--timeout= : Per-sample timeout seconds for queue-backed batch modes}
