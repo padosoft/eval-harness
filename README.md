@@ -834,9 +834,11 @@ php artisan eval-harness:adversarial \
 `eval:adversarial` is available as a short alias. The command registers
 only the selected adversarial seed dataset for that invocation, accepts
 `--metric=*` (default: `refusal-quality`), supports `--outputs` for
-precomputed responses, and reuses the same `--batch`,
-`--concurrency`, `--queue`, `--timeout`, and `--batch-timeout`
-options as `eval-harness:run`. Add `--manifest=<path>` to update a
+precomputed responses, and reuses the same batch contract as
+`eval-harness:run`: `--batch`, `--batch-profile`, `--concurrency`,
+`--queue`, `--timeout`, `--batch-timeout`, `--chunk-size`,
+`--rate-limit`, `--rate-window-seconds`, and `--checkpoint-every`. Add
+`--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep a
 bounded set of adversarial summaries: the newest N summaries plus any
 additional failure-free baselines needed for compatible report schema,

@@ -136,6 +136,18 @@ final class BatchOptions
         if ($rateWindowSeconds !== null && $rateLimit === null) {
             throw new EvalRunException('Batch rate window seconds is only meaningful with a rate limit; pass --rate-limit=N or unset --rate-window-seconds.');
         }
+
+        // Concurrency caps the producer fan-out; chunk-size only narrows
+        // the dispatch window further. Reject chunk-size > concurrency so
+        // operators do not accidentally oversubscribe by setting a chunk
+        // size larger than the configured fan-out.
+        if ($chunkSize !== null && $chunkSize > $concurrency) {
+            throw new EvalRunException(sprintf(
+                'Batch chunk size (%d) cannot exceed concurrency (%d). --concurrency caps the producer fan-out; --chunk-size only narrows the dispatch window.',
+                $chunkSize,
+                $concurrency,
+            ));
+        }
     }
 
     public static function serial(?string $profile = null): self

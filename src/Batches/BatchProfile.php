@@ -89,6 +89,28 @@ final class BatchProfile
                 }
             }
         }
+
+        // Mirror BatchOptions cross-validation so a profile with only
+        // rate_window_seconds set fails at profile-validation time
+        // instead of waiting for the trait to materialise BatchOptions.
+        if ($rateWindowSeconds !== null && $rateLimit === null) {
+            throw new EvalRunException(sprintf(
+                "Batch profile '%s' rate_window_seconds is only meaningful with rate_limit; set rate_limit or unset rate_window_seconds.",
+                $name,
+            ));
+        }
+
+        // Same shape contract as BatchOptions: chunk_size cannot exceed
+        // concurrency. Catching this at the profile level keeps an
+        // operator from waiting until a SUT run to discover the misconfig.
+        if ($chunkSize !== null && $concurrency !== null && $chunkSize > $concurrency) {
+            throw new EvalRunException(sprintf(
+                "Batch profile '%s' chunk_size (%d) cannot exceed concurrency (%d).",
+                $name,
+                $chunkSize,
+                $concurrency,
+            ));
+        }
     }
 
     private function assertPositiveOrNull(string $field, ?int $value): void

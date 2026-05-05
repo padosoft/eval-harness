@@ -231,6 +231,49 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_profile_rejects_rate_window_seconds_without_rate_limit(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'broken' => [
+                            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+                            'rate_window_seconds' => 30,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'broken' rate_window_seconds is only meaningful with rate_limit");
+
+        new BatchProfileResolver($config);
+    }
+
+    public function test_profile_rejects_chunk_size_greater_than_concurrency(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'unbalanced' => [
+                            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+                            'concurrency' => 4,
+                            'chunk_size' => 8,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'unbalanced' chunk_size (8) cannot exceed concurrency (4).");
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_resolve_rejects_blank_name(): void
     {
         $resolver = new BatchProfileResolver;

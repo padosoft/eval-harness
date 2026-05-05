@@ -163,6 +163,14 @@ final class BatchOptionsTest extends TestCase
         BatchOptions::lazyParallel(chunkSize: 0);
     }
 
+    public function test_rejects_chunk_size_greater_than_concurrency(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch chunk size (10) cannot exceed concurrency (1).');
+
+        BatchOptions::lazyParallel(concurrency: 1, chunkSize: 10);
+    }
+
     public function test_rejects_invalid_rate_limit(): void
     {
         $this->expectException(EvalRunException::class);
