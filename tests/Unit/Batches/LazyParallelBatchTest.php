@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Queue;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
@@ -68,16 +69,16 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
-    public function test_dispatch_ttl_uses_static_floor_not_window_count(): void
+    public function test_dispatch_ttl_scales_with_concurrency_keyed_drain_time(): void
     {
-        // dispatch() is fire-and-return; chunkSize / waitTimeout /
-        // timeout combine to the static floor `max(default,
-        // waitTimeout, timeout, configuredTTL)`. The chunkSize-based
-        // windowCount is intentionally NOT a factor here because it
-        // would inflate TTL by hours for large batches with small
-        // chunks even though dispatch() never waits between windows.
-        // Operators with constrained worker pools should override the
-        // floor explicitly via BatchOptions::lazyParallel(resultTtlSeconds: ...).
+        // dispatch() is fire-and-return on the producer side, but the
+        // result store still has to live long enough for workers to
+        // drain the queue. Worker pool capacity is unknown to the
+        // harness; concurrency is the closest proxy. With 2 samples
+        // and concurrency=1, drainBatches=2 and the TTL floor is
+        // 2 * max(waitTimeout=60, timeout=0) = 120 seconds. Operators
+        // with larger pools should override via
+        // BatchOptions::lazyParallel(resultTtlSeconds: ...).
         Queue::fake();
 
         /** @var Dispatcher $dispatcher */
@@ -97,11 +98,11 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 60;
+            return $job->resultTtlSeconds === 120;
         });
     }
 
-    public function test_dispatch_ttl_uses_per_job_timeout_floor(): void
+    public function test_dispatch_ttl_uses_per_job_timeout_for_queue_drain(): void
     {
         Queue::fake();
 
@@ -125,10 +126,11 @@ final class LazyParallelBatchTest extends TestCase
             options: BatchOptions::lazyParallel(concurrency: 1, timeoutSeconds: 300, waitTimeoutSeconds: 60),
         );
 
-        // Per-job timeout (300s) is the largest static floor; sample
-        // count does not multiply it for dispatch().
+        // 3 samples / concurrency=1 = 3 drain batches. drainSeconds =
+        // 3 * max(60, 300) = 900 seconds. The per-job timeout
+        // dominates the per-window wait timeout here.
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 300;
+            return $job->resultTtlSeconds === 900;
         });
     }
 
@@ -1143,6 +1145,125 @@ final class LazyParallelBatchTest extends TestCase
 
         $unsetWindow = $reflection->invoke($batch, BatchOptions::lazyParallel());
         $this->assertNull($unsetWindow);
+    }
+
+    public function test_terminal_reporter_receives_success_status_on_happy_path(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingTerminalProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = $this->samples();
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 1,
+            ),
+        );
+
+        $this->assertSame(
+            [['status' => 'success', 'samples_completed' => 2, 'total' => 2]],
+            $reporter->terminalEvents,
+        );
+    }
+
+    public function test_terminal_reporter_receives_failure_status_on_catch_path(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingTerminalProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = $this->samples();
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelFailingRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 2,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                    checkpointEvery: 1,
+                ),
+            );
+            $this->fail('Expected the failing runner to surface as EvalRunException.');
+        } catch (EvalRunException) {
+            // Expected.
+        }
+
+        $this->assertCount(1, $reporter->terminalEvents);
+        $this->assertSame('failure', $reporter->terminalEvents[0]['status']);
+        $this->assertSame(2, $reporter->terminalEvents[0]['total']);
+    }
+
+    public function test_terminal_reporter_receives_empty_status_for_empty_batch(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingTerminalProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $batch->run(
+            samples: [],
+            sampleInvocations: [],
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 25,
+            ),
+        );
+
+        $this->assertSame(
+            [['status' => 'empty', 'samples_completed' => 0, 'total' => 0]],
+            $reporter->terminalEvents,
+        );
     }
 
     public function test_run_emits_final_checkpoint_when_batch_fails_at_aligned_total(): void
@@ -2196,5 +2317,31 @@ final class ThrowingBatchProgressReporter implements BatchProgressReporter
     public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
     {
         throw new \RuntimeException('telemetry sink unavailable');
+    }
+}
+
+final class RecordingTerminalProgressReporter implements BatchTerminalProgressReporter
+{
+    /** @var list<array{samples_completed: int, total: int}> */
+    public array $checkpoints = [];
+
+    /** @var list<array{status: string, samples_completed: int, total: int}> */
+    public array $terminalEvents = [];
+
+    public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+    {
+        $this->checkpoints[] = [
+            'samples_completed' => $samplesCompleted,
+            'total' => $totalSamples,
+        ];
+    }
+
+    public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+    {
+        $this->terminalEvents[] = [
+            'status' => $status,
+            'samples_completed' => $samplesCompleted,
+            'total' => $totalSamples,
+        ];
     }
 }

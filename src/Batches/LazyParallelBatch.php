@@ -158,6 +158,19 @@ final class LazyParallelBatch
                 checkpointEvery: $checkpointEvery,
             );
 
+            // Reporters that implement the optional terminal-status
+            // contract get an explicit success/empty signal here so
+            // they can distinguish a finished batch from any
+            // in-progress emission with the same counts.
+            $this->safeReportTerminal(
+                batchId: $batchId,
+                samplesCompleted: $samplesCompleted,
+                totalSamples: $sampleCount,
+                status: $sampleCount === 0
+                    ? BatchTerminalProgressReporter::STATUS_EMPTY
+                    : BatchTerminalProgressReporter::STATUS_SUCCESS,
+            );
+
             ksort($outputsByIndex);
 
             $outputs = [];
@@ -179,23 +192,30 @@ final class LazyParallelBatch
             return $outputs;
         } catch (Throwable $e) {
             if (! $completed) {
-                // Failure path: always emit a forced terminal
-                // checkpoint regardless of multiple-of-N alignment so
-                // dashboards consuming BatchProgressReporter can
-                // distinguish a finished failed batch from a stalled
-                // one even when totalSamples is an exact multiple of
-                // checkpointEvery (where the success-path guard would
-                // skip). samplesCompleted is sourced from the result
-                // store so it reflects actual stored successes,
-                // including partial wins from a chunk where some
-                // jobs succeeded before another failed.
-                // safeReportCheckpoint swallows reporter exceptions so
+                // Failure path emits a forced terminal checkpoint
+                // (legacy reporters) AND an explicit STATUS_FAILURE
+                // terminal event (reporters on the new contract).
+                // samplesCompleted is the per-window counter, which
+                // can under-report by up to one chunk when partial
+                // wins land in the failed window. The previous
+                // implementation queried the result store on every
+                // failure, which added an O(sampleCount) cache scan
+                // before the original exception could propagate;
+                // that scalability hit dominates the partial-wins
+                // accuracy gain on large batches.
+                // safeReport* helpers swallow reporter exceptions so
                 // this never masks the original failure.
                 $this->reportCheckpointTerminalForce(
                     batchId: $batchId,
-                    samplesCompleted: $this->countStoredSuccessesSafely($batchId, $sampleCount),
+                    samplesCompleted: $samplesCompleted,
                     totalSamples: $sampleCount,
                     checkpointEvery: $checkpointEvery,
+                );
+                $this->safeReportTerminal(
+                    batchId: $batchId,
+                    samplesCompleted: $samplesCompleted,
+                    totalSamples: $sampleCount,
+                    status: BatchTerminalProgressReporter::STATUS_FAILURE,
                 );
                 $this->abortResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
             }
@@ -233,7 +253,7 @@ final class LazyParallelBatch
         // Operators with large batches or constrained worker pools
         // should override the floor via
         // BatchOptions::lazyParallel(resultTtlSeconds: ...).
-        $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $waitTimeoutSeconds);
+        $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $waitTimeoutSeconds, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         // Note: rate-limit throttling deliberately does NOT apply on the
@@ -707,6 +727,29 @@ final class LazyParallelBatch
     }
 
     /**
+     * Best-effort terminal event with explicit status for reporters
+     * that implement {@see BatchTerminalProgressReporter}. Reporters
+     * still on the legacy bare-checkpoint contract get the
+     * status-aware fallback in the caller.
+     */
+    private function safeReportTerminal(
+        string $batchId,
+        int $samplesCompleted,
+        int $totalSamples,
+        string $status,
+    ): void {
+        if (! $this->progressReporter instanceof BatchTerminalProgressReporter) {
+            return;
+        }
+
+        try {
+            $this->progressReporter->reportTerminal($batchId, $samplesCompleted, $totalSamples, $status);
+        } catch (Throwable) {
+            // Reporter best-effort.
+        }
+    }
+
+    /**
      * Forced terminal checkpoint for the failure path.
      *
      * Unlike `reportCheckpointFinalIfNeeded`, this always emits when
@@ -728,32 +771,6 @@ final class LazyParallelBatch
         }
 
         $this->safeReportCheckpoint($batchId, $samplesCompleted, $totalSamples);
-    }
-
-    /**
-     * Best-effort count of stored successful sample results.
-     *
-     * Used on the failure path so the terminal checkpoint reflects
-     * partial progress (a chunk where some jobs succeeded before
-     * another failed). Wraps the result-store read in a Throwable
-     * catch so a cache outage at failure time cannot mask the
-     * original exception.
-     */
-    private function countStoredSuccessesSafely(string $batchId, int $sampleCount): int
-    {
-        if ($sampleCount === 0) {
-            return 0;
-        }
-
-        try {
-            return count($this->resultStore->successfulResults(
-                $batchId,
-                $sampleCount,
-                range(0, $sampleCount - 1),
-            ));
-        } catch (Throwable) {
-            return 0;
-        }
     }
 
     /**
@@ -971,21 +988,32 @@ final class LazyParallelBatch
     /**
      * Compute the result-store TTL for a dispatch()-only batch.
      *
-     * dispatch() is fire-and-return: it does not throttle, does not
-     * wait between windows, and the worker pool drains the queue
-     * independently of chunkSize. Multiplying the TTL by
-     * `sampleCount / chunkSize` (or by a producer rate-limit pause
-     * that never happens) would needlessly retain result metadata
-     * for hours / days when the profile carries a small chunkSize or
-     * a low rate limit. Operators with large batches or constrained
-     * worker pools should override this floor explicitly via
+     * dispatch() is fire-and-return: it does not throttle and does
+     * not wait between producer windows, so chunkSize and the
+     * producer-side rate-limit pause time MUST NOT factor into the
+     * TTL (those would over-retain when chunkSize is small or the
+     * rate-limit is low). However, the harness still has to keep
+     * result metadata alive long enough for `collectOutputs()` to
+     * read it back, so the TTL must reflect worker-side drain time.
+     *
+     * Worker pool capacity is unknown to the harness; concurrency
+     * (the producer fan-out cap) is the closest proxy and is the
+     * value the operator already declared as "how many in-flight
+     * jobs at once" in `BatchOptions`. Drain time = ceil(sampleCount
+     * / concurrency) windows of `max(waitTimeout, timeout)` each.
+     * Operators with larger or smaller pools should override the
+     * floor explicitly via
      * `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
      */
-    private function resultTtlSecondsForDispatch(BatchOptions $options, int $waitTimeoutSeconds): int
+    private function resultTtlSecondsForDispatch(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
     {
+        $drainBatches = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
+        $drainSeconds = $drainBatches * max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0);
+
         return max(
             $this->resultTtlSeconds,
             $waitTimeoutSeconds,
+            $drainSeconds,
             $options->timeoutSeconds ?? 0,
             $options->resultTtlSeconds ?? 0,
         );
