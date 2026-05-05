@@ -148,19 +148,26 @@ final class ReportDiffComputer
         $leftCohorts = $this->cohortIndex($left);
         $rightCohorts = $this->cohortIndex($right);
 
-        $tags = array_keys($leftCohorts + $rightCohorts);
-        sort($tags);
+        $keys = array_keys($leftCohorts + $rightCohorts);
+        sort($keys);
 
         $rows = [];
-        foreach ($tags as $tag) {
-            $leftCohort = $leftCohorts[$tag] ?? null;
-            $rightCohort = $rightCohorts[$tag] ?? null;
+        foreach ($keys as $key) {
+            $leftCohort = $leftCohorts[$key] ?? null;
+            $rightCohort = $rightCohorts[$key] ?? null;
+
+            $present = $rightCohort ?? $leftCohort;
+            if (! is_array($present)) {
+                continue;
+            }
+
+            $tag = $this->cohortDisplayTag($present);
 
             if ($leftCohort === null && $rightCohort !== null) {
                 $rows[] = [
                     'tag' => $tag,
                     'status' => 'added',
-                    'metrics' => $this->cohortMetricsDelta([], $rightCohort['metrics'] ?? []),
+                    'metrics' => $this->cohortMetricsDelta([], $this->metricsBlock($rightCohort)),
                 ];
 
                 continue;
@@ -170,7 +177,7 @@ final class ReportDiffComputer
                 $rows[] = [
                     'tag' => $tag,
                     'status' => 'removed',
-                    'metrics' => $this->cohortMetricsDelta($leftCohort['metrics'] ?? [], []),
+                    'metrics' => $this->cohortMetricsDelta($this->metricsBlock($leftCohort), []),
                 ];
 
                 continue;
@@ -181,8 +188,8 @@ final class ReportDiffComputer
             }
 
             $metricsDelta = $this->cohortMetricsDelta(
-                $leftCohort['metrics'] ?? [],
-                $rightCohort['metrics'] ?? [],
+                $this->metricsBlock($leftCohort),
+                $this->metricsBlock($rightCohort),
             );
 
             $rows[] = [
@@ -225,7 +232,7 @@ final class ReportDiffComputer
                     'category' => $name,
                     'status' => 'added',
                     'sample_count' => $this->intOrZero($rightCat, 'sample_count'),
-                    'metrics' => $this->cohortMetricsDelta([], $rightCat['metrics'] ?? []),
+                    'metrics' => $this->cohortMetricsDelta([], $this->metricsBlock($rightCat)),
                 ];
 
                 continue;
@@ -236,7 +243,7 @@ final class ReportDiffComputer
                     'category' => $name,
                     'status' => 'removed',
                     'sample_count' => -$this->intOrZero($leftCat, 'sample_count'),
-                    'metrics' => $this->cohortMetricsDelta($leftCat['metrics'] ?? [], []),
+                    'metrics' => $this->cohortMetricsDelta($this->metricsBlock($leftCat), []),
                 ];
 
                 continue;
@@ -247,8 +254,8 @@ final class ReportDiffComputer
             }
 
             $metricsDelta = $this->cohortMetricsDelta(
-                $leftCat['metrics'] ?? [],
-                $rightCat['metrics'] ?? [],
+                $this->metricsBlock($leftCat),
+                $this->metricsBlock($rightCat),
             );
 
             $categories[] = [
@@ -303,25 +310,31 @@ final class ReportDiffComputer
                 continue;
             }
 
-            $tag = $this->cohortTagKey($cohort);
-            if ($tag === null) {
+            $key = $this->cohortIndexKey($cohort);
+            if ($key === null) {
                 continue;
             }
 
-            $out[$tag] = $cohort;
+            $out[$key] = $cohort;
         }
 
         return $out;
     }
 
     /**
+     * Collision-free index key for the cohort lookup map. Tagged
+     * cohorts are namespaced under "tag:<name>" and the synthetic
+     * untagged bucket lives under a null-byte sentinel that cannot
+     * appear in a real tag string. This guarantees that a dataset
+     * carrying a literal `__untagged__` tag does NOT collide with the
+     * untagged bucket the report renderer emits.
+     *
      * @param  array<string, mixed>  $cohort
      */
-    private function cohortTagKey(array $cohort): ?string
+    private function cohortIndexKey(array $cohort): ?string
     {
-        $isUntagged = $cohort['is_untagged'] ?? false;
-        if ($isUntagged === true) {
-            return '__untagged__';
+        if (($cohort['is_untagged'] ?? false) === true) {
+            return "\0untagged\0";
         }
 
         $name = $cohort['name'] ?? null;
@@ -329,7 +342,41 @@ final class ReportDiffComputer
             return null;
         }
 
-        return $name;
+        return 'tag:'.$name;
+    }
+
+    /**
+     * Display tag emitted to API clients. Untagged surfaces as
+     * `__untagged__` for backwards-compatible UI labels; tagged
+     * surfaces as the raw tag string.
+     *
+     * @param  array<string, mixed>  $cohort
+     */
+    private function cohortDisplayTag(array $cohort): string
+    {
+        if (($cohort['is_untagged'] ?? false) === true) {
+            return '__untagged__';
+        }
+
+        $name = $cohort['name'] ?? null;
+
+        return is_string($name) ? $name : '';
+    }
+
+    /**
+     * Coerce a `metrics` block into an array, tolerating non-array
+     * payloads from a partially malformed report. Without this guard,
+     * `cohortMetricsDelta(array, array)` would TypeError on a string
+     * `metrics` value, producing a 500 instead of a partial diff.
+     *
+     * @param  array<string, mixed>  $cohortOrCategory
+     * @return array<string, mixed>
+     */
+    private function metricsBlock(array $cohortOrCategory): array
+    {
+        $metrics = $cohortOrCategory['metrics'] ?? null;
+
+        return is_array($metrics) ? $metrics : [];
     }
 
     /**

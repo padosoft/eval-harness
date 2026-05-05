@@ -297,6 +297,131 @@ final class ReportDiffComputerTest extends TestCase
         $this->assertSame(0.5, $diff['delta']['metrics']['exact-match']['mean']);
     }
 
+    public function test_literal_double_underscore_untagged_tag_does_not_collide_with_synthetic_untagged_bucket(): void
+    {
+        // Regression for Copilot review on PR #40 (commit 59b6b8e).
+        // The old impl used the bare string '__untagged__' as both
+        // the synthetic untagged bucket key AND a possible real tag
+        // value, so a dataset carrying a literal `__untagged__` tag
+        // plus an untagged sample collapsed two cohorts into one —
+        // whichever got iterated last won. Index keys now namespace
+        // tagged cohorts under "tag:<name>" and the synthetic untagged
+        // bucket under a null-byte sentinel that no real tag string
+        // can produce.
+        $left = $this->minimalReport([
+            'cohorts' => [
+                [
+                    'name' => '__untagged__',
+                    'label' => '__untagged__',
+                    'is_untagged' => false,
+                    'sample_count' => 5,
+                    'metrics' => ['exact-match' => ['mean' => 0.6, 'p50' => 0.6, 'p95' => 0.6, 'pass_rate' => 0.6]],
+                ],
+                [
+                    'name' => null,
+                    'label' => '(untagged)',
+                    'is_untagged' => true,
+                    'sample_count' => 3,
+                    'metrics' => ['exact-match' => ['mean' => 0.4, 'p50' => 0.4, 'p95' => 0.4, 'pass_rate' => 0.4]],
+                ],
+            ],
+        ]);
+        $right = $this->minimalReport([
+            'cohorts' => [
+                [
+                    'name' => '__untagged__',
+                    'label' => '__untagged__',
+                    'is_untagged' => false,
+                    'sample_count' => 5,
+                    'metrics' => ['exact-match' => ['mean' => 0.5, 'p50' => 0.5, 'p95' => 0.5, 'pass_rate' => 0.5]],
+                ],
+                [
+                    'name' => null,
+                    'label' => '(untagged)',
+                    'is_untagged' => true,
+                    'sample_count' => 3,
+                    'metrics' => ['exact-match' => ['mean' => 0.45, 'p50' => 0.45, 'p95' => 0.45, 'pass_rate' => 0.45]],
+                ],
+            ],
+        ]);
+
+        $diff = $this->computer->compute($left, $right);
+
+        $this->assertCount(2, $diff['delta']['cohorts']);
+        $tags = array_column($diff['delta']['cohorts'], 'tag');
+        sort($tags);
+        $this->assertSame(['__untagged__', '__untagged__'], $tags);
+
+        // One row corresponds to the literal tag (regressed pass_rate
+        // from 0.6 → 0.5); the other to the synthetic untagged bucket
+        // (improved pass_rate from 0.4 → 0.45). Both must be present.
+        $statuses = array_column($diff['delta']['cohorts'], 'status');
+        sort($statuses);
+        $this->assertSame(['improved', 'regressed'], $statuses);
+    }
+
+    public function test_non_array_metrics_payload_is_tolerated_and_does_not_500(): void
+    {
+        // Regression for Copilot review on PR #40 (commit 59b6b8e).
+        // The old impl passed `$cohort['metrics'] ?? []` straight into
+        // `cohortMetricsDelta(array, array)`, which TypeErrored on a
+        // non-array (e.g. a string) `metrics` value produced by a
+        // partial / migrating report. The class contract advertises
+        // tolerance for malformed/mistyped fields, so this case must
+        // produce a diff with the right side's deltas instead of
+        // throwing.
+        $left = $this->minimalReport([
+            'cohorts' => [[
+                'name' => 'fy26-q1',
+                'label' => 'fy26-q1',
+                'is_untagged' => false,
+                'sample_count' => 10,
+                'metrics' => 'malformed-string-instead-of-array',
+            ]],
+        ]);
+        $right = $this->minimalReport([
+            'cohorts' => [[
+                'name' => 'fy26-q1',
+                'label' => 'fy26-q1',
+                'is_untagged' => false,
+                'sample_count' => 10,
+                'metrics' => ['exact-match' => ['mean' => 0.7, 'p50' => 0.7, 'p95' => 0.7, 'pass_rate' => 0.5]],
+            ]],
+        ]);
+
+        $diff = $this->computer->compute($left, $right);
+
+        $this->assertCount(1, $diff['delta']['cohorts']);
+        $this->assertSame('fy26-q1', $diff['delta']['cohorts'][0]['tag']);
+        $this->assertSame(0.7, $diff['delta']['cohorts'][0]['metrics']['exact-match']['mean']);
+    }
+
+    public function test_non_array_metrics_in_adversarial_category_is_tolerated(): void
+    {
+        $left = $this->minimalReport([
+            'adversarial' => [
+                'total_samples' => 4,
+                'categories' => [
+                    ['category' => 'prompt-injection', 'sample_count' => 4, 'metrics' => 'malformed'],
+                ],
+            ],
+        ]);
+        $right = $this->minimalReport([
+            'adversarial' => [
+                'total_samples' => 4,
+                'categories' => [
+                    ['category' => 'prompt-injection', 'sample_count' => 4,
+                        'metrics' => ['refusal-quality' => ['mean' => 0.8, 'pass_rate' => 0.8]]],
+                ],
+            ],
+        ]);
+
+        $diff = $this->computer->compute($left, $right);
+
+        $this->assertNotNull($diff['delta']['adversarial']);
+        $this->assertSame(0.8, $diff['delta']['adversarial']['categories'][0]['metrics']['refusal-quality']['mean']);
+    }
+
     public function test_summary_extracts_dataset_and_timing(): void
     {
         $left = $this->minimalReport([
