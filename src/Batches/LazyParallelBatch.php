@@ -78,11 +78,11 @@ final class LazyParallelBatch
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 // The chunk deadline covers BOTH dispatch (which can
                 // include rate-limit pauses) and result collection so
-                // --batch-timeout always bounds the per-window wall
+                // the wait timeout always bounds the per-window wall
                 // clock. Without this, a low rateLimit with a large
                 // chunk could spend most of the operator-supplied
                 // budget sleeping inside dispatchSampleJobs() before
-                // waitForIndexedOutputs() even started.
+                // collection started.
                 $chunkDeadline = microtime(true) + $waitTimeoutSeconds;
 
                 try {
@@ -104,10 +104,28 @@ final class LazyParallelBatch
                     );
                 }
 
-                $remainingSeconds = $chunkDeadline - microtime(true);
-                if ($remainingSeconds <= 0.0) {
+                if (microtime(true) >= $chunkDeadline) {
+                    // A real sample failure recorded by an earlier
+                    // worker is more useful than the deadline
+                    // diagnostic, so surface it first.
+                    $failure = $this->firstFailure(
+                        $batchId,
+                        $sampleCount,
+                        $this->sampleIndexes($sampleWindow),
+                    );
+                    if ($failure !== null) {
+                        throw new EvalRunException(sprintf(
+                            "Lazy parallel batch job for sample '%s' failed: %s.",
+                            $failure['sample_id'],
+                            $failure['error'],
+                        ));
+                    }
+
+                    // Diagnostic stays neutral so library callers using
+                    // EvalEngine::runBatch() / runEvalSet() do not get
+                    // CLI-only remediation guidance.
                     throw new EvalRunException(sprintf(
-                        "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout for %d sample(s) before result collection started; relax --rate-limit / --rate-window-seconds, lower --chunk-size, or raise --batch-timeout.",
+                        "Lazy parallel batch '%s' chunk dispatch consumed the full %s wait timeout for %d sample(s) before result collection started; lower the chunk size, relax the rate limit, or raise the wait timeout.",
                         $batchId,
                         $this->secondsLabel($waitTimeoutSeconds),
                         count($sampleWindow),
@@ -118,7 +136,8 @@ final class LazyParallelBatch
                     batchId: $batchId,
                     samples: $sampleWindow,
                     sampleCount: $sampleCount,
-                    timeoutSeconds: max(1, (int) ceil($remainingSeconds)),
+                    deadlineMicrotime: $chunkDeadline,
+                    timeoutSecondsForDiagnostic: $waitTimeoutSeconds,
                 );
 
                 $samplesCompleted += count($sampleWindow);
@@ -188,9 +207,14 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
-        $rateLimiter = $this->rateLimitWindow($options);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
+        // Note: rate-limit throttling deliberately does NOT apply on the
+        // external dispatch-only path. Callers use dispatch() to enqueue
+        // now and collect later (the documented fire-and-return flow);
+        // blocking inside the producer would defeat the purpose. Workers
+        // drain the queue at their own pace, and the result-store TTL
+        // already accounts for the worst-case rate-limit pause time.
         try {
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 $this->dispatchSampleJobs(
@@ -200,7 +224,7 @@ final class LazyParallelBatch
                     runnerClass: $runnerClass,
                     options: $options,
                     resultTtlSeconds: $resultTtlSeconds,
-                    rateLimiter: $rateLimiter,
+                    rateLimiter: null,
                 );
             }
         } catch (Throwable $e) {
@@ -277,9 +301,13 @@ final class LazyParallelBatch
      * @param  array<int, DatasetSample>  $samples
      * @return array<int, string>
      */
-    private function waitForIndexedOutputs(string $batchId, array $samples, int $sampleCount, int $timeoutSeconds): array
-    {
-        $deadline = microtime(true) + $timeoutSeconds;
+    private function waitForIndexedOutputs(
+        string $batchId,
+        array $samples,
+        int $sampleCount,
+        float $deadlineMicrotime,
+        int $timeoutSecondsForDiagnostic,
+    ): array {
         $pollIntervalMicroseconds = self::INITIAL_POLL_INTERVAL_MICROSECONDS;
 
         do {
@@ -288,11 +316,11 @@ final class LazyParallelBatch
                 return $outputs;
             }
 
-            if (microtime(true) >= $deadline) {
+            if (microtime(true) >= $deadlineMicrotime) {
                 break;
             }
 
-            $remainingMicroseconds = max(1, (int) (($deadline - microtime(true)) * 1_000_000));
+            $remainingMicroseconds = max(1, (int) (($deadlineMicrotime - microtime(true)) * 1_000_000));
             usleep(min($pollIntervalMicroseconds, $remainingMicroseconds));
 
             $pollIntervalMicroseconds = min(
@@ -300,6 +328,8 @@ final class LazyParallelBatch
                 $pollIntervalMicroseconds * 2,
             );
         } while (true);
+
+        $timeoutSeconds = $timeoutSecondsForDiagnostic;
 
         $failure = $this->firstFailure($batchId, $sampleCount, $this->sampleIndexes($samples));
         if ($failure !== null) {

@@ -563,7 +563,8 @@ flag. For example, with `--batch-profile=nightly` (which sets
 `--rate-limit=none --checkpoint-every=none` disables both for that
 single invocation while keeping every other profile field. The same
 sentinel works for `--timeout`, `--batch-timeout`, `--chunk-size`,
-`--rate-window-seconds`. `--queue` is excluded — queue names are
+`--rate-window-seconds`, `--result-ttl-seconds`, and
+`--checkpoint-every`. `--queue` is excluded — queue names are
 arbitrary strings, so override the profile in
 `eval-harness.batches.profiles.*` config when an inherited queue must
 be cleared.
@@ -859,7 +860,8 @@ the other dispatch flags are ignored when `--outputs` is set);
 otherwise the SUT is invoked through the same batch contract as
 `eval-harness:run` — `--batch`, `--batch-profile`, `--concurrency`,
 `--queue`, `--timeout`, `--batch-timeout`, `--chunk-size`,
-`--rate-limit`, `--rate-window-seconds`, and `--checkpoint-every`. Add
+`--rate-limit`, `--rate-window-seconds`, `--result-ttl-seconds`, and
+`--checkpoint-every`. Add
 `--manifest=<path>` to update a
 local JSON run-history manifest and `--manifest-retain=N` to keep a
 bounded set of adversarial summaries: the newest N summaries plus any

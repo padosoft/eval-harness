@@ -214,12 +214,12 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 
 The `none` / `null` sentinel works on every numeric batch flag
 (`--timeout`, `--batch-timeout`, `--chunk-size`, `--rate-limit`,
-`--rate-window-seconds`, `--checkpoint-every`). Empty `--flag=` keeps
-the documented "fall back to profile / baseline default" semantic so
-unset CI variables stay safe. `--queue` does NOT accept the sentinel
-because queue names are arbitrary strings; override the profile in
-`eval-harness.batches.profiles.*` config when an inherited queue must
-be cleared.
+`--rate-window-seconds`, `--result-ttl-seconds`, `--checkpoint-every`).
+Empty `--flag=` keeps the documented "fall back to profile / baseline
+default" semantic so unset CI variables stay safe. `--queue` does NOT
+accept the sentinel because queue names are arbitrary strings;
+override the profile in `eval-harness.batches.profiles.*` config when
+an inherited queue must be cleared.
 
 ## Backpressure Knobs
 

@@ -274,6 +274,31 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_resolver_rejects_unknown_profile_keys(): void
+    {
+        // Typos like `concurency` or `checkpointEvery` would otherwise
+        // be silently ignored, leaving the built-in default in place
+        // while the operator believed their override applied.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'typo' => [
+                            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+                            'concurrency' => 4,
+                            'concurency' => 8,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'typo' has unknown key(s): concurency");
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_resolve_rejects_blank_name(): void
     {
         $resolver = new BatchProfileResolver;

@@ -108,6 +108,27 @@ final class BatchProfileResolver
     ];
 
     /**
+     * Allowlist of every key a profile definition may carry. Anything
+     * outside this list is rejected so a typo (e.g. `concurency`,
+     * `checkpointEvery`) surfaces loudly instead of being silently
+     * dropped while the built-in default keeps winning.
+     *
+     * @var list<string>
+     */
+    private const KNOWN_PROFILE_KEYS = [
+        'mode',
+        'concurrency',
+        'queue',
+        'timeout_seconds',
+        'wait_timeout_seconds',
+        'result_ttl_seconds',
+        'chunk_size',
+        'rate_limit',
+        'rate_window_seconds',
+        'checkpoint_every',
+    ];
+
+    /**
      * @return array<string, BatchProfile>
      */
     private function buildProfiles(?ConfigRepository $config): array
@@ -165,6 +186,16 @@ final class BatchProfileResolver
      */
     private function buildProfile(string $name, array $definition): BatchProfile
     {
+        $unknownKeys = array_diff(array_keys($definition), self::KNOWN_PROFILE_KEYS);
+        if ($unknownKeys !== []) {
+            throw new EvalRunException(sprintf(
+                "Batch profile '%s' has unknown key(s): %s. Known keys: %s.",
+                $name,
+                implode(', ', $unknownKeys),
+                implode(', ', self::KNOWN_PROFILE_KEYS),
+            ));
+        }
+
         $mode = $definition['mode'] ?? BatchOptions::MODE_SERIAL;
         if (! is_string($mode)) {
             throw new EvalRunException(sprintf("Batch profile '%s' mode must be a string.", $name));

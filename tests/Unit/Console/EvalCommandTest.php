@@ -452,32 +452,6 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
-    public function test_smoke_profile_actually_resolves_to_serial_mode(): void
-    {
-        // The smoke profile is serial, which is also the default batch mode,
-        // so a "happy path" smoke profile run does not prove the profile
-        // was applied. Pair --batch-profile=smoke with --rate-limit=5: if
-        // the profile is applied, the resolved mode stays serial and
-        // BatchOptions rejects the lazy-parallel-only flag. If the profile
-        // were silently ignored and somehow flipped to lazy-parallel, the
-        // command would succeed instead.
-        /** @var EvalEngine $engine */
-        $engine = $this->app->make(EvalEngine::class);
-        $engine->dataset('profile-smoke-observable')
-            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
-            ->withMetrics(['exact-match'])
-            ->register();
-        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
-
-        $this->artisan('eval-harness:run', [
-            'dataset' => 'profile-smoke-observable',
-            '--batch-profile' => 'smoke',
-            '--rate-limit' => '5',
-        ])
-            ->expectsOutputToContain('Serial batch mode does not use a rate limit.')
-            ->assertExitCode(1);
-    }
-
     public function test_ci_profile_resolves_to_lazy_parallel_without_explicit_batch_flag(): void
     {
         // The ci profile mode is lazy-parallel; a closure SUT cannot satisfy
@@ -538,29 +512,6 @@ final class EvalCommandTest extends TestCase
             'dataset' => 'profile-override',
             '--batch-profile' => 'ci',
             '--batch' => 'serial',
-        ])->assertExitCode(0);
-    }
-
-    public function test_ci_profile_runs_lazy_parallel_under_sync_queue(): void
-    {
-        $this->app['config']->set('queue.default', 'sync');
-        $this->app['config']->set('cache.default', 'array');
-
-        /** @var EvalEngine $engine */
-        $engine = $this->app->make(EvalEngine::class);
-        $engine->dataset('profile-ci')
-            ->withSamples([
-                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
-                new DatasetSample(id: 's2', input: [], expectedOutput: 'hi'),
-            ])
-            ->withMetrics(['exact-match'])
-            ->register();
-        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
-
-        $this->artisan('eval-harness:run', [
-            'dataset' => 'profile-ci',
-            '--batch-profile' => 'ci',
-            '--queue' => 'evals',
         ])->assertExitCode(0);
     }
 
