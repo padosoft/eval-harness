@@ -2451,3 +2451,13 @@
   - Macro 7 shipped v1.0 (tag `1.0`, 2026-05-04).
   - Macro 8 shipped v1.1.0 (tag `v1.1.0`, 2026-05-05) as the v1.x enterprise operations and scalability add-on without breaking any v1 contract.
   - Final main quality gates: PHPUnit `OK (699 tests, 1956 assertions)`, PHPStan `[OK] No errors`, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #40 second Copilot review fix
+
+- Second Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `b107ce9`) returned 1 new actionable comment: the first-round collision fix preserved two distinct rows internally but still emitted duplicate human-facing `tag: "__untagged__"` values, which lets UI clients that key by `tag` overwrite one row.
+- Addressed the comment by adding additive cohort diff fields:
+  - `key` is the stable client-facing discriminator (`tag:<literal-tag>` for real tags, `untagged` for the synthetic bucket).
+  - `is_untagged` exposes the synthetic-bucket flag directly.
+  - `tag` remains the backwards-compatible display label, so existing clients keep working while new clients can key safely.
+- Pinned the contract in `ReportDiffComputerTest::test_literal_double_underscore_untagged_tag_does_not_collide_with_synthetic_untagged_bucket`, asserting both duplicate display tags and distinct `key` / `is_untagged` values are present.
+- Full local gate passed after the second PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (724 tests, 2026 assertions)`, PHPStan no errors, Pint passed.

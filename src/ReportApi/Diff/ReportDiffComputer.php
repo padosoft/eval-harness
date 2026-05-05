@@ -27,7 +27,8 @@ use Padosoft\EvalHarness\Reports\ReportSchema;
  *     'duration_seconds' => float,
  *     'metrics' => [<metric> => ['mean' => float, 'pass_rate' => float]],
  *     'cohorts' => [
- *       ['tag' => string, 'status' => 'added|removed|regressed|improved|stable',
+ *       ['key' => string, 'tag' => string, 'is_untagged' => bool,
+ *        'status' => 'added|removed|regressed|improved|stable',
  *        'metrics' => [<metric> => ['mean' => float, 'pass_rate' => float]]],
  *     ],
  *     'adversarial' => [
@@ -58,7 +59,7 @@ final class ReportDiffComputer
      *         total_failures: int,
      *         duration_seconds: float,
      *         metrics: array<string, array{mean: float, pass_rate: float}>,
-     *         cohorts: list<array{tag: string, status: string, metrics: array<string, array{mean: float, pass_rate: float}>}>,
+     *         cohorts: list<array{key: string, tag: string, is_untagged: bool, status: string, metrics: array<string, array{mean: float, pass_rate: float}>}>,
      *         adversarial: array{total_samples: int, categories: list<array<string, mixed>>}|null
      *     }
      * }
@@ -141,7 +142,7 @@ final class ReportDiffComputer
     /**
      * @param  array<string, mixed>  $left
      * @param  array<string, mixed>  $right
-     * @return list<array{tag: string, status: string, metrics: array<string, array{mean: float, pass_rate: float}>}>
+     * @return list<array{key: string, tag: string, is_untagged: bool, status: string, metrics: array<string, array{mean: float, pass_rate: float}>}>
      */
     private function cohortsDelta(array $left, array $right): array
     {
@@ -161,11 +162,11 @@ final class ReportDiffComputer
                 continue;
             }
 
-            $tag = $this->cohortDisplayTag($present);
-
             if ($leftCohort === null && $rightCohort !== null) {
                 $rows[] = [
-                    'tag' => $tag,
+                    'key' => $this->cohortPublicKey($present),
+                    'tag' => $this->cohortDisplayTag($present),
+                    'is_untagged' => $this->cohortIsUntagged($present),
                     'status' => 'added',
                     'metrics' => $this->cohortMetricsDelta([], $this->metricsBlock($rightCohort)),
                 ];
@@ -175,7 +176,9 @@ final class ReportDiffComputer
 
             if ($rightCohort === null && $leftCohort !== null) {
                 $rows[] = [
-                    'tag' => $tag,
+                    'key' => $this->cohortPublicKey($present),
+                    'tag' => $this->cohortDisplayTag($present),
+                    'is_untagged' => $this->cohortIsUntagged($present),
                     'status' => 'removed',
                     'metrics' => $this->cohortMetricsDelta($this->metricsBlock($leftCohort), []),
                 ];
@@ -193,7 +196,9 @@ final class ReportDiffComputer
             );
 
             $rows[] = [
-                'tag' => $tag,
+                'key' => $this->cohortPublicKey($present),
+                'tag' => $this->cohortDisplayTag($present),
+                'is_untagged' => $this->cohortIsUntagged($present),
                 'status' => $this->cohortStatus($metricsDelta),
                 'metrics' => $metricsDelta,
             ];
@@ -354,13 +359,38 @@ final class ReportDiffComputer
      */
     private function cohortDisplayTag(array $cohort): string
     {
-        if (($cohort['is_untagged'] ?? false) === true) {
+        if ($this->cohortIsUntagged($cohort)) {
             return '__untagged__';
         }
 
         $name = $cohort['name'] ?? null;
 
         return is_string($name) ? $name : '';
+    }
+
+    /**
+     * Stable client-facing key for diff rows. The human-facing `tag`
+     * value stays backwards-compatible, but clients should key rows by
+     * this discriminator so a literal `__untagged__` tag cannot collide
+     * with the synthetic untagged bucket.
+     *
+     * @param  array<string, mixed>  $cohort
+     */
+    private function cohortPublicKey(array $cohort): string
+    {
+        if ($this->cohortIsUntagged($cohort)) {
+            return 'untagged';
+        }
+
+        return 'tag:'.$this->cohortDisplayTag($cohort);
+    }
+
+    /**
+     * @param  array<string, mixed>  $cohort
+     */
+    private function cohortIsUntagged(array $cohort): bool
+    {
+        return ($cohort['is_untagged'] ?? false) === true;
     }
 
     /**

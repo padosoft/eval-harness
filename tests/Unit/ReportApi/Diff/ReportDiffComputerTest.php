@@ -352,6 +352,13 @@ final class ReportDiffComputerTest extends TestCase
         sort($tags);
         $this->assertSame(['__untagged__', '__untagged__'], $tags);
 
+        $keys = array_column($diff['delta']['cohorts'], 'key');
+        sort($keys);
+        $this->assertSame(['tag:__untagged__', 'untagged'], $keys);
+        $isUntaggedFlags = array_column($diff['delta']['cohorts'], 'is_untagged');
+        sort($isUntaggedFlags);
+        $this->assertSame([false, true], $isUntaggedFlags);
+
         // One row corresponds to the literal tag (regressed pass_rate
         // from 0.6 → 0.5); the other to the synthetic untagged bucket
         // (improved pass_rate from 0.4 → 0.45). Both must be present.
