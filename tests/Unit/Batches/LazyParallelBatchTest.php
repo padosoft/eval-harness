@@ -61,11 +61,16 @@ final class LazyParallelBatchTest extends TestCase
 
         Queue::assertPushed(EvaluateSampleJob::class, 2);
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job) use ($batchId): bool {
+            // dispatch() TTL math: drainBatches = ceil(2/3) = 1.
+            // drainSeconds = 1 * timeout(45) = 45.
+            // max(default 10, drainSeconds 45, timeout 45, configured 0)
+            // = 45. waitTimeout is intentionally NOT in the floor on
+            // the dispatch path (it bounds run() only).
             return $job->batchId === $batchId
                 && $job->sampleId === 's1'
                 && $job->queue === 'evals'
                 && $job->timeout === 45
-                && $job->resultTtlSeconds === 120;
+                && $job->resultTtlSeconds === 45;
         });
     }
 
@@ -75,9 +80,13 @@ final class LazyParallelBatchTest extends TestCase
         // result store still has to live long enough for workers to
         // drain the queue. Worker pool capacity is unknown to the
         // harness; concurrency is the closest proxy. With 2 samples
-        // and concurrency=1, drainBatches=2 and the TTL floor is
-        // 2 * max(waitTimeout=60, timeout=0) = 120 seconds. Operators
-        // with larger pools should override via
+        // and concurrency=1, drainBatches=2. Per-drain-batch runtime
+        // is bounded by --timeout (the per-job queue worker timeout);
+        // --batch-timeout is the producer-side wait budget for run()
+        // and has no effect on worker drain time, so it stays out of
+        // the floor.
+        // drainSeconds = 2 * timeout(30) = 60. max(default 10, 60, 30, 0) = 60.
+        // Operators with larger pools should override via
         // BatchOptions::lazyParallel(resultTtlSeconds: ...).
         Queue::fake();
 
@@ -94,11 +103,11 @@ final class LazyParallelBatchTest extends TestCase
             samples: $samples,
             sampleInvocations: $this->sampleInvocations($samples),
             runner: new LazyParallelAnswerRunner,
-            options: BatchOptions::lazyParallel(concurrency: 1, waitTimeoutSeconds: 60),
+            options: BatchOptions::lazyParallel(concurrency: 1, timeoutSeconds: 30, waitTimeoutSeconds: 60),
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 120;
+            return $job->resultTtlSeconds === 60;
         });
     }
 
@@ -127,8 +136,8 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         // 3 samples / concurrency=1 = 3 drain batches. drainSeconds =
-        // 3 * max(60, 300) = 900 seconds. The per-job timeout
-        // dominates the per-window wait timeout here.
+        // 3 * timeout(300) = 900 seconds. waitTimeout(60) does NOT
+        // factor into dispatch() TTL — it bounds run() only.
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
             return $job->resultTtlSeconds === 900;
         });
@@ -837,13 +846,20 @@ final class LazyParallelBatchTest extends TestCase
             options: BatchOptions::lazyParallel(
                 concurrency: 10,
                 queue: 'evals',
-                waitTimeoutSeconds: 60,
+                timeoutSeconds: 60,
+                waitTimeoutSeconds: 600,
                 chunkSize: 1,
             ),
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            // max(default 10, waitTimeout 60, timeout 0, configured 0) = 60.
+            // 10 samples / concurrency=10 = 1 drain batch.
+            // drainSeconds = 1 * timeout(60) = 60. The chunkSize=1
+            // setting must not pump the dispatch TTL: it would not
+            // matter even if we used it because dispatch() does not
+            // wait between windows. waitTimeout(600) intentionally
+            // stays out of the floor.
+            // max(default 10, drainSeconds 60, timeout 60, configured 0) = 60.
             return $job->resultTtlSeconds === 60;
         });
     }

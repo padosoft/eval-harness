@@ -169,12 +169,37 @@ final class LazyParallelBatch
                     ));
                 }
 
+                $priorWindowsCompleted = $samplesCompleted;
                 $outputsByIndex += $this->waitForIndexedOutputs(
                     batchId: $batchId,
                     samples: $sampleWindow,
                     sampleCount: $sampleCount,
                     deadlineMicrotime: $chunkDeadline,
                     timeoutSecondsForDiagnostic: $waitTimeoutSeconds,
+                    // Mid-chunk progress: as workers flush successes
+                    // for individual samples in this window, fire any
+                    // checkpoint thresholds the partial count crosses.
+                    // Without this, a chunk much larger than
+                    // checkpointEvery would emit nothing until the
+                    // SLOWEST sample in the chunk finished — turning
+                    // checkpointEvery into a per-window summary
+                    // instead of real progress reporting.
+                    onProgress: function (int $windowSuccesses) use (
+                        $batchId,
+                        $priorWindowsCompleted,
+                        $sampleCount,
+                        $checkpointEvery,
+                        &$nextCheckpointThreshold,
+                    ): void {
+                        $running = min($sampleCount, $priorWindowsCompleted + $windowSuccesses);
+                        $nextCheckpointThreshold = $this->reportCheckpointThresholdsCrossed(
+                            batchId: $batchId,
+                            samplesCompleted: $running,
+                            totalSamples: $sampleCount,
+                            checkpointEvery: $checkpointEvery,
+                            nextCheckpointThreshold: $nextCheckpointThreshold,
+                        );
+                    },
                 );
 
                 $samplesCompleted += count($sampleWindow);
@@ -442,6 +467,11 @@ final class LazyParallelBatch
 
     /**
      * @param  array<int, DatasetSample>  $samples
+     * @param  (callable(int): void)|null  $onProgress  Called after each poll
+     *                                                  with the cumulative count of stored successes inside this
+     *                                                  window so the caller can emit mid-chunk progress checkpoints
+     *                                                  as workers finish samples — without waiting for the entire
+     *                                                  chunk to land.
      * @return array<int, string>
      */
     private function waitForIndexedOutputs(
@@ -450,13 +480,32 @@ final class LazyParallelBatch
         int $sampleCount,
         float $deadlineMicrotime,
         int $timeoutSecondsForDiagnostic,
+        ?callable $onProgress = null,
     ): array {
         $pollIntervalMicroseconds = self::INITIAL_POLL_INTERVAL_MICROSECONDS;
+        $lastReportedWindowSuccesses = 0;
+        $windowIndexes = $this->sampleIndexes($samples);
 
         do {
             $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
             if ($outputs !== null) {
                 return $outputs;
+            }
+
+            if ($onProgress !== null) {
+                // Best-effort partial-progress count. Bounded by chunk
+                // size, not sampleCount, so the cost stays cheap. If
+                // the result store query throws, swallow it so the
+                // poll loop is not aborted by transient cache trouble.
+                try {
+                    $current = count($this->storedSuccessfulResults($batchId, $sampleCount, $windowIndexes));
+                } catch (Throwable) {
+                    $current = $lastReportedWindowSuccesses;
+                }
+                if ($current !== $lastReportedWindowSuccesses) {
+                    $lastReportedWindowSuccesses = $current;
+                    $onProgress($current);
+                }
             }
 
             if ($this->monotonicTime() >= $deadlineMicrotime) {
@@ -1112,16 +1161,19 @@ final class LazyParallelBatch
      * dispatch() is fire-and-return: it does not throttle and does
      * not wait between producer windows, so chunkSize and the
      * producer-side rate-limit pause time MUST NOT factor into the
-     * TTL (those would over-retain when chunkSize is small or the
-     * rate-limit is low). However, the harness still has to keep
-     * result metadata alive long enough for `collectOutputs()` to
-     * read it back, so the TTL must reflect worker-side drain time.
+     * TTL. Neither does `waitTimeoutSeconds` (`--batch-timeout`):
+     * it is the producer-side wait budget for `run()` and has no
+     * effect on worker drain time on the dispatch() path. Including
+     * it would inflate cache TTL by hours or days whenever callers
+     * raise `--batch-timeout`.
      *
-     * Worker pool capacity is unknown to the harness; concurrency
-     * (the producer fan-out cap) is the closest proxy and is the
-     * value the operator already declared as "how many in-flight
-     * jobs at once" in `BatchOptions`. Drain time = ceil(sampleCount
-     * / concurrency) windows of `max(waitTimeout, timeout)` each.
+     * The harness still has to keep result metadata alive long
+     * enough for `collectOutputs()` to read it back, so the TTL
+     * must reflect worker-side drain time. Worker pool capacity is
+     * unknown to the harness; concurrency (the producer fan-out
+     * cap) is the closest proxy. Per-drain-batch runtime is bounded
+     * by `--timeout` (the per-job queue worker timeout), and total
+     * drain time = ceil(sampleCount / concurrency) windows.
      * Operators with larger or smaller pools should override the
      * floor explicitly via
      * `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
@@ -1129,11 +1181,10 @@ final class LazyParallelBatch
     private function resultTtlSecondsForDispatch(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
     {
         $drainBatches = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
-        $drainSeconds = $drainBatches * max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0);
+        $drainSeconds = $drainBatches * ($options->timeoutSeconds ?? 0);
 
         return max(
             $this->resultTtlSeconds,
-            $waitTimeoutSeconds,
             $drainSeconds,
             $options->timeoutSeconds ?? 0,
             $options->resultTtlSeconds ?? 0,
