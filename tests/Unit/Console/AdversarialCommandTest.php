@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Illuminate\Support\Facades\Artisan;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -21,6 +22,81 @@ final class AdversarialCommandTest extends TestCase
         $this->artisan('help', ['command_name' => 'eval-harness:adversarial'])
             ->expectsOutputToContain('Compare this run with the latest compatible failure-free --manifest baseline and fail on score drops')
             ->assertExitCode(0);
+    }
+
+    public function test_outputs_warns_when_batch_flags_are_passed(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            // --outputs bypasses the batch dispatch path on the
+            // adversarial command too. The runtime warning is the
+            // safety net catching --batch-profile / --rate-limit
+            // typos in saved-output flows.
+            $exit = Artisan::call('eval-harness:adversarial', [
+                '--category' => ['prompt-injection'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--rate-limit' => '5',
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output run with extra batch flags must still exit 0; got output: '.$output);
+            $this->assertStringContainsString('Ignoring batch flags', $output);
+            $this->assertStringContainsString('--batch-profile', $output);
+            $this->assertStringContainsString('--rate-limit', $output);
+            $this->assertStringContainsString('--outputs is set', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_does_not_warn_when_no_batch_flags_passed(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-adv-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+        $this->assertIsString($sample->expectedOutput);
+
+        try {
+            file_put_contents($outputs, json_encode([
+                'outputs' => [
+                    $sample->id => $sample->expectedOutput,
+                ],
+            ], JSON_THROW_ON_ERROR));
+
+            $exit = Artisan::call('eval-harness:adversarial', [
+                '--category' => ['prompt-injection'],
+                '--metric' => ['exact-match'],
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit);
+            $this->assertStringNotContainsString('Ignoring batch flags', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
     }
 
     public function test_scores_selected_adversarial_category_saved_outputs_without_sut(): void
@@ -1378,6 +1454,144 @@ final class AdversarialCommandTest extends TestCase
             '--metric' => [''],
         ])
             ->expectsOutputToContain('The --metric option value at index 0 must be a non-empty string.')
+            ->assertExitCode(1);
+    }
+
+    public function test_ci_profile_resolves_to_lazy_parallel_against_bound_sut(): void
+    {
+        // Saved-output runs bypass batchOptions(), so the only way to
+        // observe profile resolution from the adversarial command is the
+        // SUT-bound path. ci profile mode is lazy-parallel; a closure SUT
+        // must surface the SampleRunner requirement, otherwise the
+        // command would silently fall back to the default serial mode and
+        // accept the closure.
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch-profile' => 'ci',
+        ])
+            ->expectsOutputToContain('Lazy parallel batch mode requires a SampleRunner system-under-test')
+            ->assertExitCode(1);
+    }
+
+    public function test_unknown_profile_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch-profile' => 'release',
+        ])
+            ->expectsOutputToContain("Unknown batch profile 'release'")
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_chunk_size_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--chunk-size' => 'abc',
+        ])
+            ->expectsOutputToContain('The --chunk-size option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_rate_limit_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-limit' => '-3',
+        ])
+            ->expectsOutputToContain('The --rate-limit option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_checkpoint_every_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--checkpoint-every' => 'abc',
+        ])
+            ->expectsOutputToContain('The --checkpoint-every option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_result_ttl_seconds_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--result-ttl-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --result-ttl-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_rate_window_seconds_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --rate-window-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_window_seconds_without_rate_limit_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => '30',
+        ])
+            ->expectsOutputToContain('Batch rate window seconds is only meaningful with a rate limit')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_mode_rejects_explicit_chunk_size(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--chunk-size' => '4',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a chunk size.')
             ->assertExitCode(1);
     }
 
