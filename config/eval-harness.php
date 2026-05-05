@@ -152,5 +152,43 @@ return [
                 60,
             ),
         ],
+
+        /*
+        |----------------------------------------------------------------------
+        | Operational profiles
+        |----------------------------------------------------------------------
+        |
+        | Profiles set defaults for batch options when --batch-profile=<name>
+        | is passed to eval-harness:run / eval-harness:adversarial. The
+        | package ships built-in `ci`, `smoke`, and `nightly` defaults
+        | (see Padosoft\EvalHarness\Batches\BatchProfileResolver). Host apps
+        | can override individual fields per profile or register additional
+        | profiles below. Explicit CLI options always override profile
+        | defaults; this layer is for sane operational presets, never lock-in.
+        |
+        | Example:
+        |
+        |     'profiles' => [
+        |         'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+        |         'release' => [
+        |             'mode' => 'lazy-parallel',
+        |             'concurrency' => 24,
+        |             'queue' => 'evals-release',
+        |             'timeout_seconds' => 90,
+        |             'wait_timeout_seconds' => 600,
+        |             'chunk_size' => 24,
+        |             'rate_limit' => 90,
+        |             'rate_window_seconds' => 60,
+        |             'checkpoint_every' => 50,
+        |         ],
+        |     ],
+        |
+        */
+
+        'profiles' => [
+            // Host-app overrides applied on top of the built-in
+            // `ci`, `smoke`, and `nightly` profiles. Add new named
+            // profiles here, or override fields for existing ones.
+        ],
     ],
 ];

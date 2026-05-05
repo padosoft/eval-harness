@@ -14,9 +14,13 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
@@ -111,6 +115,71 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new SerialBatch;
         });
 
+        $this->app->singleton(BatchProfileResolver::class, static function (Container $app): BatchProfileResolver {
+            return new BatchProfileResolver($app->make(ConfigRepository::class));
+        });
+
+        // Host apps may bind their reporter under either
+        // `BatchProgressReporter::class` (the parent interface) or
+        // `BatchTerminalProgressReporter::class` (the optional
+        // status-aware sub-contract). Documented contract: terminal
+        // sub-contract WINS when both keys are bound.
+        //
+        // Implementation:
+        //   1. `singletonIf(parent, NullReporter)` — installs the
+        //      package's fallback only when the host hasn't bound
+        //      the parent (preserves host's parent-only bindings).
+        //   2. `extend(parent, terminal-substitutor)` — runs at
+        //      first parent resolution; substitutes the terminal
+        //      binding when present.
+        //
+        // Constraints:
+        //   - Bindings must be registered in `register()` (the
+        //     normal Laravel pattern). The first parent resolution
+        //     caches the singleton via `extend()`; later terminal
+        //     bindings won't override an already-resolved instance.
+        //   - The recursion guard handles the rare case where a
+        //     host app aliases the terminal contract back to the
+        //     parent (e.g.
+        //     `bind(Terminal::class, fn ($app) =>
+        //     $app->make(Parent::class))`). On recursion the
+        //     extender returns the existing reporter without
+        //     infinite resolution.
+        $this->app->singletonIf(BatchProgressReporter::class, static function (): BatchProgressReporter {
+            return new NullBatchProgressReporter;
+        });
+        $resolvingTerminalSubstitution = false;
+        $this->app->extend(BatchProgressReporter::class, static function (BatchProgressReporter $existing, Container $app) use (&$resolvingTerminalSubstitution): BatchProgressReporter {
+            if ($resolvingTerminalSubstitution) {
+                return $existing;
+            }
+            if (! $app->bound(BatchTerminalProgressReporter::class)) {
+                return $existing;
+            }
+            $resolvingTerminalSubstitution = true;
+            try {
+                return $app->make(BatchTerminalProgressReporter::class);
+            } finally {
+                $resolvingTerminalSubstitution = false;
+            }
+        });
+
+        // Asymmetry note: the "bind under either key" contract is
+        // ONE-WAY by design. Host apps that bind a terminal-capable
+        // reporter under `BatchProgressReporter::class` only get
+        // terminal events through `LazyParallelBatch::run()`
+        // (which type-checks via `instanceof
+        // BatchTerminalProgressReporter` at emission time). Code
+        // that resolves `BatchTerminalProgressReporter::class`
+        // directly will still throw when no terminal binding
+        // exists. Adding a reverse alias here is unsafe: the
+        // singletonIf would re-enter the parent resolution chain
+        // through `extend()`, potentially recursing on host
+        // bindings that themselves alias terminal back to parent.
+        // Operators wanting to expose a single instance under
+        // both keys should bind both explicitly in their own
+        // service provider — typical Laravel container hygiene.
+
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);
@@ -140,6 +209,18 @@ class EvalHarnessServiceProvider extends ServiceProvider
                     $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
                     60,
                 ),
+                // Route through `BatchProgressReporter::class` only.
+                // The parent-interface singletonIf above resolves to
+                // the host app's `BatchTerminalProgressReporter`
+                // binding when present, so the factory does NOT
+                // resolve the terminal key directly. Without this,
+                // a host app binding the terminal reporter via
+                // `bind()` (factory, not singleton) would yield a
+                // DIFFERENT instance to LazyParallelBatch than to
+                // any other consumer type-hinting the parent
+                // interface — breaking the advertised "bind under
+                // either key" contract.
+                progressReporter: $app->make(BatchProgressReporter::class),
             );
         });
 

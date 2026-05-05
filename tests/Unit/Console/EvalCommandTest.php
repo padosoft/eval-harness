@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Illuminate\Support\Facades\Artisan;
+use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
@@ -13,6 +15,12 @@ use Padosoft\EvalHarness\Tests\Fixtures\SavedOutputsOnlyRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestRegistrar;
 use Padosoft\EvalHarness\Tests\Fixtures\TestSampleRunner;
 use Padosoft\EvalHarness\Tests\TestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\Console\Output\ConsoleSectionOutput;
+use Symfony\Component\Console\Output\Output;
+use Symfony\Component\Console\Output\OutputInterface;
 
 final class EvalCommandTest extends TestCase
 {
@@ -193,6 +201,398 @@ final class EvalCommandTest extends TestCase
         ])
             ->expectsOutputToContain('Serial batch mode does not use a wait timeout')
             ->assertExitCode(1);
+    }
+
+    public function test_outputs_warning_routes_to_stderr_on_console_output_interface(): void
+    {
+        // Round-32 fix: when the active output supports STDERR
+        // (real CLI via ConsoleOutputInterface), the warning must
+        // go to STDERR — not to the regular line writer — so
+        // `eval-harness:run --outputs ... --json` can pipe stdout
+        // to a JSON parser without contamination. This test
+        // bypasses the artisan invocation harness and drives
+        // EvalCommand directly with a ConsoleOutput so STDERR/STDOUT
+        // are distinguishable.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-stderr-route')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            /** @var EvalCommand $command */
+            $command = $this->app->make(EvalCommand::class);
+            $command->setLaravel($this->app);
+
+            $stdout = new BufferedOutput;
+            $stderr = new BufferedOutput;
+            $output = new class($stdout, $stderr) extends Output implements ConsoleOutputInterface
+            {
+                public function __construct(
+                    private BufferedOutput $stdout,
+                    private BufferedOutput $stderr,
+                ) {
+                    parent::__construct();
+                }
+
+                protected function doWrite(string $message, bool $newline): void
+                {
+                    $this->stdout->write($message, $newline);
+                }
+
+                public function getErrorOutput(): OutputInterface
+                {
+                    return $this->stderr;
+                }
+
+                public function setErrorOutput(OutputInterface $error): void
+                {
+                    //
+                }
+
+                public function section(): ConsoleSectionOutput
+                {
+                    throw new \LogicException('not used');
+                }
+            };
+
+            $input = new ArrayInput([
+                'dataset' => 'saved-output-stderr-route',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--json' => true,
+                '--out' => $report,
+            ], $command->getDefinition());
+
+            $command->run($input, $output);
+
+            $stdoutText = $stdout->fetch();
+            $stderrText = $stderr->fetch();
+
+            // Warning must be on STDERR only, leaving stdout
+            // available for any payload writers without
+            // contamination.
+            $this->assertStringContainsString('Ignoring batch flags', $stderrText);
+            $this->assertStringContainsString('--batch-profile', $stderrText);
+            $this->assertStringNotContainsString('Ignoring batch flags', $stdoutText);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_explicit_null_batch_profile_via_artisan_call_is_rejected(): void
+    {
+        // Round-38 fix: programmatic Artisan::call(['--batch-profile'
+        // => null]) was hitting the early "value === null → no
+        // profile" return, recreating the silent fallback the
+        // empty-string guard was meant to prevent. Round-38 unifies
+        // null and '' on the rejection path.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-batch-profile')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-batch-profile',
+            '--batch-profile' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--batch-profile option requires a non-empty profile name', Artisan::output());
+    }
+
+    public function test_explicit_null_batch_mode_via_artisan_call_is_rejected(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-batch-mode')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-batch-mode',
+            '--batch' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--batch option requires a non-empty mode', Artisan::output());
+    }
+
+    public function test_explicit_null_queue_via_artisan_call_is_rejected(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-queue')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-queue',
+            '--queue' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--queue option requires a non-empty queue name', Artisan::output());
+    }
+
+    public function test_empty_batch_mode_is_rejected(): void
+    {
+        // Round-37 fix: `--batch=` (empty) was silently treated as
+        // "not provided" and fell through to the profile/default
+        // mode. With profile support an env var like
+        // `--batch=$EVAL_BATCH_MODE --batch-profile=ci` (env
+        // unset) would silently switch the run to lazy-parallel.
+        // Only the numeric flags support empty fall-through.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-batch-mode')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-batch-mode',
+            '--batch' => '',
+        ])
+            ->expectsOutputToContain('--batch option requires a non-empty mode')
+            ->assertExitCode(1);
+    }
+
+    public function test_empty_queue_is_rejected(): void
+    {
+        // Round-37 fix: `--queue=` (empty) was silently treated as
+        // "not provided" and fell through to the inherited profile
+        // queue. An unset env var like `--queue=$EVAL_QUEUE
+        // --batch-profile=nightly` would silently dispatch onto
+        // the profile's queue instead of surfacing the misconfig.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-queue')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-queue',
+            '--queue' => '',
+        ])
+            ->expectsOutputToContain('--queue option requires a non-empty queue name')
+            ->assertExitCode(1);
+    }
+
+    public function test_empty_batch_profile_is_rejected(): void
+    {
+        // Round-36 fix: `--batch-profile=` (empty) was silently
+        // treated as "no profile". An unset CI variable
+        // (`--batch-profile=$EVAL_PROFILE` with `EVAL_PROFILE`
+        // unset) would change batch mode and backpressure with no
+        // diagnostic. Only the numeric flags document empty-value
+        // fall-through to profile/baseline default — the profile
+        // name itself does not. Operators that do not want a
+        // profile must omit the flag entirely.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-profile')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-profile',
+            '--batch-profile' => '',
+        ])
+            ->expectsOutputToContain('--batch-profile option requires a non-empty profile name')
+            ->assertExitCode(1);
+    }
+
+    public function test_outputs_warns_when_batch_flags_are_passed(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // --outputs bypasses the batch dispatch path, so passing
+            // --batch-profile / --rate-limit alongside --outputs is
+            // a misuse: the trait validation never runs and operators
+            // get no signal that the values are dropped. The runtime
+            // warning is the only safety net catching typos like
+            // `--rate-limit=abc`. Use Artisan::call so we can read the
+            // captured output directly (the PendingCommand wrapper
+            // routes assertions through a different output path that
+            // does not see <comment>-styled `line()` writes).
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-cli',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--rate-limit' => '5',
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output run with extra batch flags must still exit 0; got output: '.$output);
+            $this->assertStringContainsString('Ignoring batch flags', $output);
+            $this->assertStringContainsString('--batch-profile', $output);
+            $this->assertStringContainsString('--rate-limit', $output);
+            $this->assertStringContainsString('--outputs is set', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_warning_suppressed_when_json_without_out_in_buffered_output(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-json-no-out')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $this->assertNotFalse($outputs);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // Round-33 fix: when --json is set and --out is NOT set,
+            // stdout is the JSON payload programmatic callers parse
+            // via Artisan::output(). Writing the warning into the
+            // single-stream BufferedOutput buffer would break that
+            // machine-parseable contract. The warning must be
+            // suppressed (CLI users still see it on STDERR via the
+            // ConsoleOutputInterface branch).
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-json-no-out',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--rate-limit' => '5',
+                '--json' => true,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output JSON run with extra batch flags must still exit 0; got output: '.$output);
+            $this->assertStringNotContainsString('Ignoring batch flags', $output);
+            // The captured buffer must remain valid JSON for
+            // programmatic consumption — decode round-trip proves
+            // no diagnostic line leaked into the payload.
+            $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+            $this->assertIsArray($decoded);
+            $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
+    public function test_outputs_warning_detects_explicit_default_valued_flag_via_sentinel(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-default-valued')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // Round-32 sentinel-based fallback: explicit
+            // default-valued flag `--batch=serial` (matches the
+            // signature default 'serial') passed via Artisan::call
+            // must still fire the warning. hasParameterOption +
+            // value-vs-default comparison alone misses this case
+            // because the resolved value matches the default; only
+            // the sentinel `getParameterOption` round-trip catches
+            // it. A regression here would silently let explicitly-
+            // passed default values bypass the runtime warning.
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-default-valued',
+                '--outputs' => $outputs,
+                '--batch' => 'serial',
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output run with explicit default-valued batch flag must still exit 0; got: '.$output);
+            $this->assertStringContainsString('Ignoring batch flags', $output);
+            $this->assertStringContainsString('--batch', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
+    }
+
+    public function test_outputs_does_not_warn_when_no_batch_flags_passed(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-quiet-cli')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $report = tempnam(sys_get_temp_dir(), 'eval-report-');
+        $this->assertNotFalse($outputs);
+        $this->assertNotFalse($report);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // No batch flags passed → no warning. Documents the
+            // false-positive guard: the warning only fires for flags
+            // the operator actually passed, not for defaulted values.
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-quiet-cli',
+                '--outputs' => $outputs,
+                '--json' => true,
+                '--out' => $report,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit);
+            $this->assertStringNotContainsString('Ignoring batch flags', $output);
+        } finally {
+            @unlink($outputs);
+            @unlink($report);
+        }
     }
 
     public function test_outputs_option_runs_without_bound_sut(): void
@@ -449,6 +849,230 @@ final class EvalCommandTest extends TestCase
             '--registrar' => 'App\\NonExistent\\Registrar',
         ])
             ->expectsOutputToContain('does not exist')
+            ->assertExitCode(1);
+    }
+
+    public function test_ci_profile_resolves_to_lazy_parallel_without_explicit_batch_flag(): void
+    {
+        // The ci profile mode is lazy-parallel; a closure SUT cannot satisfy
+        // the lazy-parallel SampleRunner requirement, so this command must
+        // fail with that exact error. Default batch mode is serial which
+        // would have accepted the closure, so a green run here would mean
+        // the profile was silently ignored.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-ci-resolves')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-ci-resolves',
+            '--batch-profile' => 'ci',
+        ])
+            ->expectsOutputToContain('Lazy parallel batch mode requires a SampleRunner system-under-test')
+            ->assertExitCode(1);
+    }
+
+    public function test_unknown_profile_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-unknown')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-unknown',
+            '--batch-profile' => 'release',
+        ])
+            ->expectsOutputToContain("Unknown batch profile 'release'")
+            ->assertExitCode(1);
+    }
+
+    public function test_explicit_batch_flag_overrides_profile_mode(): void
+    {
+        // Paired with the no-override test above: without --batch=serial,
+        // ci profile fails with the SampleRunner error; with --batch=serial
+        // the override wins, mode resolves to serial, and the lazy-parallel
+        // profile defaults are dropped. Together both tests pin the
+        // explicit-CLI-wins-over-profile precedence in both directions.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-override')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-override',
+            '--batch-profile' => 'ci',
+            '--batch' => 'serial',
+        ])->assertExitCode(0);
+    }
+
+    public function test_invalid_checkpoint_every_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-checkpoint-every')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-checkpoint-every',
+            '--batch' => 'lazy-parallel',
+            '--checkpoint-every' => 'abc',
+        ])
+            ->expectsOutputToContain('The --checkpoint-every option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_result_ttl_seconds_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-result-ttl')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-result-ttl',
+            '--batch' => 'lazy-parallel',
+            '--result-ttl-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --result-ttl-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_chunk_size_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-chunk')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-chunk',
+            '--batch' => 'lazy-parallel',
+            '--chunk-size' => 'abc',
+        ])
+            ->expectsOutputToContain('The --chunk-size option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_invalid_rate_window_seconds_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-rate-window')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-rate-window',
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --rate-window-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_window_seconds_without_rate_limit_returns_failure(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('rate-window-without-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'rate-window-without-limit',
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => '30',
+        ])
+            ->expectsOutputToContain('Batch rate window seconds is only meaningful with a rate limit')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_limit_with_window_runs_under_sync_queue(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('rate-window-happy-path')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'rate-window-happy-path',
+            '--batch' => 'lazy-parallel',
+            '--queue' => 'evals',
+            '--concurrency' => '2',
+            '--rate-limit' => '10',
+            '--rate-window-seconds' => '1',
+        ])->assertExitCode(0);
+    }
+
+    public function test_invalid_rate_limit_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-rate-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-rate-limit',
+            '--batch' => 'lazy-parallel',
+            '--rate-limit' => '-3',
+        ])
+            ->expectsOutputToContain('The --rate-limit option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_serial_mode_rejects_explicit_rate_limit(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('serial-rate-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'serial-rate-limit',
+            '--rate-limit' => '5',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a rate limit.')
             ->assertExitCode(1);
     }
 

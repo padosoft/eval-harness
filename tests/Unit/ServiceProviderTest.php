@@ -8,8 +8,13 @@ use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Batches\BatchProfile;
+use Padosoft\EvalHarness\Batches\BatchProfileResolver;
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
@@ -176,6 +181,215 @@ final class ServiceProviderTest extends TestCase
 
         $this->assertSame(3600, $ttl->getValue($batch));
         $this->assertSame(60, $wait->getValue($batch));
+    }
+
+    public function test_batch_profile_resolver_is_an_explicit_singleton_with_built_in_profiles(): void
+    {
+        $this->assertTrue($this->app->bound(BatchProfileResolver::class));
+
+        $first = $this->app->make(BatchProfileResolver::class);
+        $second = $this->app->make(BatchProfileResolver::class);
+
+        $this->assertInstanceOf(BatchProfileResolver::class, $first);
+        $this->assertSame($first, $second, 'BatchProfileResolver must be a container singleton.');
+        $this->assertContains(BatchProfile::NAME_CI, $first->names());
+        $this->assertContains(BatchProfile::NAME_SMOKE, $first->names());
+        $this->assertContains(BatchProfile::NAME_NIGHTLY, $first->names());
+    }
+
+    public function test_batch_profile_resolver_picks_up_config_overrides(): void
+    {
+        config(['eval-harness.batches.profiles' => [
+            'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $profile = $this->app->make(BatchProfileResolver::class)->resolve(BatchProfile::NAME_CI);
+
+        $this->assertSame(8, $profile->concurrency);
+        $this->assertSame(30, $profile->rateLimit);
+    }
+
+    public function test_default_batch_progress_reporter_is_no_op(): void
+    {
+        $reporter = $this->app->make(BatchProgressReporter::class);
+
+        $this->assertInstanceOf(NullBatchProgressReporter::class, $reporter);
+    }
+
+    public function test_lazy_parallel_batch_uses_bound_progress_reporter(): void
+    {
+        $custom = new class implements BatchProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchProgressReporter::class, $custom);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+
+        $reporterProperty = new \ReflectionProperty($batch, 'progressReporter');
+
+        $this->assertSame($custom, $reporterProperty->getValue($batch));
+    }
+
+    public function test_lazy_parallel_batch_prefers_terminal_progress_reporter_binding(): void
+    {
+        // Host apps that implement the optional sub-contract should
+        // be able to bind under either key. The provider must prefer
+        // the BatchTerminalProgressReporter binding when present so
+        // the terminal-status signal actually reaches LazyParallelBatch.
+        $custom = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchTerminalProgressReporter::class, $custom);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $reporterProperty = new \ReflectionProperty($batch, 'progressReporter');
+
+        $this->assertSame($custom, $reporterProperty->getValue($batch));
+    }
+
+    public function test_terminal_reporter_wins_when_host_app_also_binds_parent_interface(): void
+    {
+        // Round-40 fix: when a host app binds BOTH
+        // BatchProgressReporter (parent) AND
+        // BatchTerminalProgressReporter (sub-contract) — typical
+        // during a migration adopting the new contract — the
+        // documented "terminal wins" rule must hold. The previous
+        // `singletonIf`-only approach left the host's parent
+        // binding in place because the parent was already bound,
+        // so LazyParallelBatch never saw `reportTerminal()`.
+        //
+        // Uses `singleton()` (the natural host-app pattern) rather
+        // than `instance()` (which bypasses Laravel's extender
+        // chain). Real host apps bind through providers; the
+        // extend()-based alias substitutes terminal for parent at
+        // resolve time on bind/singleton bindings.
+        $hostParent = new class implements BatchProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+        };
+        $hostTerminal = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+
+        $this->app->singleton(BatchProgressReporter::class, fn () => $hostParent);
+        $this->app->singleton(BatchTerminalProgressReporter::class, fn () => $hostTerminal);
+        $this->app->forgetInstance(BatchProgressReporter::class);
+        $this->app->forgetInstance(BatchTerminalProgressReporter::class);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $reporterFromBatch = (new \ReflectionProperty($batch, 'progressReporter'))->getValue($batch);
+
+        // The terminal binding must override the parent — both
+        // LazyParallelBatch AND any other consumer type-hinting
+        // BatchProgressReporter should resolve to the terminal
+        // reporter, not the host's parent binding.
+        $this->assertSame($hostTerminal, $reporterFromBatch);
+        $this->assertSame($hostTerminal, $this->app->make(BatchProgressReporter::class));
+        $this->assertNotSame($hostParent, $reporterFromBatch);
+    }
+
+    public function test_lazy_parallel_batch_uses_aliased_reporter_under_factory_terminal_binding(): void
+    {
+        // Round-38 fix: when a host app binds the terminal reporter
+        // via `bind()` (factory, not singleton), the LazyParallelBatch
+        // factory must route through `BatchProgressReporter::class`
+        // (which the singletonIf alias resolves to the terminal
+        // binding) instead of resolving the terminal key directly.
+        // Otherwise LazyParallelBatch gets a DIFFERENT instance from
+        // any other consumer type-hinting the parent interface,
+        // breaking the "bind under either key" contract.
+        $instances = [];
+        $this->app->bind(BatchTerminalProgressReporter::class, function () use (&$instances) {
+            $reporter = new class implements BatchTerminalProgressReporter
+            {
+                public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+                {
+                    //
+                }
+
+                public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+                {
+                    //
+                }
+            };
+            $instances[] = $reporter;
+
+            return $reporter;
+        });
+        $this->app->forgetInstance(BatchProgressReporter::class);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $reporterFromBatch = (new \ReflectionProperty($batch, 'progressReporter'))->getValue($batch);
+        $reporterFromContainer = $this->app->make(BatchProgressReporter::class);
+
+        // Both consumers must see the same instance — the singletonIf
+        // alias caches the first resolution so subsequent
+        // `BatchProgressReporter` makes return that same object even
+        // though the underlying `bind()` factory would otherwise
+        // produce fresh instances.
+        $this->assertSame($reporterFromBatch, $reporterFromContainer);
+    }
+
+    public function test_parent_progress_reporter_resolves_to_terminal_binding_when_only_terminal_is_bound(): void
+    {
+        // Round-35 fix: the "bind under either key" contract only
+        // worked inside the LazyParallelBatch factory. Any consumer
+        // type-hinting the parent BatchProgressReporter interface
+        // (host-app code, tests, downstream services) would silently
+        // resolve to the package's NullBatchProgressReporter even
+        // when the host app had bound a real reporter under the
+        // sub-contract. This test pins the bidirectional alias:
+        // when ONLY BatchTerminalProgressReporter is bound,
+        // BatchProgressReporter resolution returns the same
+        // instance.
+        $custom = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchTerminalProgressReporter::class, $custom);
+        $this->app->forgetInstance(BatchProgressReporter::class);
+
+        $resolved = $this->app->make(BatchProgressReporter::class);
+
+        $this->assertSame($custom, $resolved);
     }
 
     public function test_batch_result_store_uses_configured_cache_store(): void

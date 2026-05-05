@@ -125,4 +125,111 @@ final class BatchOptionsTest extends TestCase
 
         new BatchOptions(resultTtlSeconds: 60);
     }
+
+    public function test_lazy_parallel_supports_backpressure_fields(): void
+    {
+        $options = BatchOptions::lazyParallel(
+            concurrency: 8,
+            queue: 'evals-nightly',
+            timeoutSeconds: 60,
+            waitTimeoutSeconds: 600,
+            chunkSize: 4,
+            rateLimit: 30,
+            rateWindowSeconds: 60,
+            checkpointEvery: 25,
+        );
+
+        $this->assertSame(4, $options->chunkSize);
+        $this->assertSame(4, $options->effectiveChunkSize());
+        $this->assertSame(30, $options->rateLimit);
+        $this->assertSame(60, $options->rateWindowSeconds);
+        $this->assertSame(25, $options->checkpointEvery);
+    }
+
+    public function test_effective_chunk_size_falls_back_to_concurrency(): void
+    {
+        $options = BatchOptions::lazyParallel(concurrency: 6);
+
+        $this->assertSame(6, $options->effectiveChunkSize());
+    }
+
+    public function test_rejects_invalid_chunk_size(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch chunk size must be null or greater than or equal to 1.');
+
+        BatchOptions::lazyParallel(chunkSize: 0);
+    }
+
+    public function test_rejects_chunk_size_greater_than_concurrency(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch chunk size (10) cannot exceed concurrency (1).');
+
+        BatchOptions::lazyParallel(concurrency: 1, chunkSize: 10);
+    }
+
+    public function test_rejects_invalid_rate_limit(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch rate limit must be null or greater than or equal to 1.');
+
+        BatchOptions::lazyParallel(rateLimit: 0);
+    }
+
+    public function test_rejects_invalid_rate_window_seconds(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch rate window seconds must be null or greater than or equal to 1.');
+
+        BatchOptions::lazyParallel(rateWindowSeconds: 0);
+    }
+
+    public function test_rejects_rate_window_seconds_without_rate_limit(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch rate window seconds is only meaningful with a rate limit');
+
+        BatchOptions::lazyParallel(rateWindowSeconds: 30);
+    }
+
+    public function test_rejects_invalid_checkpoint_interval(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch checkpoint interval must be null or greater than or equal to 1.');
+
+        BatchOptions::lazyParallel(checkpointEvery: 0);
+    }
+
+    public function test_serial_mode_rejects_chunk_size(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Serial batch mode does not use a chunk size.');
+
+        new BatchOptions(chunkSize: 1);
+    }
+
+    public function test_serial_mode_rejects_rate_limit(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Serial batch mode does not use a rate limit.');
+
+        new BatchOptions(rateLimit: 1);
+    }
+
+    public function test_serial_mode_rejects_rate_window(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Serial batch mode does not use a rate window.');
+
+        new BatchOptions(rateWindowSeconds: 30);
+    }
+
+    public function test_serial_mode_rejects_checkpoint_interval(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Serial batch mode does not use a checkpoint interval.');
+
+        new BatchOptions(checkpointEvery: 10);
+    }
 }

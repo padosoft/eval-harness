@@ -41,9 +41,14 @@ php artisan eval-harness:run rag.factuality.fy2026 \
   --out=evals/rag-factuality.json
 ```
 
-`--concurrency` is the producer window size: it controls how many sample jobs
-the command dispatches before waiting for that window. Actual worker
-concurrency is controlled by Horizon supervisor process counts.
+`--concurrency` is the lazy-parallel producer fan-out cap and the
+default producer window size. Pass `--chunk-size=N` to narrow the
+window further (must be `<= --concurrency`; see Backpressure Knobs
+below). The producer waits after each chunk completes before
+dispatching the next chunk, so **when `--chunk-size < --concurrency`,
+chunk-size is the effective in-flight job count per producer process**
+— not concurrency. Actual worker concurrency across the whole pool is
+controlled by Horizon supervisor process counts.
 
 Use a queue-specific registrar, or update the host app's existing registrar, so
 it binds the SUT to a concrete `SampleRunner` class:
@@ -77,11 +82,20 @@ eval jobs when they should not compete with latency-sensitive queues.
 ],
 ```
 
-Tune `maxProcesses` for how many samples may run at the same time. Tune
-`--concurrency` for how many jobs this package feeds into the queue before
-collecting a window. They do not need to be equal: a larger producer window can
-keep a busy worker pool fed, while a smaller window reduces cache/result-store
-pressure.
+Tune `maxProcesses` for how many samples may run at the same time across the
+whole Horizon pool. Tune `--concurrency` for the maximum producer window
+allowed (and the default dispatch window). When you need tighter backpressure
+than the fan-out cap, set `--chunk-size` lower and remember the runner waits
+after each chunk: in that case chunk-size — not concurrency — is the actual
+in-flight count per producer process.
+
+`maxProcesses` is a pool-wide setting and must reflect total demand from ALL
+concurrent producers, not just one. If K eval commands can run at the same
+time (CI lanes plus a nightly run, for example), peak in-flight demand is
+roughly `chunk-size × K`. Size `maxProcesses` for that peak — not just one
+producer's chunk-size — or the pool builds a queue backlog. Larger windows
+keep a busy worker pool fed; smaller windows reduce cache/result-store
+pressure but limit producer throughput per command.
 
 ## Timeout Sizing
 
@@ -132,6 +146,167 @@ php artisan eval-harness:run rag.factuality.fy2026 \
   processes.
 - Keep offline metrics and fake LLM/embedding clients in test suites. Live LLM
   calls belong in opt-in live tests only.
+
+## Operational Profiles
+
+`--batch-profile=<name>` applies a named operational preset of batch
+defaults so CI lanes, smoke checks, and nightly runs do not have to
+duplicate `--concurrency / --timeout / --queue / --rate-limit / ...` on
+every invocation. Explicit CLI options always override profile defaults;
+profiles never lock operators in.
+
+Built-in profiles:
+
+| Profile  | Mode          | Concurrency | Chunk size | Rate limit       | Checkpoint every |
+| -------- | ------------- | ----------- | ---------- | ---------------- | ---------------- |
+| `smoke`  | serial        | 1           | n/a        | n/a              | n/a              |
+| `ci`     | lazy-parallel | 4           | 4          | none             | every 25 samples |
+| `nightly`| lazy-parallel | 16          | 16         | 60 / 60s         | every 100        |
+
+Override or register profiles per host app under
+`eval-harness.batches.profiles` in `config/eval-harness.php`:
+
+```php
+// config/eval-harness.php
+return [
+    // ... other config keys ...
+
+    'batches' => [
+        // ... other batch keys (lazy_parallel, etc.) ...
+
+        'profiles' => [
+            'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+            'release' => [
+                'mode' => 'lazy-parallel',
+                'concurrency' => 24,
+                'queue' => 'evals-release',
+                'timeout_seconds' => 90,
+                'wait_timeout_seconds' => 600,
+                'chunk_size' => 24,
+                'rate_limit' => 90,
+                'rate_window_seconds' => 60,
+                'checkpoint_every' => 50,
+            ],
+        ],
+    ],
+];
+```
+
+```bash
+# CI gate: lazy-parallel with sane defaults, no extra knobs.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=ci \
+  --queue=evals \
+  --json --out=evals/ci-rag.json
+
+# Nightly long run: throttled dispatch with checkpoints.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=nightly \
+  --queue=evals-nightly \
+  --json --out=evals/nightly-rag.json
+
+# Smoke check before opening a PR: deterministic in-process serial run.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=smoke
+
+# One-off overrides without redefining the profile: pass `none` (or
+# `null`) on a numeric flag to clear an inherited profile value.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=nightly \
+  --rate-limit=none \
+  --checkpoint-every=none
+```
+
+The `none` / `null` sentinel works on every numeric batch flag
+(`--timeout`, `--batch-timeout`, `--chunk-size`, `--rate-limit`,
+`--rate-window-seconds`, `--result-ttl-seconds`, `--checkpoint-every`).
+Empty `--flag=` keeps the documented "fall back to profile / baseline
+default" semantic so unset CI variables stay safe. `--queue` does NOT
+accept the sentinel because queue names are arbitrary strings;
+override the profile in `eval-harness.batches.profiles.*` config when
+an inherited queue must be cleared.
+
+## Backpressure Knobs
+
+Use these flags to keep producer dispatch and SUT/provider QPS within
+operational limits. They apply to lazy-parallel mode only:
+
+- `--chunk-size=N` narrows the producer window size for dispatching
+  jobs before waiting for results. Defaults to `--concurrency` when
+  unset and must be `<= --concurrency`. Note that the runner waits
+  after each chunk completes, so when `--chunk-size < --concurrency`
+  chunk-size is the actual in-flight count per producer process — not
+  a "small chunk against a larger fan-out". Use this knob when you
+  want tighter backpressure on the SUT/provider per producer command.
+- `--rate-limit=N` caps how many sample jobs the producer dispatches per
+  rolling `--rate-window-seconds=W` window (default 60s). The limiter is
+  process-side, so multiple parallel commands compound.
+- `--checkpoint-every=N` emits a structured progress checkpoint every N
+  completed samples plus a final checkpoint at end-of-batch. Bind a
+  `Padosoft\EvalHarness\Batches\BatchProgressReporter` implementation in
+  the container to forward checkpoints to logs, Horizon dashboards, or
+  custom metrics. The default reporter is a no-op so the package stays
+  Horizon-optional.
+
+```php
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
+
+$this->app->singleton(BatchProgressReporter::class, function () {
+    return new class implements BatchProgressReporter {
+        public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+        {
+            \Log::info('eval-harness checkpoint', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+            ]);
+        }
+    };
+});
+```
+
+Dashboards that need to distinguish a finished failed batch from a
+stalled one — even when the failure-time `samplesCompleted` happens
+to match an earlier in-progress event — should implement the optional
+`BatchTerminalProgressReporter` sub-contract instead. It adds a
+`reportTerminal(batchId, samplesCompleted, totalSamples, status)`
+method with `STATUS_SUCCESS`, `STATUS_FAILURE`, and `STATUS_EMPTY`
+constants. Bind it under either `BatchProgressReporter::class` or
+`BatchTerminalProgressReporter::class` — the eval-harness service
+provider prefers the sub-contract binding when both keys are present.
+
+```php
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
+
+$this->app->singleton(BatchTerminalProgressReporter::class, function () {
+    return new class implements BatchTerminalProgressReporter {
+        public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+        {
+            \Log::info('eval-harness checkpoint', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+            ]);
+        }
+
+        public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+        {
+            \Log::info('eval-harness terminal', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+                'status' => $status, // 'success' | 'failure' | 'empty'
+            ]);
+        }
+    };
+});
+```
+
+In tests, the default `NullBatchProgressReporter` is used (it
+implements both contracts) and Horizon is never required. Rate
+limiting works under the `sync` queue too: the producer pauses
+between samples even when each job runs immediately.
 
 ## References
 

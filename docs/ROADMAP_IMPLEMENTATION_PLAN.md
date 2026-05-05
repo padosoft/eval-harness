@@ -232,6 +232,59 @@ Tests:
 - README command smoke where feasible.
 - Composer path install smoke in a Laravel test fixture if added.
 
+## Macro Task 8 - Enterprise Operations And Scalability Add-On v1.x
+
+Branch: `task/enterprise-operations-scalability`
+
+Implement (post-1.0 add-on; preserves all v1 contracts):
+
+- Named batch profiles (`ci`, `smoke`, `nightly`) resolved through
+  `BatchProfileResolver` with explicit-options-win precedence and
+  optional `eval-harness.batches.profiles.*` host-app overrides.
+  Implemented through `BatchProfile`, `BatchProfileResolver`, and the
+  `--batch-profile=<name>` CLI flag.
+- Backpressure controls for lazy-parallel runs: `--chunk-size`,
+  `--rate-limit`, `--rate-window-seconds`. Implemented through
+  `BatchOptions::chunkSize / rateLimit / rateWindowSeconds`,
+  `RateLimitWindow`, and the producer-side throttle in
+  `LazyParallelBatch`.
+- Progress checkpoints: `--checkpoint-every=N` plus an optional
+  `BatchProgressReporter` container binding (default
+  `NullBatchProgressReporter`) so host apps can forward checkpoints
+  to logs, Horizon dashboards, or custom metrics without taking a
+  hard Horizon dependency.
+- Operational guidance: production tuning matrix in
+  `docs/HORIZON_BATCH_QUEUES.md` covering profiles, rate limiting,
+  and Horizon supervisor sizing for high-throughput evals.
+
+Guardrails:
+
+- No hard dependency on Horizon; the package keeps using the `sync`
+  queue and queue fakes in tests. Adding the reporter binding is
+  optional in host apps.
+- Built-in profile defaults are conservative; CI runs do not exceed
+  4 in-flight samples by default.
+- Profile defaults never override explicit CLI options. Profile
+  defaults that conflict with the resolved batch mode (e.g. a
+  lazy-parallel-only field while the operator forces serial) are
+  silently dropped, while explicit operator-supplied conflicts still
+  surface as `BatchOptions` validation errors.
+- Rate limiting is producer-side (sliding window over dispatch
+  timestamps); operators must size Horizon worker concurrency
+  separately.
+
+Tests:
+
+- `BatchProfileResolverTest` for built-in profiles, config overrides,
+  and validation.
+- `RateLimitWindowTest` for sliding-window math.
+- `BatchOptionsTest` extensions for the new fields and serial-mode
+  rejection.
+- `LazyParallelBatchTest` extensions for chunk-size windowing and
+  progress-checkpoint emission.
+- `EvalCommandTest` extensions for profile precedence, unknown-profile
+  diagnostics, and serial/lazy-parallel option compatibility.
+
 ## Competitor-Informed Additions
 
 The README already compares against OpenAI Evals, LangSmith, Ragas, Promptfoo, and DeepEval. Keep that comparison current as these roadmap additions close parity gaps:
