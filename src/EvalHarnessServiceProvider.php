@@ -125,23 +125,43 @@ class EvalHarnessServiceProvider extends ServiceProvider
         // status-aware sub-contract). Documented contract: terminal
         // sub-contract WINS when both keys are bound.
         //
-        // The fallback for the no-binding case is the package's
-        // `NullBatchProgressReporter`. The terminal-wins alias is
-        // implemented via `extend()` so the substitution evaluates
-        // at resolve time — this catches host bindings made via
-        // `bind()`, `singleton()`, or `instance()` regardless of
-        // when they were registered (early provider, late provider,
-        // or runtime test setup). Previous `singletonIf`-only or
-        // `boot()`-time approaches missed any of these cases.
+        // Implementation:
+        //   1. `singletonIf(parent, NullReporter)` — installs the
+        //      package's fallback only when the host hasn't bound
+        //      the parent (preserves host's parent-only bindings).
+        //   2. `extend(parent, terminal-substitutor)` — runs at
+        //      first parent resolution; substitutes the terminal
+        //      binding when present.
+        //
+        // Constraints:
+        //   - Bindings must be registered in `register()` (the
+        //     normal Laravel pattern). The first parent resolution
+        //     caches the singleton via `extend()`; later terminal
+        //     bindings won't override an already-resolved instance.
+        //   - The recursion guard handles the rare case where a
+        //     host app aliases the terminal contract back to the
+        //     parent (e.g.
+        //     `bind(Terminal::class, fn ($app) =>
+        //     $app->make(Parent::class))`). On recursion the
+        //     extender returns the existing reporter without
+        //     infinite resolution.
         $this->app->singletonIf(BatchProgressReporter::class, static function (): BatchProgressReporter {
             return new NullBatchProgressReporter;
         });
-        $this->app->extend(BatchProgressReporter::class, static function (BatchProgressReporter $existing, Container $app): BatchProgressReporter {
-            if ($app->bound(BatchTerminalProgressReporter::class)) {
-                return $app->make(BatchTerminalProgressReporter::class);
+        $resolvingTerminalSubstitution = false;
+        $this->app->extend(BatchProgressReporter::class, static function (BatchProgressReporter $existing, Container $app) use (&$resolvingTerminalSubstitution): BatchProgressReporter {
+            if ($resolvingTerminalSubstitution) {
+                return $existing;
             }
-
-            return $existing;
+            if (! $app->bound(BatchTerminalProgressReporter::class)) {
+                return $existing;
+            }
+            $resolvingTerminalSubstitution = true;
+            try {
+                return $app->make(BatchTerminalProgressReporter::class);
+            } finally {
+                $resolvingTerminalSubstitution = false;
+            }
         });
 
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {

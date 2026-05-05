@@ -194,6 +194,31 @@ final class BatchProfileResolver
                 }
             }
 
+            // Cross-field dependent-clear: when an override clears
+            // (sets to null) a parent field, drop the inherited
+            // dependent fields too so the merged profile stays
+            // valid through `buildProfile()` cross-field
+            // validation. Without this:
+            //   - `['rate_limit' => null]` would leave the inherited
+            //     `rate_window_seconds`, which the BatchProfile
+            //     constructor rejects as "rate_window_seconds is
+            //     only meaningful with a rate_limit".
+            //   - `['concurrency' => 8]` against a built-in with
+            //     `chunk_size = 16` would leave the inherited
+            //     chunk_size that exceeds the new concurrency, and
+            //     the BatchProfile constructor rejects
+            //     `chunk_size > concurrency`.
+            if (array_key_exists('rate_limit', $definition) && $definition['rate_limit'] === null) {
+                unset($existing['rate_window_seconds']);
+            }
+            if (array_key_exists('concurrency', $definition) && is_int($definition['concurrency'])) {
+                $existingChunkSize = $existing['chunk_size'] ?? null;
+                if (is_int($existingChunkSize) && $existingChunkSize > $definition['concurrency']
+                    && ! array_key_exists('chunk_size', $definition)) {
+                    unset($existing['chunk_size']);
+                }
+            }
+
             $merged[$name] = array_replace($existing, $definition);
         }
 

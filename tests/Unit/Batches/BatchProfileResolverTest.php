@@ -293,6 +293,69 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_overriding_concurrency_below_inherited_chunk_size_drops_inherited_chunk_size(): void
+    {
+        // Round-41 fix: an override like `['nightly' =>
+        // ['concurrency' => 8]]` against the built-in `nightly`
+        // (which sets `chunk_size = 16`) used to keep the inherited
+        // chunk_size = 16 after array_replace, then BatchProfile's
+        // `chunk_size > concurrency` validation rejected the
+        // merged profile. The cross-field dependent-clear must
+        // drop the inherited chunk_size when the override lowers
+        // concurrency below it AND the override does NOT itself
+        // set chunk_size.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'nightly' => [
+                            'concurrency' => 8,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $resolver = new BatchProfileResolver($config);
+        $profile = $resolver->resolve('nightly');
+
+        // Concurrency lowered to 8; chunk_size not overridden, so
+        // it falls through to the BatchProfile/BatchOptions default
+        // (null = use concurrency as the in-flight cap).
+        $this->assertSame(8, $profile->concurrency);
+        $this->assertNull($profile->chunkSize);
+    }
+
+    public function test_overriding_rate_limit_to_null_drops_inherited_rate_window_seconds(): void
+    {
+        // Round-41 fix: an override like `['nightly' =>
+        // ['rate_limit' => null]]` (clear the inherited rate
+        // limit) used to keep the inherited rate_window_seconds =
+        // 60 after array_replace, then BatchProfile rejected the
+        // merged profile with "rate_window_seconds is only
+        // meaningful with a rate_limit". Dropping the dependent
+        // field on parent-clear lets operators disable rate
+        // limiting on a built-in profile without manually nulling
+        // both fields.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'nightly' => [
+                            'rate_limit' => null,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $resolver = new BatchProfileResolver($config);
+        $profile = $resolver->resolve('nightly');
+
+        $this->assertNull($profile->rateLimit);
+        $this->assertNull($profile->rateWindowSeconds);
+    }
+
     public function test_resolver_rejects_explicit_null_profiles_config(): void
     {
         // Round-33/34 fix: explicit `profiles => null` (env-backed
