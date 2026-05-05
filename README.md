@@ -506,12 +506,13 @@ Horizon workers on the chosen queue and set
 `EVAL_HARNESS_BATCH_CACHE_STORE` to a cache backend shared by the
 command process and workers so queued sample outputs can be collected
 for report assembly. `--concurrency` is the lazy-parallel producer
-fan-out and is also the default dispatch window size; pass
-`--chunk-size` to override the producer window independently of
-fan-out. Horizon worker counts are configured in Horizon. `--timeout`
-is the per-sample job timeout; `--batch-timeout` is the maximum wait
-for each dispatch window to finish before the command reports missing
-queued outputs. Programmatic external `dispatch()` / `collectOutputs()`
+fan-out cap and is also the default dispatch window size; pass
+`--chunk-size=N` to narrow the dispatch window further (must be
+`<= --concurrency`) for tighter backpressure without changing the
+fan-out cap. Horizon worker counts are configured in Horizon.
+`--timeout` is the per-sample job timeout; `--batch-timeout` is the
+maximum wait for each dispatch window to finish before the command
+reports missing queued outputs. Programmatic external `dispatch()` / `collectOutputs()`
 flows can set `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to
 keep result metadata and sample outputs alive long enough for delayed
 collection.
@@ -542,8 +543,9 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 Backpressure flags work with any lazy-parallel profile or with
 `--batch=lazy-parallel`:
 
-- `--chunk-size=N` overrides the producer dispatch window (defaults to
-  `--concurrency`).
+- `--chunk-size=N` narrows the producer dispatch window for tighter
+  backpressure (defaults to `--concurrency`; must be `<= --concurrency`,
+  since `--concurrency` is the fan-out cap).
 - `--rate-limit=N --rate-window-seconds=W` throttles producer dispatch
   to N samples per W-second rolling window.
 - `--checkpoint-every=N` emits structured progress events every N

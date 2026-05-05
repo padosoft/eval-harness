@@ -155,20 +155,29 @@ Override or register profiles per host app under
 `eval-harness.batches.profiles` in `config/eval-harness.php`:
 
 ```php
-'profiles' => [
-    'ci' => ['concurrency' => 8, 'rate_limit' => 30],
-    'release' => [
-        'mode' => 'lazy-parallel',
-        'concurrency' => 24,
-        'queue' => 'evals-release',
-        'timeout_seconds' => 90,
-        'wait_timeout_seconds' => 600,
-        'chunk_size' => 24,
-        'rate_limit' => 90,
-        'rate_window_seconds' => 60,
-        'checkpoint_every' => 50,
+// config/eval-harness.php
+return [
+    // ... other config keys ...
+
+    'batches' => [
+        // ... other batch keys (lazy_parallel, etc.) ...
+
+        'profiles' => [
+            'ci' => ['concurrency' => 8, 'rate_limit' => 30],
+            'release' => [
+                'mode' => 'lazy-parallel',
+                'concurrency' => 24,
+                'queue' => 'evals-release',
+                'timeout_seconds' => 90,
+                'wait_timeout_seconds' => 600,
+                'chunk_size' => 24,
+                'rate_limit' => 90,
+                'rate_window_seconds' => 60,
+                'checkpoint_every' => 50,
+            ],
+        ],
     ],
-],
+];
 ```
 
 ```bash
@@ -194,10 +203,11 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 Use these flags to keep producer dispatch and SUT/provider QPS within
 operational limits. They apply to lazy-parallel mode only:
 
-- `--chunk-size=N` overrides the producer window size for dispatching
+- `--chunk-size=N` narrows the producer window size for dispatching
   jobs before waiting for results. Defaults to `--concurrency` when
-  unset; useful when you want a small dispatch chunk against a much
-  larger queue worker pool.
+  unset and must be `<= --concurrency` so `--concurrency` stays the
+  fan-out cap; useful when you want a small dispatch chunk against a
+  larger fan-out for tighter backpressure.
 - `--rate-limit=N` caps how many sample jobs the producer dispatches per
   rolling `--rate-window-seconds=W` window (default 60s). The limiter is
   process-side, so multiple parallel commands compound.

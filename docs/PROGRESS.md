@@ -2152,3 +2152,8 @@
   - Updated README adversarial command section to list the full new batch contract: `--batch`, `--batch-profile`, `--concurrency`, `--queue`, `--timeout`, `--batch-timeout`, `--chunk-size`, `--rate-limit`, `--rate-window-seconds`, `--checkpoint-every`.
 - Full local gate passed after the fourth Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (640 tests, 1739 assertions)`, PHPStan no errors, Pint passed.
 - Reconciled the PR #37 description test counts (was stale at 635/1730).
+- Copilot reviewed PR #37 again at head `bee2936` and generated 2 actionable doc comments: the Horizon guide profile config example was shown at the top level but the resolver reads `eval-harness.batches.profiles`, so a copy/paste into `config/eval-harness.php` would land under the wrong key; the README still described `--chunk-size` as an "override" that overrode the producer window, contradicting the new `chunk_size <= concurrency` runtime validation.
+- Addressed both Copilot comments in the next push:
+  - Wrapped the Horizon profile config snippet in the full nested `return [..., 'batches' => ['profiles' => [...]], ...]` shape so the example loads under the correct key.
+  - Reworded the README lazy-parallel and backpressure sections plus the Horizon backpressure knob description so `--chunk-size` is described as narrowing the dispatch window (must be `<= --concurrency`) instead of overriding it.
+- Full local gate stayed green after the fifth Copilot doc fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (640 tests, 1739 assertions)`, PHPStan no errors, Pint passed.
