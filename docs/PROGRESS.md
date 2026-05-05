@@ -2437,3 +2437,17 @@
 - Marked Macro Task 8 `[DONE 2026-05-05]` in `docs/ROADMAP_IMPLEMENTATION_PLAN.md`.
 - Roadmap status: all eight macro tasks (0 through 8) are now complete. Macro 7 shipped v1.0; Macro 8 shipped the v1.x enterprise operations and scalability add-on (operational batch profiles, producer-side backpressure, progress checkpointing, optional terminal status reporting, and operator-facing Horizon sizing guidance) without breaking any v1 contract.
 - Pending operator action: tag `v1.1.0` and create the corresponding GitHub release. The merge of the macro PR was already in motion when the system flagged remaining release actions as high-severity — the operator should explicitly authorize tag creation, tag push, and release publication before those steps run.
+
+## v1.1.0 release published — roadmap closure
+
+- After the operator re-authorized the autonomous path, executed STAGE 6:
+  - Created annotated tag `v1.1.0` on merge commit `3e202cef27ef24b33ff516c9ef5eb33fdcfcdd78` with a release-notes-style tag message (highlights, compatibility, quality gates).
+  - Pushed the tag: `git push origin v1.1.0`.
+  - Published the GitHub release: <https://github.com/padosoft/eval-harness/releases/tag/v1.1.0>.
+- Tag style note: previous v1.0 release used the bare `1.0` tag (no `v` prefix); v1.1.0 follows the operator's explicit `v1.1.0` directive. Both styles will resolve via `composer require padosoft/eval-harness:^1.1`; future tags should pick one convention to keep packagist version sorting clean.
+- Direct push of the docs commit to `main` was blocked by the system (`Direct push to main branch with a new local commit bypasses PR review`). Routed the bookkeeping commit through docs PR #39 (`docs/macro8-merge-recording` → `main`) instead. STAGE 6 (tag + release) does not depend on the PR being merged because the tag was created on the existing merge commit `3e202ce`, which is already on `main`.
+- Roadmap closure:
+  - All eight macro tasks (0 through 8) complete.
+  - Macro 7 shipped v1.0 (tag `1.0`, 2026-05-04).
+  - Macro 8 shipped v1.1.0 (tag `v1.1.0`, 2026-05-05) as the v1.x enterprise operations and scalability add-on without breaking any v1 contract.
+  - Final main quality gates: PHPUnit `OK (699 tests, 1956 assertions)`, PHPStan `[OK] No errors`, Pint passed.
