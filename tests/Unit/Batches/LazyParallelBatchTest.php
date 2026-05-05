@@ -1496,6 +1496,266 @@ final class LazyParallelBatchTest extends TestCase
             $reporter->checkpoints,
         );
     }
+
+    public function test_run_aborts_chunk_when_rate_limit_pause_consumes_chunk_deadline(): void
+    {
+        // Pins both halves of the producer-side throttling/deadline path:
+        //   1. run() actually consults `rateLimiter` — the rate-limit
+        //      record/wait/cap math runs inside dispatchSampleJobs().
+        //      Without it, every sample would dispatch in microseconds
+        //      and the elapsed-time assertion below would fail.
+        //   2. run() actually consults `chunkDeadlineMicrotime` — when
+        //      the throttle pause would outlast the chunk deadline,
+        //      dispatch aborts and the deadline-exceeded EvalRunException
+        //      is raised. Without the deadline check, the producer
+        //      would sleep for the full rate window past --batch-timeout.
+        // Five samples are used so the deadline is definitively crossed
+        // even with usleep timer slop on Windows: by the time
+        // dispatchSampleJobs() returns, multiple capped pauses have
+        // accumulated past the chunk deadline.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            // 1-second chunk deadline. Sample 0 dispatches immediately
+            // and runs synchronously. Subsequent samples each need ~60s
+            // of throttle wait, capped by the deadline cap so the test
+            // completes in ~1s — not 60s.
+            defaultWaitTimeoutSeconds: 1,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
+            new DatasetSample(id: 's2', input: ['answer' => 'b'], expectedOutput: 'b'),
+            new DatasetSample(id: 's3', input: ['answer' => 'c'], expectedOutput: 'c'),
+            new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
+            new DatasetSample(id: 's5', input: ['answer' => 'e'], expectedOutput: 'e'),
+        ];
+
+        $start = microtime(true);
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelAnswerRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 5,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                    rateLimit: 1,
+                    rateWindowSeconds: 60,
+                ),
+            );
+            $this->fail('Expected EvalRunException because the rate-limit pause consumed the chunk deadline.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('chunk dispatch consumed the full', $e->getMessage());
+        }
+        $elapsed = microtime(true) - $start;
+
+        // The deadline cap on throttleDispatch() must keep the test
+        // bounded by the wait timeout (1s) plus small overhead — NOT
+        // the full 60s rate window. A regression that drops the
+        // remaining-deadline cap inside throttleDispatch() would stretch
+        // this test to ~60s.
+        $this->assertLessThan(
+            10.0,
+            $elapsed,
+            sprintf('Rate-limit pause was not capped at the chunk deadline (elapsed %.2fs).', $elapsed),
+        );
+    }
+
+    public function test_run_throttles_dispatch_under_low_rate_limit(): void
+    {
+        // Pins that run() consults `rateLimiter` for the dispatch pace.
+        // With rateLimit=2 / rateWindowSeconds=1 and 4 samples, the
+        // first 2 samples dispatch immediately and the next 2 must wait
+        // ~1s for the rolling window to slide. Without rate-limit
+        // throttling, all 4 would dispatch in microseconds.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 30,
+            // Generous wait timeout (10s) so the rate-limit pause has
+            // budget to complete and the EvalRunException deadline path
+            // does NOT fire — this test isolates the throttle behavior.
+            defaultWaitTimeoutSeconds: 10,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
+            new DatasetSample(id: 's2', input: ['answer' => 'b'], expectedOutput: 'b'),
+            new DatasetSample(id: 's3', input: ['answer' => 'c'], expectedOutput: 'c'),
+            new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
+        ];
+
+        $start = microtime(true);
+        $outputs = $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 4,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                rateLimit: 2,
+                rateWindowSeconds: 1,
+            ),
+        );
+        $elapsed = microtime(true) - $start;
+
+        $this->assertSame(['a', 'b', 'c', 'd'], $outputs);
+
+        // The third dispatch must wait until the oldest of the first
+        // two timestamps slides out of the 1-second window, so total
+        // elapsed has to exceed at least ~0.8s. Without the rate
+        // limiter being consulted, the four sync runs would finish in
+        // a handful of milliseconds.
+        $this->assertGreaterThan(
+            0.8,
+            $elapsed,
+            sprintf('Rate limiter was not consulted by run() (elapsed %.4fs).', $elapsed),
+        );
+    }
+
+    public function test_run_completes_when_terminal_reporter_throws_on_success_path(): void
+    {
+        // Pins reportTerminal() exception tolerance on the success path.
+        // A telemetry sink failure during the end-of-batch terminal
+        // event must NOT abort an otherwise-healthy batch; the eval
+        // would otherwise flip green runs to exit 1 because of unrelated
+        // observer trouble.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: new ThrowingTerminalProgressReporter,
+        );
+
+        $samples = $this->samples();
+
+        $outputs = $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 1,
+            ),
+        );
+
+        $this->assertSame(['first output', 'second output'], $outputs);
+    }
+
+    public function test_run_propagates_original_failure_when_terminal_reporter_throws_on_failure_path(): void
+    {
+        // Pins reportTerminal() exception tolerance on the failure path.
+        // The original sample failure must propagate; the reporter's
+        // exception must NOT mask it. A regression that lets the
+        // observer exception escape would surface "telemetry sink
+        // unavailable" instead of the actual sample-level error,
+        // making operational debugging dramatically harder.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: new ThrowingTerminalProgressReporter,
+        );
+
+        $samples = $this->samples();
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelFailingRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 2,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                    checkpointEvery: 1,
+                ),
+            );
+            $this->fail('Expected the failing runner to surface as EvalRunException.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString('runner exploded', $e->getMessage());
+            $this->assertStringNotContainsString(
+                'telemetry sink unavailable',
+                $e->getMessage(),
+                'Observer/reporter exceptions must not mask the original sample failure.',
+            );
+        }
+    }
+
+    public function test_run_completes_for_empty_batch_when_terminal_reporter_throws(): void
+    {
+        // Pins reportTerminal() exception tolerance on the empty-batch
+        // path. STATUS_EMPTY is emitted to terminal-aware reporters even
+        // for zero-sample runs so dashboards can distinguish a finished
+        // short run from a stalled one — but a throwing reporter must
+        // not abort the empty-batch return path.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: new ThrowingTerminalProgressReporter,
+        );
+
+        $outputs = $batch->run(
+            samples: [],
+            sampleInvocations: [],
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 25,
+            ),
+        );
+
+        $this->assertSame([], $outputs);
+    }
 }
 
 final class LazyParallelAnswerRunner implements SampleRunner
@@ -2343,5 +2603,21 @@ final class RecordingTerminalProgressReporter implements BatchTerminalProgressRe
             'samples_completed' => $samplesCompleted,
             'total' => $totalSamples,
         ];
+    }
+}
+
+final class ThrowingTerminalProgressReporter implements BatchTerminalProgressReporter
+{
+    public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+    {
+        // Checkpoint failures are pinned separately by
+        // ThrowingBatchProgressReporter / test_run_completes_when_progress_reporter_throws.
+        // This double only throws on the terminal callback so the
+        // tests target reportTerminal() exception tolerance specifically.
+    }
+
+    public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+    {
+        throw new \RuntimeException('telemetry sink unavailable');
     }
 }
