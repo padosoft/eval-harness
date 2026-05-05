@@ -71,6 +71,18 @@ final class ManifestRouteTest extends TestCase
         $this->getJson('/eval-harness/api/adversarial/manifests/missing')->assertNotFound();
     }
 
+    public function test_show_returns_unprocessable_entity_for_malformed_manifest_payload(): void
+    {
+        Storage::fake('eval-api');
+        Storage::disk('eval-api')->put(
+            'eval-harness/adversarial/manifests/broken.json',
+            '{"schema_version":"not-a-valid-manifest"}',
+        );
+
+        $this->getJson('/eval-harness/api/adversarial/manifests/broken')
+            ->assertStatus(422);
+    }
+
     public function test_traversal_in_manifest_name_is_rejected_by_route_constraint(): void
     {
         Storage::fake('eval-api');

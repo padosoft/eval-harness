@@ -165,9 +165,10 @@ surface small and the offline path fast.
   tolerance on the failure path.
 - **Adversarial manifest discovery endpoints** —
   `GET /eval-harness/api/adversarial/manifests` and
-  `/manifests/{name}` enumerate adversarial run manifests written to
-  a configured disk so a companion UI can browse compliance history
-  without scraping the filesystem. Opt-in via
+  `GET /eval-harness/api/adversarial/manifests/{name}` enumerate
+  adversarial run manifests written to a configured disk so a
+  companion UI can browse compliance history without scraping the
+  filesystem. Opt-in via
   `eval-harness.adversarial.manifests.{disk,path_prefix}`; the CLI
   `--adversarial-manifest=<arbitrary-path>` flag is preserved for
   existing operators.

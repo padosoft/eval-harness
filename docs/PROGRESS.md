@@ -2451,3 +2451,11 @@
   - Macro 7 shipped v1.0 (tag `1.0`, 2026-05-04).
   - Macro 8 shipped v1.1.0 (tag `v1.1.0`, 2026-05-05) as the v1.x enterprise operations and scalability add-on without breaking any v1 contract.
   - Final main quality gates: PHPUnit `OK (699 tests, 1956 assertions)`, PHPStan `[OK] No errors`, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #41 second Copilot review fix
+
+- Second Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `113bc41`) returned 2 actionable comments: `show()` mapped malformed/invalid manifest payloads to 404 instead of 422, and README documented the show endpoint with an ambiguous short path.
+- Addressed the manifest status contract by introducing `InvalidManifestPayloadException` for existing-but-invalid JSON/schema payloads. `ManifestController::show()` now maps that exception to 422 while preserving 404 for missing manifests and invalid names. `ManifestRepository::summaries()` still skips invalid manifest files during listing, preserving the discovery endpoint's best-effort behavior.
+- Added `ManifestRouteTest::test_show_returns_unprocessable_entity_for_malformed_manifest_payload` to pin malformed manifest show requests as 422. The existing malformed-listing test remains green and proves list discovery still skips broken files.
+- Updated the README bullet to spell out `GET /eval-harness/api/adversarial/manifests/{name}` fully.
+- Full local gate passed after the second PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (708 tests, 1980 assertions)`, PHPStan no errors, Pint passed.

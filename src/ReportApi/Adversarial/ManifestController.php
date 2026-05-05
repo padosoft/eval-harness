@@ -11,6 +11,7 @@ use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class ManifestController
 {
@@ -43,6 +44,8 @@ final class ManifestController
             $manifest = $repository->find($name);
         } catch (ReportArtifactUnavailableException $e) {
             throw new ServiceUnavailableHttpException(null, 'Adversarial manifest contents could not be read.', $e);
+        } catch (InvalidManifestPayloadException $e) {
+            throw new UnprocessableEntityHttpException($e->getMessage(), $e);
         } catch (EvalRunException $e) {
             throw new NotFoundHttpException($e->getMessage(), $e);
         }

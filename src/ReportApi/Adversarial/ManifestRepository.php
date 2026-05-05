@@ -72,6 +72,8 @@ final class ManifestRepository
 
             try {
                 $manifest = $this->loadManifestFromPath($disk, $this->storagePath($name));
+            } catch (InvalidManifestPayloadException) {
+                continue;
             } catch (EvalRunException) {
                 continue;
             } catch (ReportArtifactUnavailableException) {
@@ -169,16 +171,19 @@ final class ManifestRepository
         try {
             $payload = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw new EvalRunException('Adversarial manifest JSON is malformed.', previous: $e);
+            throw new InvalidManifestPayloadException('Adversarial manifest JSON is malformed.', previous: $e);
         }
 
         if (! is_array($payload)) {
-            throw new EvalRunException('Adversarial manifest must decode to an object.');
+            throw new InvalidManifestPayloadException('Adversarial manifest must decode to an object.');
         }
 
         /** @var array<string, mixed> $payload */
-
-        return AdversarialRunManifest::fromJson($payload);
+        try {
+            return AdversarialRunManifest::fromJson($payload);
+        } catch (EvalRunException $e) {
+            throw new InvalidManifestPayloadException($e->getMessage(), previous: $e);
+        }
     }
 
     private function relativePath(string $path, string $prefix): ?string
