@@ -556,6 +556,18 @@ Backpressure flags work with any lazy-parallel profile or with
   completed samples; bind a custom `BatchProgressReporter` to forward
   them to logs or dashboards.
 
+To clear an inherited numeric profile value for a one-off run without
+redefining the profile, pass `none` (or `null`) on the corresponding
+flag. For example, with `--batch-profile=nightly` (which sets
+`rate_limit=60`, `rate_window_seconds=60`, `checkpoint_every=100`),
+`--rate-limit=none --checkpoint-every=none` disables both for that
+single invocation while keeping every other profile field. The same
+sentinel works for `--timeout`, `--batch-timeout`, `--chunk-size`,
+`--rate-window-seconds`. `--queue` is excluded — queue names are
+arbitrary strings, so override the profile in
+`eval-harness.batches.profiles.*` config when an inherited queue must
+be cleared.
+
 Host apps can override or register additional profiles under
 `eval-harness.batches.profiles` in `config/eval-harness.php`.
 See [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for
@@ -838,10 +850,14 @@ php artisan eval-harness:adversarial \
 ```
 
 `eval:adversarial` is available as a short alias. The command registers
-only the selected adversarial seed dataset for that invocation, accepts
-`--metric=*` (default: `refusal-quality`), supports `--outputs` for
-precomputed responses, and reuses the same batch contract as
-`eval-harness:run`: `--batch`, `--batch-profile`, `--concurrency`,
+only the selected adversarial seed dataset for that invocation and
+accepts `--metric=*` (default: `refusal-quality`). Two scoring modes
+are supported: pass `--outputs=<path>` to score precomputed responses
+(this path bypasses the batch contract entirely and goes straight to
+`scoreOutputs()`, so `--batch`, `--batch-profile`, `--rate-limit`, and
+the other dispatch flags are ignored when `--outputs` is set);
+otherwise the SUT is invoked through the same batch contract as
+`eval-harness:run` — `--batch`, `--batch-profile`, `--concurrency`,
 `--queue`, `--timeout`, `--batch-timeout`, `--chunk-size`,
 `--rate-limit`, `--rate-window-seconds`, and `--checkpoint-every`. Add
 `--manifest=<path>` to update a

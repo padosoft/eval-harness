@@ -37,6 +37,40 @@ trait BuildsBatchOptions
         $rateWindowSeconds = $this->resolveOptionalPositiveInt('rate-window-seconds', $profile?->rateWindowSeconds, $modeIsSerial);
         $checkpointEvery = $this->resolveOptionalPositiveInt('checkpoint-every', $profile?->checkpointEvery, $modeIsSerial);
 
+        // Cross-field reconciliation: keep "explicit CLI wins" intuitive
+        // even when the explicit override changes the validity of an
+        // inherited profile field. Without these guards, common
+        // overrides like `--batch-profile=nightly --concurrency=8` or
+        // `--rate-limit=none` would otherwise fail BatchOptions
+        // validation because inherited fields create an inconsistent
+        // combination.
+        if (
+            ! $modeIsSerial
+            && $chunkSize !== null
+            && $chunkSize > $concurrency
+            && ! $this->batchOptionWasExplicit('chunk-size')
+        ) {
+            // Profile-inherited chunk size now exceeds the operator's
+            // explicit (or baseline) concurrency cap; cap the inherited
+            // chunk size so the lower concurrency override wins without
+            // forcing the operator to pass --chunk-size too.
+            $chunkSize = $concurrency;
+        }
+
+        if (
+            $rateLimit === null
+            && $rateWindowSeconds !== null
+            && $this->batchOptionWasExplicit('rate-limit')
+            && ! $this->batchOptionWasExplicit('rate-window-seconds')
+        ) {
+            // Operator explicitly cleared the rate limit (e.g.
+            // `--rate-limit=none`); drop the inherited rate window
+            // because rate_window_seconds is only meaningful with a
+            // rate limit and BatchOptions would otherwise reject the
+            // run.
+            $rateWindowSeconds = null;
+        }
+
         return new BatchOptions(
             mode: $mode,
             concurrency: $concurrency,
@@ -176,6 +210,24 @@ trait BuildsBatchOptions
         }
 
         return $this->input->hasParameterOption('--'.$name, true);
+    }
+
+    /**
+     * `batchOptionWasProvided()` returns true even for `--flag=` (empty),
+     * which the trait treats as "fall back to profile/baseline". This
+     * helper distinguishes "operator passed an actual value" from "the
+     * flag was on the command line but empty" so cross-field
+     * reconciliation can trust the explicit-override semantic.
+     */
+    private function batchOptionWasExplicit(string $name): bool
+    {
+        if (! $this->batchOptionWasProvided($name)) {
+            return false;
+        }
+
+        $value = $this->option($name);
+
+        return $value !== null && $value !== '';
     }
 
     private function hasOptionDefined(string $name): bool

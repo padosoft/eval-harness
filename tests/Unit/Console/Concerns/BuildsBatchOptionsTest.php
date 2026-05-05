@@ -146,6 +146,110 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertNull($captured->checkpointEvery);
     }
 
+    public function test_explicit_lower_concurrency_caps_inherited_profile_chunk_size(): void
+    {
+        // Cross-field reconciliation: operator overrides nightly's
+        // concurrency=16 with --concurrency=8 and does not pass
+        // --chunk-size. Without the cap, BatchOptions would reject the
+        // run because inherited chunk_size=16 > new concurrency=8 — the
+        // explicit --concurrency override would lose to the inherited
+        // chunk size, which contradicts the documented precedence.
+        config(['eval-harness.batches.profiles.chunked-nightly' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 16,
+            'queue' => 'evals',
+            'timeout_seconds' => 60,
+            'wait_timeout_seconds' => 600,
+            'chunk_size' => 16,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'chunked-nightly',
+            '--concurrency' => '8',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertSame(8, $captured->concurrency);
+        $this->assertSame(8, $captured->chunkSize);
+    }
+
+    public function test_explicit_chunk_size_still_validates_against_explicit_concurrency(): void
+    {
+        // Pair to the cap test: an operator who explicitly passes both
+        // --concurrency and a higher --chunk-size still gets the
+        // documented BatchOptions validation error (chunk size cannot
+        // exceed concurrency).
+        config(['eval-harness.batches.profiles.chunked-nightly' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 16,
+            'queue' => 'evals',
+            'timeout_seconds' => 60,
+            'wait_timeout_seconds' => 600,
+            'chunk_size' => 16,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'chunked-nightly',
+            '--concurrency' => '8',
+            '--chunk-size' => '12',
+        ])
+            ->expectsOutputToContain('Batch chunk size (12) cannot exceed concurrency (8)')
+            ->assertExitCode(1);
+    }
+
+    public function test_explicit_rate_limit_none_drops_inherited_rate_window_seconds(): void
+    {
+        // Operator explicitly clears the rate limit on a nightly-style
+        // profile that also set rate_window_seconds. Without dropping
+        // the inherited window, BatchOptions would reject the run for
+        // "rate window seconds is only meaningful with a rate limit",
+        // which would defeat the documented `--rate-limit=none` clear
+        // contract.
+        config(['eval-harness.batches.profiles.throttled-nightly' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 8,
+            'queue' => 'evals',
+            'timeout_seconds' => 60,
+            'wait_timeout_seconds' => 600,
+            'rate_limit' => 60,
+            'rate_window_seconds' => 60,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'throttled-nightly',
+            '--rate-limit' => 'none',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertNull($captured->rateLimit);
+        $this->assertNull($captured->rateWindowSeconds);
+        // Other profile fields stay applied.
+        $this->assertSame(8, $captured->concurrency);
+        $this->assertSame(60, $captured->timeoutSeconds);
+    }
+
+    public function test_explicit_rate_window_with_explicit_none_rate_limit_still_fails(): void
+    {
+        // Operator explicit-vs-explicit conflicts must still surface
+        // through BatchOptions rather than being silently reconciled.
+        // --rate-limit=none + explicit --rate-window-seconds is a real
+        // misconfig and should not be papered over by the cascading
+        // clear above.
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch' => 'lazy-parallel',
+            '--concurrency' => '4',
+            '--rate-limit' => 'none',
+            '--rate-window-seconds' => '30',
+        ])
+            ->expectsOutputToContain('Batch rate window seconds is only meaningful with a rate limit')
+            ->assertExitCode(1);
+    }
+
     public function test_explicit_none_sentinel_clears_inherited_profile_timeout_fields(): void
     {
         // The shared optional-int parser treats `none` / `null` as an

@@ -203,7 +203,23 @@ php artisan eval-harness:run rag.factuality.fy2026 \
 # Smoke check before opening a PR: deterministic in-process serial run.
 php artisan eval-harness:run rag.factuality.fy2026 \
   --batch-profile=smoke
+
+# One-off overrides without redefining the profile: pass `none` (or
+# `null`) on a numeric flag to clear an inherited profile value.
+php artisan eval-harness:run rag.factuality.fy2026 \
+  --batch-profile=nightly \
+  --rate-limit=none \
+  --checkpoint-every=none
 ```
+
+The `none` / `null` sentinel works on every numeric batch flag
+(`--timeout`, `--batch-timeout`, `--chunk-size`, `--rate-limit`,
+`--rate-window-seconds`, `--checkpoint-every`). Empty `--flag=` keeps
+the documented "fall back to profile / baseline default" semantic so
+unset CI variables stay safe. `--queue` does NOT accept the sentinel
+because queue names are arbitrary strings; override the profile in
+`eval-harness.batches.profiles.*` config when an inherited queue must
+be cleared.
 
 ## Backpressure Knobs
 
