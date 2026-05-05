@@ -143,6 +143,26 @@ surface small and the offline path fast.
 - **Batch execution modes** — SUT runs flow through deterministic
   `SerialBatch` by default, or queue-backed `LazyParallelBatch` via
   `--batch=lazy-parallel` for Laravel queue/Horizon workers.
+- **Operational batch profiles** — `--batch-profile=ci|smoke|nightly`
+  applies named presets of batch defaults (concurrency, queue,
+  timeouts, chunk size, rate limit, checkpoint cadence, result TTL).
+  Explicit CLI flags always win; host apps can override or add
+  profiles under `eval-harness.batches.profiles.*` in
+  `config/eval-harness.php`.
+- **Producer-side backpressure** — `--chunk-size=N`,
+  `--rate-limit=N --rate-window-seconds=W`, and `--result-ttl-seconds`
+  bound dispatch in flight, throttle to N samples per W-second sliding
+  window (monotonic-clock math, amortized O(1)), and size result
+  metadata TTL for delayed collection. Pass `none` on any nullable
+  numeric flag to clear an inherited profile value for a one-off run.
+- **Progress checkpoints and terminal status** — `--checkpoint-every=N`
+  emits structured progress events through an optional
+  `BatchProgressReporter` container binding (default
+  `NullBatchProgressReporter`). Dashboards that need to distinguish a
+  finished failed batch from a stalled one can implement the optional
+  `BatchTerminalProgressReporter` sub-contract for explicit
+  `success` / `failure` / `empty` terminal status with partial-wins
+  tolerance on the failure path.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -183,6 +203,9 @@ Status legend: `✅ YES` means first-class support, `⚠️ partial` means suppo
 | Provider choice | **✅ YES - any OpenAI-compatible endpoint via Laravel HTTP** | ⚠️ partial - OpenAI API defaults, custom completion functions possible | ✅ YES - multi-provider ecosystem | ✅ YES - via integrations | ✅ YES - multi-provider | ✅ YES - multi-provider |
 | CI gate | **✅ YES - Artisan command with non-zero failure exit** | ⚠️ partial - script around CLI/API | ⚠️ partial - API/automation hook | ⚠️ partial - custom script | ✅ YES - CLI gate | ✅ YES - test runner/CI flow |
 | Queue/Horizon batch execution | **✅ YES - SerialBatch + LazyParallelBatch for Laravel queues/Horizon** | ❌ NO - not Laravel queues | ❌ NO - hosted tracing/evals | ❌ NO - not Laravel queues | ❌ NO - external CLI concurrency | ❌ NO - not Laravel queues |
+| Named operational profiles | **✅ YES - `--batch-profile=ci\|smoke\|nightly` with host-app overrides under `eval-harness.batches.profiles.*`** | ⚠️ partial - custom run scripts | ⚠️ partial - hosted experiment configs | ❌ NO - custom Python wrappers | ⚠️ partial - YAML config presets | ❌ NO - custom Python wrappers |
+| Producer-side backpressure | **✅ YES - `--chunk-size`, `--rate-limit`, `--rate-window-seconds` with monotonic sliding-window math** | ❌ NO - per-eval concurrency only | ⚠️ partial - hosted rate controls | ❌ NO - in-process only | ⚠️ partial - external concurrency flag | ❌ NO - in-process only |
+| Progress checkpoints + terminal status | **✅ YES - `--checkpoint-every` plus optional `BatchProgressReporter` / `BatchTerminalProgressReporter` bindings** | ❌ NO - log-tail only | ✅ YES - hosted run progress | ⚠️ partial - custom callbacks | ⚠️ partial - CLI progress lines | ⚠️ partial - custom hooks |
 | Eval sets / multi-dataset runs | **✅ YES - EvalSetDefinition + resumable manifests** | ✅ YES - `oaievalset` | ✅ YES - dataset experiments | ⚠️ partial - run multiple datasets in code | ✅ YES - suites/configs | ✅ YES - metric collections/test suites |
 | Resume interrupted multi-dataset progress | **✅ YES - explicit per-dataset resume manifest** | ❌ NO - no mid-eval resume | ⚠️ partial - platform run history | ⚠️ partial - custom code | ⚠️ partial - rerun/filter workflows | ⚠️ partial - platform/regression workflows |
 | Cohorts / tags / facets | **✅ YES - tag cohorts in JSON/Markdown** | ⚠️ partial - custom eval/reporting | ✅ YES - dataset filtering/metadata | ⚠️ partial - custom analysis | ✅ YES - metadata/config-driven views | ⚠️ partial - test metadata |
@@ -1116,6 +1139,35 @@ accidentally and never burns API credits.
 
 ## Roadmap
 
+### v1.1.0 — Enterprise operations and scalability add-on (current)
+
+Released 2026-05-05 ([release notes](https://github.com/padosoft/eval-harness/releases/tag/v1.1.0)).
+Builds on v1.0 with the v1.x enterprise operations and scalability
+add-on. **All v1 contracts are preserved.**
+
+- **Operational batch profiles** — `--batch-profile=ci|smoke|nightly`
+  with explicit-CLI-wins precedence and host-app overrides under
+  `eval-harness.batches.profiles.*`.
+- **Producer-side backpressure** — `--chunk-size`, `--rate-limit`,
+  `--rate-window-seconds`, and `--result-ttl-seconds` flags backed by
+  `RateLimitWindow` (monotonic clock, amortized O(1) sliding-window
+  math) and the producer-side throttle in `LazyParallelBatch`. Pass
+  `none` on any nullable numeric flag to clear an inherited profile
+  value for a one-off run.
+- **Progress checkpoints** — `--checkpoint-every` plus an optional
+  `BatchProgressReporter` container binding (default
+  `NullBatchProgressReporter`).
+- **Optional terminal status reporting** — `BatchTerminalProgressReporter`
+  sub-contract with explicit `success` / `failure` / `empty` status and
+  partial-wins tolerance on the failure path, so dashboards can
+  distinguish a finished failed batch from a stalled one.
+- **Operator-facing Horizon supervisor sizing guidance** in
+  `docs/HORIZON_BATCH_QUEUES.md` (multi-producer caveat, chunk-size vs
+  concurrency, rate-limit producer-side behavior).
+
+No hard Horizon dependency added; the package still uses `sync` queues
+and queue fakes in tests.
+
 ### v1.0 (roadmap complete)
 
 - **Core feature set complete** — cohort metrics, report histograms,
@@ -1134,8 +1186,8 @@ accidentally and never burns API credits.
   migration path from pre-1.0, and release guardrails (`Metric`,
   `EvalReport`, JSON report shape, queue jobs, commands, and API resources)
   are now in place.
-- **Roadmap status:** all planned Macro Task items have been completed;
-  no roadmap placeholders remain for core `v1.0` work.
+- **Roadmap status:** all planned Macro Task items (0 through 8) have
+  been completed; no roadmap placeholders remain.
 
 ---
 
