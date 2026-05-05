@@ -29,6 +29,25 @@ final class LazyParallelBatch
 
     private const MAX_POLL_INTERVAL_MICROSECONDS = 1_000_000;
 
+    /**
+     * Monotonic seconds for deadline / throttle math.
+     *
+     * `microtime(true)` follows wall-clock time and can step
+     * backwards on NTP correction or VM clock jumps. That breaks
+     * throttle and deadline math: a backward step makes the
+     * producer fail a chunk early ("deadline reached" when no time
+     * passed), and a forward step makes the producer sleep far
+     * longer than the configured `--batch-timeout`. `hrtime(true)`
+     * returns a monotonic nanosecond counter from an unspecified
+     * epoch (system boot on Linux/macOS) — only deltas are
+     * meaningful, but that is exactly what deadline / rate-window
+     * math consumes.
+     */
+    private function monotonicTime(): float
+    {
+        return hrtime(true) / 1_000_000_000.0;
+    }
+
     public function __construct(
         private readonly Dispatcher $dispatcher,
         private readonly BatchResultStore $resultStore,
@@ -83,7 +102,7 @@ final class LazyParallelBatch
                 // chunk could spend most of the operator-supplied
                 // budget sleeping inside dispatchSampleJobs() before
                 // collection started.
-                $chunkDeadline = microtime(true) + $waitTimeoutSeconds;
+                $chunkDeadline = $this->monotonicTime() + $waitTimeoutSeconds;
                 $dispatchedInWindow = 0;
 
                 try {
@@ -116,7 +135,7 @@ final class LazyParallelBatch
                 // and the right thing to do is collect the outputs
                 // that are already there, not flip a healthy run to
                 // a `0 of N undispatched` false failure.
-                if ($undispatched > 0 && microtime(true) >= $chunkDeadline) {
+                if ($undispatched > 0 && $this->monotonicTime() >= $chunkDeadline) {
                     // A real sample failure recorded by an earlier
                     // worker is more useful than the deadline
                     // diagnostic, so surface it first.
@@ -212,25 +231,34 @@ final class LazyParallelBatch
                 // Failure path emits a forced terminal checkpoint
                 // (legacy reporters) AND an explicit STATUS_FAILURE
                 // terminal event (reporters on the new contract).
-                // samplesCompleted is the per-window counter, which
-                // can under-report by up to one chunk when partial
-                // wins land in the failed window. The previous
-                // implementation queried the result store on every
-                // failure, which added an O(sampleCount) cache scan
-                // before the original exception could propagate;
-                // that scalability hit dominates the partial-wins
-                // accuracy gain on large batches.
+                //
+                // samplesCompleted is the per-window counter — only
+                // updated AFTER waitForIndexedOutputs() returns. When
+                // a window fails mid-collection, we add the count of
+                // stored successes WITHIN THAT WINDOW so partial wins
+                // are reflected in the dashboard event. The cost is
+                // O(chunkSize), not O(sampleCount), so the failure
+                // path stays cheap even on large batches.
+                //
                 // safeReport* helpers swallow reporter exceptions so
                 // this never masks the original failure.
+                $partialWindowWins = $this->countWindowSuccessesSafely(
+                    batchId: $batchId,
+                    sampleCount: $sampleCount,
+                    sampleWindow: $sampleWindow ?? null,
+                    samplesCompleted: $samplesCompleted,
+                );
+                $reportedCompleted = min($sampleCount, $samplesCompleted + $partialWindowWins);
+
                 $this->reportCheckpointTerminalForce(
                     batchId: $batchId,
-                    samplesCompleted: $samplesCompleted,
+                    samplesCompleted: $reportedCompleted,
                     totalSamples: $sampleCount,
                     checkpointEvery: $checkpointEvery,
                 );
                 $this->safeReportTerminal(
                     batchId: $batchId,
-                    samplesCompleted: $samplesCompleted,
+                    samplesCompleted: $reportedCompleted,
                     totalSamples: $sampleCount,
                     status: BatchTerminalProgressReporter::STATUS_FAILURE,
                 );
@@ -238,6 +266,39 @@ final class LazyParallelBatch
             }
 
             throw $e;
+        }
+    }
+
+    /**
+     * Best-effort count of stored successes within the failed window.
+     *
+     * Bounded by chunk size (the window length), not sampleCount, so
+     * the failure path stays O(chunkSize) instead of O(sampleCount).
+     * Returns 0 when:
+     *   - No window has been entered yet (empty batch / pre-loop failure).
+     *   - All windows already completed (post-loop assembly failure;
+     *     samplesCompleted already reflects everything).
+     *   - The result store query fails for any reason — we swallow the
+     *     exception so the original failure can propagate cleanly.
+     *
+     * @param  array<int, DatasetSample>|null  $sampleWindow
+     */
+    private function countWindowSuccessesSafely(
+        string $batchId,
+        int $sampleCount,
+        ?array $sampleWindow,
+        int $samplesCompleted,
+    ): int {
+        if ($sampleWindow === null || $samplesCompleted >= $sampleCount) {
+            return 0;
+        }
+
+        try {
+            $windowIndexes = $this->sampleIndexes($sampleWindow);
+
+            return count($this->storedSuccessfulResults($batchId, $sampleCount, $windowIndexes));
+        } catch (Throwable) {
+            return 0;
         }
     }
 
@@ -379,11 +440,11 @@ final class LazyParallelBatch
                 return $outputs;
             }
 
-            if (microtime(true) >= $deadlineMicrotime) {
+            if ($this->monotonicTime() >= $deadlineMicrotime) {
                 break;
             }
 
-            $remainingMicroseconds = max(1, (int) (($deadlineMicrotime - microtime(true)) * 1_000_000));
+            $remainingMicroseconds = max(1, (int) (($deadlineMicrotime - $this->monotonicTime()) * 1_000_000));
             usleep(min($pollIntervalMicroseconds, $remainingMicroseconds));
 
             $pollIntervalMicroseconds = min(
@@ -617,13 +678,13 @@ final class LazyParallelBatch
             // --batch-timeout, breaking the documented hard wall-clock
             // cap on the producer window. The caller will surface a
             // stored failure first or the deadline-exceeded error.
-            if ($chunkDeadlineMicrotime !== null && microtime(true) >= $chunkDeadlineMicrotime) {
+            if ($chunkDeadlineMicrotime !== null && $this->monotonicTime() >= $chunkDeadlineMicrotime) {
                 return $dispatched;
             }
 
             $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
 
-            if ($chunkDeadlineMicrotime !== null && microtime(true) >= $chunkDeadlineMicrotime) {
+            if ($chunkDeadlineMicrotime !== null && $this->monotonicTime() >= $chunkDeadlineMicrotime) {
                 // throttleDispatch() may have woken early at the
                 // deadline; bail before recording a dispatch we did
                 // not actually make.
@@ -653,18 +714,19 @@ final class LazyParallelBatch
             // own runtime.
             //
             // Wall-clock cap caveat: the chunk deadline is a hard cap
-            // when `dispatcher->dispatch()` returns immediately (Redis,
-            // database, beanstalk drivers — i.e. the documented Horizon
-            // path). On the `sync` queue driver dispatch executes the
-            // job INLINE, so a single slow sample can run arbitrarily
-            // longer than `--batch-timeout` before control returns and
-            // the deadline check fires. Producer-side throttling and
-            // the deadline check still bound dispatch wait time on
-            // sync, but per-sample runtime is bounded by `--timeout`,
-            // not `--batch-timeout`. Operators that need a hard
-            // wall-clock cap on the producer window should use a real
-            // queue driver in production.
-            $rateLimiter?->record(microtime(true));
+            // ONLY when `dispatcher->dispatch()` returns immediately
+            // (Redis, database, beanstalk drivers — i.e. the documented
+            // Horizon path). On the `sync` queue driver dispatch
+            // executes the job INLINE, so a single slow sample can run
+            // arbitrarily longer than the chunk deadline before control
+            // returns and the deadline check fires. The package only
+            // sets the queue job's `$timeout` property, which is
+            // honoured by real queue workers but NOT enforced by the
+            // sync driver — so on sync neither `--batch-timeout` nor
+            // `--timeout` bound per-sample runtime. Operators that need
+            // any wall-clock guarantee should use a real queue driver
+            // in production.
+            $rateLimiter?->record($this->monotonicTime());
 
             $this->dispatcher->dispatch($job);
             $dispatched++;
@@ -691,7 +753,7 @@ final class LazyParallelBatch
             return;
         }
 
-        $waitMicroseconds = $rateLimiter->nextWaitMicroseconds(microtime(true));
+        $waitMicroseconds = $rateLimiter->nextWaitMicroseconds($this->monotonicTime());
         if ($waitMicroseconds <= 0) {
             return;
         }
@@ -701,7 +763,7 @@ final class LazyParallelBatch
         // a rate-limit pause. The caller will detect the deadline
         // afterwards and bail before recording a dispatch.
         if ($deadlineMicrotime !== null) {
-            $remainingMicroseconds = (int) (($deadlineMicrotime - microtime(true)) * 1_000_000);
+            $remainingMicroseconds = (int) (($deadlineMicrotime - $this->monotonicTime()) * 1_000_000);
             if ($remainingMicroseconds <= 0) {
                 return;
             }

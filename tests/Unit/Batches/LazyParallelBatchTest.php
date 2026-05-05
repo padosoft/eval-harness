@@ -1229,6 +1229,65 @@ final class LazyParallelBatchTest extends TestCase
         $this->assertSame(2, $reporter->terminalEvents[0]['total']);
     }
 
+    public function test_terminal_reporter_includes_partial_wins_on_failure_path(): void
+    {
+        // Pins round-25 fix: when the failed window contains samples
+        // that already succeeded before the failing one ran, the
+        // STATUS_FAILURE terminal event must reflect those partial
+        // wins. Without the windowed success count helper, the event
+        // would report `samplesCompleted = 0 / N` even when N-1
+        // samples actually finished — materially misleading
+        // dashboards and progress APIs.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingTerminalProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        // Three samples in a single chunk: first two succeed, third
+        // fails. PartialFailureSampleRunner trips on id 'fail'.
+        $samples = [
+            new DatasetSample(id: 'ok-1', input: ['answer' => 'first'], expectedOutput: 'first'),
+            new DatasetSample(id: 'ok-2', input: ['answer' => 'second'], expectedOutput: 'second'),
+            new DatasetSample(id: 'fail', input: ['answer' => 'third'], expectedOutput: 'third'),
+        ];
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new PartialFailureSampleRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 3,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                ),
+            );
+            $this->fail('Expected the failing sample to surface as EvalRunException.');
+        } catch (EvalRunException) {
+            // Expected.
+        }
+
+        $this->assertCount(1, $reporter->terminalEvents);
+        $this->assertSame('failure', $reporter->terminalEvents[0]['status']);
+        $this->assertSame(3, $reporter->terminalEvents[0]['total']);
+        // The two ok-* samples landed in the result store before the
+        // fail-* sample threw, so the failure terminal event must
+        // report 2 of 3 — NOT 0 of 3 (the whole-window counter).
+        $this->assertSame(2, $reporter->terminalEvents[0]['samples_completed']);
+    }
+
     public function test_terminal_reporter_receives_empty_status_for_empty_batch(): void
     {
         $this->app['config']->set('queue.default', 'sync');
@@ -1829,6 +1888,21 @@ final class LazyParallelFailingRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         throw new \RuntimeException('runner exploded');
+    }
+}
+
+final class PartialFailureSampleRunner implements SampleRunner
+{
+    // Throws only on samples whose id starts with "fail". Used to
+    // exercise the partial-wins terminal-reporter path without
+    // depending on order-of-execution timing.
+    public function run(SampleInvocation $sample): string
+    {
+        if (str_starts_with($sample->id, 'fail')) {
+            throw new \RuntimeException('runner exploded');
+        }
+
+        return (string) $sample->input['answer'];
     }
 }
 

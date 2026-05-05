@@ -529,10 +529,12 @@ queue drivers (Redis, database, beanstalk — the documented Horizon
 path) where `dispatch()` returns immediately.** On the `sync` queue
 driver `dispatch()` executes the job inline, so an individual slow
 sample can run arbitrarily longer than the chunk deadline before
-control returns; per-sample runtime on `sync` is bounded by
-`--timeout`, not `--batch-timeout`. Use a real queue driver in
-production when a hard wall-clock cap on the producer window is
-required. Programmatic external `dispatch()` / `collectOutputs()`
+control returns. The package only sets the queue job's `$timeout`
+property — Laravel's queue workers honour it, but the `sync` driver
+does NOT enforce it because there is no worker process. **On `sync`,
+neither `--batch-timeout` nor `--timeout` bounds per-sample runtime;
+slow runners can take arbitrarily long.** Use a real queue driver in
+production for any wall-clock guarantee. Programmatic external `dispatch()` / `collectOutputs()`
 flows can set `BatchOptions::lazyParallel(resultTtlSeconds: ...)` to
 keep result metadata and sample outputs alive long enough for delayed
 collection.
