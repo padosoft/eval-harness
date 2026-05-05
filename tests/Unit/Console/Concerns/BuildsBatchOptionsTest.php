@@ -146,6 +146,39 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertNull($captured->checkpointEvery);
     }
 
+    public function test_explicit_none_sentinel_clears_inherited_profile_timeout_fields(): void
+    {
+        // The shared optional-int parser treats `none` / `null` as an
+        // explicit unset sentinel for every nullable integer flag, not
+        // just the new backpressure ones. Pin the behaviour for the
+        // older `--timeout` and `--batch-timeout` flags so a future
+        // refactor of the parser cannot quietly break the documented
+        // numeric-flag clearing path for them while the rest of the
+        // suite stays green.
+        config(['eval-harness.batches.profiles.timeout-heavy' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 4,
+            'queue' => 'evals',
+            'timeout_seconds' => 60,
+            'wait_timeout_seconds' => 600,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'timeout-heavy',
+            '--timeout' => 'none',
+            '--batch-timeout' => 'NULL',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertNull($captured->timeoutSeconds);
+        $this->assertNull($captured->waitTimeoutSeconds);
+        // Other profile defaults still apply.
+        $this->assertSame(4, $captured->concurrency);
+        $this->assertSame('evals', $captured->queue);
+    }
+
     public function test_explicit_none_sentinel_clears_inherited_profile_int_fields(): void
     {
         // Documented contract: pass `--flag=none` (or `null`) to clear

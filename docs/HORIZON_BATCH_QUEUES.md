@@ -212,9 +212,11 @@ operational limits. They apply to lazy-parallel mode only:
 
 - `--chunk-size=N` narrows the producer window size for dispatching
   jobs before waiting for results. Defaults to `--concurrency` when
-  unset and must be `<= --concurrency` so `--concurrency` stays the
-  fan-out cap; useful when you want a small dispatch chunk against a
-  larger fan-out for tighter backpressure.
+  unset and must be `<= --concurrency`. Note that the runner waits
+  after each chunk completes, so when `--chunk-size < --concurrency`
+  chunk-size is the actual in-flight count per producer process — not
+  a "small chunk against a larger fan-out". Use this knob when you
+  want tighter backpressure on the SUT/provider per producer command.
 - `--rate-limit=N` caps how many sample jobs the producer dispatches per
   rolling `--rate-window-seconds=W` window (default 60s). The limiter is
   process-side, so multiple parallel commands compound.

@@ -82,29 +82,38 @@ final class RateLimitWindowTest extends TestCase
     public function test_steady_state_window_keeps_storage_bounded(): void
     {
         // Regression for the saturated steady state where one timestamp
-        // expires per dispatch. Without head-offset + lazy compaction,
-        // every prune would copy the entire live region (O(rateLimit)
-        // per sample => O(n * rateLimit) per batch). Verify that after
-        // many dispatches the underlying array stays bounded around
-        // rateLimit instead of accumulating every recorded timestamp.
+        // expires per dispatch and the live region actually contains
+        // rateLimit entries. Spacing must equal `rateWindowSeconds /
+        // rateLimit`: anything larger keeps the live region below
+        // rateLimit, so the test would not exercise the path the
+        // head-offset + lazy compaction was added to optimise.
         $rateLimit = 50;
         $rateWindowSeconds = 10;
+        $spacing = $rateWindowSeconds / $rateLimit; // 0.2s -> 50 entries per 10s window
         $window = new RateLimitWindow(rateLimit: $rateLimit, rateWindowSeconds: $rateWindowSeconds);
 
         $start = 1000.0;
         for ($i = 0; $i < 5000; $i++) {
-            // One dispatch every 1s so the window is constantly full.
-            $now = $start + $i;
-            $window->record($now);
+            $window->record($start + $i * $spacing);
         }
 
-        $reflection = new \ReflectionProperty(RateLimitWindow::class, 'timestamps');
-        $reflection->setAccessible(true);
-        $storage = $reflection->getValue($window);
+        $headProperty = new \ReflectionProperty(RateLimitWindow::class, 'head');
+        $timestampsProperty = new \ReflectionProperty(RateLimitWindow::class, 'timestamps');
+        $headProperty->setAccessible(true);
+        $timestampsProperty->setAccessible(true);
 
-        // Stored slots should stay close to the live window size (rateLimit
-        // items + at most COMPACT_AFTER_HEAD - 1 stale slots before
-        // compaction kicks in).
+        $head = $headProperty->getValue($window);
+        $storage = $timestampsProperty->getValue($window);
+
+        // Live region should equal rateLimit (the saturation point), and
+        // the underlying array should be bounded around the live region
+        // plus at most COMPACT_AFTER_HEAD - 1 stale slots before
+        // compaction kicks in.
+        $this->assertSame(
+            $rateLimit,
+            count($storage) - $head,
+            'Saturated steady-state live region must equal rateLimit.',
+        );
         $this->assertLessThanOrEqual(
             $rateLimit + 256,
             count($storage),
