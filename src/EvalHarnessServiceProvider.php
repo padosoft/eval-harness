@@ -122,18 +122,26 @@ class EvalHarnessServiceProvider extends ServiceProvider
         // Host apps may bind their reporter under either
         // `BatchProgressReporter::class` (the parent interface) or
         // `BatchTerminalProgressReporter::class` (the optional
-        // status-aware sub-contract). When ONLY the sub-contract is
-        // bound, the parent-interface resolution must also return
-        // the same instance — otherwise any consumer type-hinting
-        // `BatchProgressReporter` (LazyParallelBatch's factory below
-        // prefers the sub-contract, but downstream user code that
-        // type-hints the parent does not) would silently get the
-        // package's `NullBatchProgressReporter` instead of the host
-        // app's reporter.
-        $this->app->singletonIf(BatchProgressReporter::class, static function (Container $app): BatchProgressReporter {
-            return $app->bound(BatchTerminalProgressReporter::class)
-                ? $app->make(BatchTerminalProgressReporter::class)
-                : new NullBatchProgressReporter;
+        // status-aware sub-contract). Documented contract: terminal
+        // sub-contract WINS when both keys are bound.
+        //
+        // The fallback for the no-binding case is the package's
+        // `NullBatchProgressReporter`. The terminal-wins alias is
+        // implemented via `extend()` so the substitution evaluates
+        // at resolve time — this catches host bindings made via
+        // `bind()`, `singleton()`, or `instance()` regardless of
+        // when they were registered (early provider, late provider,
+        // or runtime test setup). Previous `singletonIf`-only or
+        // `boot()`-time approaches missed any of these cases.
+        $this->app->singletonIf(BatchProgressReporter::class, static function (): BatchProgressReporter {
+            return new NullBatchProgressReporter;
+        });
+        $this->app->extend(BatchProgressReporter::class, static function (BatchProgressReporter $existing, Container $app): BatchProgressReporter {
+            if ($app->bound(BatchTerminalProgressReporter::class)) {
+                return $app->make(BatchTerminalProgressReporter::class);
+            }
+
+            return $existing;
         });
 
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {

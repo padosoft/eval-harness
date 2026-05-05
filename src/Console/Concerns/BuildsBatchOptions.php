@@ -434,9 +434,16 @@ trait BuildsBatchOptions
     /**
      * `batchOptionWasProvided()` returns true even for `--flag=` (empty),
      * which the trait treats as "fall back to profile/baseline". This
-     * helper distinguishes "operator passed an actual value" from "the
-     * flag was on the command line but empty" so cross-field
-     * reconciliation can trust the explicit-override semantic.
+     * helper distinguishes "operator passed an actual value or
+     * explicit clear" from "the flag was on the command line but
+     * empty" so cross-field reconciliation can trust the explicit-
+     * override semantic.
+     *
+     * Treats actual PHP `null` AND the string sentinels `none` /
+     * `null` as explicit (a clear, not a fall-through), so
+     * programmatic `Artisan::call(['--rate-limit' => null])` wipes
+     * inherited rate-window the same way `--rate-limit=none` does
+     * on the CLI.
      */
     private function batchOptionWasExplicit(string $name): bool
     {
@@ -445,8 +452,14 @@ trait BuildsBatchOptions
         }
 
         $value = $this->option($name);
+        if ($value === null) {
+            return true;
+        }
+        if (is_string($value) && in_array(strtolower(trim($value)), ['none', 'null'], true)) {
+            return true;
+        }
 
-        return $value !== null && $value !== '';
+        return $value !== '';
     }
 
     private function hasOptionDefined(string $name): bool

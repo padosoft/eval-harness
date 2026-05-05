@@ -263,6 +263,60 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame($custom, $reporterProperty->getValue($batch));
     }
 
+    public function test_terminal_reporter_wins_when_host_app_also_binds_parent_interface(): void
+    {
+        // Round-40 fix: when a host app binds BOTH
+        // BatchProgressReporter (parent) AND
+        // BatchTerminalProgressReporter (sub-contract) — typical
+        // during a migration adopting the new contract — the
+        // documented "terminal wins" rule must hold. The previous
+        // `singletonIf`-only approach left the host's parent
+        // binding in place because the parent was already bound,
+        // so LazyParallelBatch never saw `reportTerminal()`.
+        //
+        // Uses `singleton()` (the natural host-app pattern) rather
+        // than `instance()` (which bypasses Laravel's extender
+        // chain). Real host apps bind through providers; the
+        // extend()-based alias substitutes terminal for parent at
+        // resolve time on bind/singleton bindings.
+        $hostParent = new class implements BatchProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+        };
+        $hostTerminal = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+
+        $this->app->singleton(BatchProgressReporter::class, fn () => $hostParent);
+        $this->app->singleton(BatchTerminalProgressReporter::class, fn () => $hostTerminal);
+        $this->app->forgetInstance(BatchProgressReporter::class);
+        $this->app->forgetInstance(BatchTerminalProgressReporter::class);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $reporterFromBatch = (new \ReflectionProperty($batch, 'progressReporter'))->getValue($batch);
+
+        // The terminal binding must override the parent — both
+        // LazyParallelBatch AND any other consumer type-hinting
+        // BatchProgressReporter should resolve to the terminal
+        // reporter, not the host's parent binding.
+        $this->assertSame($hostTerminal, $reporterFromBatch);
+        $this->assertSame($hostTerminal, $this->app->make(BatchProgressReporter::class));
+        $this->assertNotSame($hostParent, $reporterFromBatch);
+    }
+
     public function test_lazy_parallel_batch_uses_aliased_reporter_under_factory_terminal_binding(): void
     {
         // Round-38 fix: when a host app binds the terminal reporter
