@@ -163,6 +163,12 @@ surface small and the offline path fast.
   `BatchTerminalProgressReporter` sub-contract for explicit
   `success` / `failure` / `empty` terminal status with partial-wins
   tolerance on the failure path.
+- **Report diff endpoint** — `GET /eval-harness/api/reports/{id}/diff/{otherId}`
+  computes signed deltas (macro_f1, per-metric mean/pass_rate, per-cohort
+  status with `added` / `removed` / `regressed` / `improved` / `stable`,
+  total_samples / total_failures, adversarial categories when present) so
+  a companion UI can show regression diffs side-by-side without fetching
+  full reports.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
