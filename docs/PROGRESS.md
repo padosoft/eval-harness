@@ -2459,3 +2459,9 @@
 - Added `ManifestRouteTest::test_show_returns_unprocessable_entity_for_malformed_manifest_payload` to pin malformed manifest show requests as 422. The existing malformed-listing test remains green and proves list discovery still skips broken files.
 - Updated the README bullet to spell out `GET /eval-harness/api/adversarial/manifests/{name}` fully.
 - Full local gate passed after the second PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (708 tests, 1980 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 — Macro 9 / PR #41 third Copilot review fix
+
+- Third Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `67835f2`) returned 2 new actionable comments plus two stale comments already addressed in the prior round.
+- Addressed invalid disk handling by wrapping manifest disk resolution in `ReportArtifactUnavailableException`, so bad `eval-harness.adversarial.manifests.disk` config maps to the controller's 503 path instead of leaking Laravel's `InvalidArgumentException` as a generic 500. Pinned with `test_invalid_manifest_disk_returns_service_unavailable`.
+- Reworked the request-pass-through regression test so it is meaningful: `ManifestController` now delegates resource rendering through an injectable `ManifestResourceFactory`, and the test swaps that factory to assert it receives the actual route `Request`. This catches a future regression to the global `request()` helper without adding test-only fields to the public JSON payload.

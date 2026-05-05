@@ -15,6 +15,10 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class ManifestController
 {
+    public function __construct(
+        private readonly ManifestResourceFactory $resources,
+    ) {}
+
     public function index(Request $request, ManifestRepository $repository): JsonResponse
     {
         if (! $repository->discoveryEnabled()) {
@@ -53,7 +57,7 @@ final class ManifestController
         return new JsonResponse([
             'schema_version' => ReportApiSchema::VERSION,
             'schema' => ReportApiSchema::SCHEMA_ADVERSARIAL_MANIFEST,
-            'data' => (new ManifestResource($manifest))->toArray($request),
+            'data' => $this->resources->toArray($manifest, $request),
         ]);
     }
 

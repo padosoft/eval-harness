@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\ReportApi\Adversarial;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
+use Padosoft\EvalHarness\ReportApi\Adversarial\ManifestResourceFactory;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\Tests\TestCase;
 
@@ -108,26 +110,52 @@ final class ManifestRouteTest extends TestCase
             ->assertJsonPath('error', 'discovery_not_configured');
     }
 
+    public function test_invalid_manifest_disk_returns_service_unavailable(): void
+    {
+        config()->set('eval-harness.adversarial.manifests.disk', 'missing-disk');
+
+        $this->getJson('/eval-harness/api/adversarial/manifests')
+            ->assertStatus(503);
+    }
+
     public function test_show_route_passes_injected_request_through_to_resource(): void
     {
         // Regression for Copilot review on PR #41 (commit 84642fd).
         // The old controller built the manifest payload via
         // `(new ManifestResource($manifest))->toArray(request())`,
         // ignoring the injected `$request`. Pin the corrected
-        // pass-through behaviour by hitting the show route with a
-        // non-default header — if the controller ever swaps back to
-        // the global helper, frameworks that wrap requests for
-        // tenant/locale scoping would silently lose the swap.
+        // pass-through behaviour by replacing the resource factory
+        // and asserting it sees the route request. A plain HTTP header
+        // assertion is insufficient because request() resolves to the
+        // same object during normal HTTP dispatch.
         Storage::fake('eval-api');
         Storage::disk('eval-api')->put(
             'eval-harness/adversarial/manifests/rag-safety.json',
             json_encode($this->manifestPayload('rag-safety'), JSON_THROW_ON_ERROR),
         );
 
+        $seenRequest = null;
+        $this->app->bind(ManifestResourceFactory::class, static function () use (&$seenRequest): ManifestResourceFactory {
+            return new class($seenRequest) extends ManifestResourceFactory
+            {
+                public function __construct(private mixed &$seenRequest) {}
+
+                public function toArray(AdversarialRunManifest $manifest, Request $request): array
+                {
+                    $this->seenRequest = $request;
+
+                    return parent::toArray($manifest, $request);
+                }
+            };
+        });
+
         $this->getJson(
             '/eval-harness/api/adversarial/manifests/rag-safety',
             ['Accept-Language' => 'en-US'],
         )->assertOk()->assertJsonPath('data.name', 'rag-safety');
+
+        $this->assertInstanceOf(Request::class, $seenRequest);
+        $this->assertSame('en-US', $seenRequest->headers->get('Accept-Language'));
     }
 
     public function test_index_skips_malformed_manifest_files(): void

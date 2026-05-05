@@ -115,7 +115,11 @@ final class ManifestRepository
             throw new ReportArtifactUnavailableException('Adversarial manifest disk is not configured.');
         }
 
-        return $this->filesystems->disk(trim($name));
+        try {
+            return $this->filesystems->disk(trim($name));
+        } catch (Throwable $e) {
+            throw new ReportArtifactUnavailableException('Adversarial manifest disk could not be resolved.', previous: $e);
+        }
     }
 
     private function prefix(): string
