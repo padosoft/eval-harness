@@ -289,6 +289,32 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_empty_batch_profile_is_rejected(): void
+    {
+        // Round-36 fix: `--batch-profile=` (empty) was silently
+        // treated as "no profile". An unset CI variable
+        // (`--batch-profile=$EVAL_PROFILE` with `EVAL_PROFILE`
+        // unset) would change batch mode and backpressure with no
+        // diagnostic. Only the numeric flags document empty-value
+        // fall-through to profile/baseline default — the profile
+        // name itself does not. Operators that do not want a
+        // profile must omit the flag entirely.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-profile')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-profile',
+            '--batch-profile' => '',
+        ])
+            ->expectsOutputToContain('--batch-profile option requires a non-empty profile name')
+            ->assertExitCode(1);
+    }
+
     public function test_outputs_warns_when_batch_flags_are_passed(): void
     {
         /** @var EvalEngine $engine */

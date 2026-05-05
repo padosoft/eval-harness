@@ -25,16 +25,25 @@ trait BuildsBatchOptions
     ];
 
     /**
-     * Single source of truth for the CLI batch-flag surface.
+     * Single source of truth for the runtime warning's flag list.
      *
      * `eval-harness:run` and `eval-harness:adversarial` skip
      * `batchOptions()` whenever `--outputs` is set, so any batch
      * flags the operator passed are silently dropped on that path.
      * `warnIfBatchFlagsIgnored()` consults this list to emit a
      * runtime warning that names the actual flags passed. Keeping
-     * the list here means new batch flags only need to be added
-     * once: future drift between the two commands' warning helpers
-     * (and the help-text recap) is impossible.
+     * the list here means the two commands' warning helpers cannot
+     * drift from each other.
+     *
+     * Note: the per-command `$description` strings (in
+     * `EvalCommand` and `AdversarialCommand`) ALSO list the same
+     * flags so the contract is visible from `--help`. Those help-
+     * text snippets are intentionally hand-written copies — Laravel
+     * command signatures are static strings and cannot be built
+     * from a runtime constant. The `test_help_text_lists_every_batch_flag`
+     * regression test in `BuildsBatchOptionsHelpTextTest` cross-
+     * checks both descriptions against `BATCH_FLAGS` so a future
+     * flag addition fails CI when only one surface gets updated.
      *
      * @var list<string>
      */
@@ -258,7 +267,24 @@ trait BuildsBatchOptions
         }
 
         $value = $this->option('batch-profile');
-        if ($value === null || $value === '') {
+        if ($value === null) {
+            return null;
+        }
+
+        // Empty `--batch-profile=` is rejected: only the numeric
+        // flags (--timeout, --batch-timeout, --chunk-size,
+        // --rate-limit, --rate-window-seconds, --result-ttl-seconds,
+        // --checkpoint-every) document empty-value fall-through to
+        // the profile/baseline default. Treating an empty profile
+        // name as "no profile" would let an unset CI variable
+        // (`--batch-profile=$EVAL_PROFILE` with `EVAL_PROFILE`
+        // unset) silently change batch mode and backpressure
+        // without any diagnostic. Operators that do not want a
+        // profile must omit the flag entirely.
+        if ($value === '' && $this->batchOptionWasProvided('batch-profile')) {
+            throw new EvalRunException('The --batch-profile option requires a non-empty profile name (e.g. ci, smoke, nightly). Omit the flag entirely to skip profile resolution.');
+        }
+        if ($value === '') {
             return null;
         }
 
