@@ -2396,3 +2396,19 @@
   - Decided NOT to add a reverse-alias singletonIf for the terminal interface. The alternative implementation invited recursion through the existing `extend()` chain when host apps alias terminal back to parent. The provider now documents the one-way asymmetry explicitly: `LazyParallelBatch::run()` already type-checks via `instanceof BatchTerminalProgressReporter` at emission time, so terminal-capable parent bindings DO trigger STATUS_FAILURE / STATUS_SUCCESS events; only direct resolution of `BatchTerminalProgressReporter::class` from elsewhere requires the host to bind the sub-contract key explicitly.
 - Comments 3 and 4 were noted as already-addressed / false positives in the response to Copilot; no code change needed.
 - Full local gate passed after the forty-third Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`, PHPStan no errors, Pint passed.
+
+## Macro 8 — sub-task PR #37 merged into macro branch
+
+- Merged PR #37 (`task/enterprise-operations-scalability-batch-profiles`) into the macro branch `task/enterprise-operations-scalability` after 44 productive Copilot review rounds. Merge commit `e849ac4` (gh pr merge --merge --delete-branch=false), preserving the per-round fix commits in the macro-branch history for traceability.
+- 47 commits added to the macro branch covering the full Macro 8 deliverable surface:
+  - `--batch-profile=ci|smoke|nightly` operational presets via `BatchProfile`, `BatchProfileResolver`, and the `BuildsBatchOptions` trait. Host-app overrides through `eval-harness.batches.profiles.*` config (with explicit-null and dependent-clear validation).
+  - Backpressure: `--chunk-size`, `--rate-limit`, `--rate-window-seconds` flags backed by `RateLimitWindow` (sliding-window math, monotonic clock via `hrtime`) and the producer-side throttle in `LazyParallelBatch`.
+  - Checkpointing: `--checkpoint-every`, `BatchProgressReporter` interface (default `NullBatchProgressReporter`), optional `BatchTerminalProgressReporter` sub-contract with `STATUS_SUCCESS` / `STATUS_FAILURE` / `STATUS_EMPTY` (mid-chunk emission as workers flush, partial-wins tolerance on the failure path).
+  - `--result-ttl-seconds` operator override flag plus separate run/dispatch TTL math (run uses chunk-deadline-bounded windows; dispatch uses concurrency-keyed drain time with a fixed `60s` per-drain-batch fallback decoupled from the wait-timeout config).
+  - Service provider parent/sub-contract reporter alias via `extend()`, recursion-safe.
+  - Documentation: README operator-facing batch section, `docs/HORIZON_BATCH_QUEUES.md` Horizon supervisor sizing + multi-producer guidance, `docs/LESSON.md` lessons.
+- Local gate on the macro branch after the merge:
+  - `composer validate --strict` => `./composer.json is valid`.
+  - `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` => `[OK] No errors`.
+  - `vendor/bin/pint --test` => passed.
