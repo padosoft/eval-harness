@@ -1145,6 +1145,67 @@ final class LazyParallelBatchTest extends TestCase
         $this->assertNull($unsetWindow);
     }
 
+    public function test_run_emits_final_checkpoint_when_batch_fails_at_aligned_total(): void
+    {
+        // Regression for the failure-path terminal checkpoint:
+        // when totalSamples is an exact multiple of checkpointEvery
+        // (e.g. 4 samples + checkpoint_every=4), the success-path
+        // alignment guard `totalSamples % checkpointEvery === 0` would
+        // suppress the final emit. On the failure path the forced
+        // helper must still fire so dashboards can distinguish a
+        // failed batch from a stalled one.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'a'], expectedOutput: 'a'),
+            new DatasetSample(id: 's2', input: ['answer' => 'b'], expectedOutput: 'b'),
+            new DatasetSample(id: 's3', input: ['answer' => 'c'], expectedOutput: 'c'),
+            new DatasetSample(id: 's4', input: ['answer' => 'd'], expectedOutput: 'd'),
+        ];
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelFailingRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 4,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                    checkpointEvery: 4, // 4 % 4 = 0 (aligned)
+                ),
+            );
+            $this->fail('Expected the failing runner to surface as EvalRunException.');
+        } catch (EvalRunException) {
+            // Expected.
+        }
+
+        $this->assertNotEmpty(
+            $reporter->checkpoints,
+            'Failed runs at aligned totals must still emit a terminal checkpoint event so dashboards can distinguish failed from stalled.',
+        );
+        $finalCheckpoint = $reporter->checkpoints[count($reporter->checkpoints) - 1];
+        $this->assertSame(4, $finalCheckpoint['total']);
+        // Failing runner produces no successes; samplesCompleted from
+        // the result store is therefore 0.
+        $this->assertSame(0, $finalCheckpoint['samples_completed']);
+    }
+
     public function test_run_emits_final_checkpoint_when_batch_fails(): void
     {
         // Regression: BatchProgressReporter consumers (dashboards,

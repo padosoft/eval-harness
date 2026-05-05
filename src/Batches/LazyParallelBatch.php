@@ -179,15 +179,21 @@ final class LazyParallelBatch
             return $outputs;
         } catch (Throwable $e) {
             if (! $completed) {
-                // Emit the documented end-of-batch checkpoint even on
-                // the failure path so dashboards consuming
-                // BatchProgressReporter can distinguish a finished
-                // failed batch from a stalled one. safeReportCheckpoint
-                // already swallows reporter exceptions so this never
-                // masks the original failure.
-                $this->reportCheckpointFinalIfNeeded(
+                // Failure path: always emit a forced terminal
+                // checkpoint regardless of multiple-of-N alignment so
+                // dashboards consuming BatchProgressReporter can
+                // distinguish a finished failed batch from a stalled
+                // one even when totalSamples is an exact multiple of
+                // checkpointEvery (where the success-path guard would
+                // skip). samplesCompleted is sourced from the result
+                // store so it reflects actual stored successes,
+                // including partial wins from a chunk where some
+                // jobs succeeded before another failed.
+                // safeReportCheckpoint swallows reporter exceptions so
+                // this never masks the original failure.
+                $this->reportCheckpointTerminalForce(
                     batchId: $batchId,
-                    samplesCompleted: $samplesCompleted,
+                    samplesCompleted: $this->countStoredSuccessesSafely($batchId, $sampleCount),
                     totalSamples: $sampleCount,
                     checkpointEvery: $checkpointEvery,
                 );
@@ -697,6 +703,56 @@ final class LazyParallelBatch
         } catch (Throwable) {
             // Reporter is best-effort. A transient logging or metrics failure
             // must never abort an otherwise-healthy batch.
+        }
+    }
+
+    /**
+     * Forced terminal checkpoint for the failure path.
+     *
+     * Unlike `reportCheckpointFinalIfNeeded`, this always emits when
+     * checkpoint reporting is configured. The success path uses the
+     * guarded helper to avoid duplicating an emission the threshold
+     * loop already produced at totalSamples; the failure path needs
+     * an unconditional terminal event so dashboards can distinguish a
+     * finished failed batch from a stalled one even when totalSamples
+     * is an exact multiple of checkpointEvery.
+     */
+    private function reportCheckpointTerminalForce(
+        string $batchId,
+        int $samplesCompleted,
+        int $totalSamples,
+        ?int $checkpointEvery,
+    ): void {
+        if ($checkpointEvery === null) {
+            return;
+        }
+
+        $this->safeReportCheckpoint($batchId, $samplesCompleted, $totalSamples);
+    }
+
+    /**
+     * Best-effort count of stored successful sample results.
+     *
+     * Used on the failure path so the terminal checkpoint reflects
+     * partial progress (a chunk where some jobs succeeded before
+     * another failed). Wraps the result-store read in a Throwable
+     * catch so a cache outage at failure time cannot mask the
+     * original exception.
+     */
+    private function countStoredSuccessesSafely(string $batchId, int $sampleCount): int
+    {
+        if ($sampleCount === 0) {
+            return 0;
+        }
+
+        try {
+            return count($this->resultStore->successfulResults(
+                $batchId,
+                $sampleCount,
+                range(0, $sampleCount - 1),
+            ));
+        } catch (Throwable) {
+            return 0;
         }
     }
 
