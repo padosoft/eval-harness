@@ -83,15 +83,26 @@ trait BuildsBatchOptions
         // when callers run `eval-harness:run --outputs ... --json`
         // (without `--out`) and pipe stdout to a JSON parser. The
         // JSON contract documents stdout as machine-parseable; the
-        // warning belongs alongside other diagnostic output. Fall
-        // back to the regular line writer when the OutputInterface
-        // does not split error output (BufferedOutput in Artisan
-        // tests, for example) so test assertions still see the
-        // message in the captured output buffer.
+        // warning belongs alongside other diagnostic output.
         $output = $this->output->getOutput();
         if ($output instanceof ConsoleOutputInterface) {
             $output->getErrorOutput()->writeln($message);
 
+            return;
+        }
+
+        // Single-stream OutputInterface (BufferedOutput in
+        // Artisan::call / artisan tests). When the operator also
+        // passed `--json` AND is NOT redirecting stdout via `--out`,
+        // suppress the warning entirely — writing it would
+        // contaminate the JSON payload that programmatic callers
+        // read via `Artisan::output()`, breaking the documented
+        // machine-parseable contract. Operators using
+        // `Artisan::call(... --json)` are programmers; they can
+        // audit their own flag-passing code without the runtime
+        // safety net. CLI users still get the warning on STDERR
+        // via the ConsoleOutputInterface branch above.
+        if ($this->jsonOutputContaminatesBuffer()) {
             return;
         }
 
@@ -118,6 +129,38 @@ trait BuildsBatchOptions
         }
 
         return $this->inputContainsParameterOption($flag);
+    }
+
+    /**
+     * Detect the BufferedOutput + `--json` (no `--out`) combination.
+     *
+     * In that combination the only output stream is the
+     * stdout-equivalent buffer that programmatic callers read via
+     * `Artisan::output()`; writing a warning to it breaks the
+     * `--json` machine-parseable contract for those callers. There
+     * is no STDERR fallback on BufferedOutput, so the only safe
+     * answer is to skip the warning. CLI users (ConsoleOutputInterface)
+     * never reach this branch because the STDERR routing above
+     * keeps stdout clean for them already.
+     */
+    private function jsonOutputContaminatesBuffer(): bool
+    {
+        if (! $this->getDefinition()->hasOption('json')) {
+            return false;
+        }
+
+        if (! $this->option('json')) {
+            return false;
+        }
+
+        if ($this->getDefinition()->hasOption('out')) {
+            $out = $this->option('out');
+            if (is_string($out) && $out !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

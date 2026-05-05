@@ -243,6 +243,50 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_outputs_warning_suppressed_when_json_without_out_in_buffered_output(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('saved-output-warn-json-no-out')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+
+        $outputs = tempnam(sys_get_temp_dir(), 'eval-outputs-');
+        $this->assertNotFalse($outputs);
+
+        try {
+            file_put_contents($outputs, json_encode(['outputs' => ['s1' => 'hi']], JSON_THROW_ON_ERROR));
+
+            // Round-33 fix: when --json is set and --out is NOT set,
+            // stdout is the JSON payload programmatic callers parse
+            // via Artisan::output(). Writing the warning into the
+            // single-stream BufferedOutput buffer would break that
+            // machine-parseable contract. The warning must be
+            // suppressed (CLI users still see it on STDERR via the
+            // ConsoleOutputInterface branch).
+            $exit = Artisan::call('eval-harness:run', [
+                'dataset' => 'saved-output-warn-json-no-out',
+                '--outputs' => $outputs,
+                '--batch-profile' => 'ci',
+                '--rate-limit' => '5',
+                '--json' => true,
+            ]);
+            $output = Artisan::output();
+
+            $this->assertSame(0, $exit, 'Saved-output JSON run with extra batch flags must still exit 0; got output: '.$output);
+            $this->assertStringNotContainsString('Ignoring batch flags', $output);
+            // The captured buffer must remain valid JSON for
+            // programmatic consumption — decode round-trip proves
+            // no diagnostic line leaked into the payload.
+            $decoded = json_decode($output, true, flags: JSON_THROW_ON_ERROR);
+            $this->assertIsArray($decoded);
+            $this->assertSame('hi', $decoded['samples'][0]['actual_output']);
+        } finally {
+            @unlink($outputs);
+        }
+    }
+
     public function test_outputs_does_not_warn_when_no_batch_flags_passed(): void
     {
         /** @var EvalEngine $engine */

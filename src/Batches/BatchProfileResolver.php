@@ -135,17 +135,28 @@ final class BatchProfileResolver
     {
         /** @var array<string, mixed> $overrides */
         $overrides = [];
-        if ($config !== null) {
+        if ($config !== null && $config->has('eval-harness.batches.profiles')) {
+            // Distinguish "key absent" (no overrides) from "key
+            // explicitly null" (env-backed config like
+            // `'profiles' => env('FOO')` where the env var is unset).
+            // The explicit-null case is a misconfig: the operator
+            // intended to define profiles but the value resolved to
+            // null. Falling back to built-in defaults silently would
+            // make intended host-app overrides disappear in
+            // production, so reject loudly.
             $value = $config->get('eval-harness.batches.profiles');
-            if ($value !== null && ! is_array($value)) {
+            if ($value === null) {
+                throw new EvalRunException(
+                    'eval-harness.batches.profiles is null. Set it to a map of profile-name => override-array, or remove the key to use the built-in defaults.',
+                );
+            }
+            if (! is_array($value)) {
                 throw new EvalRunException(sprintf(
                     'eval-harness.batches.profiles must be a map of profile-name => override-array, got %s.',
                     get_debug_type($value),
                 ));
             }
-            if (is_array($value)) {
-                $overrides = $value;
-            }
+            $overrides = $value;
         }
 
         $merged = self::BUILT_IN_PROFILES;
