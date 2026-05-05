@@ -170,21 +170,15 @@ final class LazyParallelBatch
                 }
 
                 $priorWindowsCompleted = $samplesCompleted;
-                $outputsByIndex += $this->waitForIndexedOutputs(
-                    batchId: $batchId,
-                    samples: $sampleWindow,
-                    sampleCount: $sampleCount,
-                    deadlineMicrotime: $chunkDeadline,
-                    timeoutSecondsForDiagnostic: $waitTimeoutSeconds,
-                    // Mid-chunk progress: as workers flush successes
-                    // for individual samples in this window, fire any
-                    // checkpoint thresholds the partial count crosses.
-                    // Without this, a chunk much larger than
-                    // checkpointEvery would emit nothing until the
-                    // SLOWEST sample in the chunk finished — turning
-                    // checkpointEvery into a per-window summary
-                    // instead of real progress reporting.
-                    onProgress: function (int $windowSuccesses) use (
+                // Only wire mid-chunk progress reporting when the
+                // operator actually enabled checkpointing. Otherwise
+                // every poll iteration would do an extra
+                // O(chunkSize) result-store scan for no user-visible
+                // benefit, materially increasing cache traffic on
+                // large windows.
+                $onProgress = $checkpointEvery === null
+                    ? null
+                    : function (int $windowSuccesses) use (
                         $batchId,
                         $priorWindowsCompleted,
                         $sampleCount,
@@ -199,7 +193,15 @@ final class LazyParallelBatch
                             checkpointEvery: $checkpointEvery,
                             nextCheckpointThreshold: $nextCheckpointThreshold,
                         );
-                    },
+                    };
+
+                $outputsByIndex += $this->waitForIndexedOutputs(
+                    batchId: $batchId,
+                    samples: $sampleWindow,
+                    sampleCount: $sampleCount,
+                    deadlineMicrotime: $chunkDeadline,
+                    timeoutSecondsForDiagnostic: $waitTimeoutSeconds,
+                    onProgress: $onProgress,
                 );
 
                 $samplesCompleted += count($sampleWindow);
@@ -356,16 +358,14 @@ final class LazyParallelBatch
         $sampleIndexes = $this->sampleIndexes($samples);
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
-        $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         // dispatch() is fire-and-return: callers enqueue now and
         // collect later. TTL math drops the producer-side rate-limit
-        // pause (which only applies to run()) AND the chunkSize-based
-        // window-count factor (which assumes a single sequential
-        // worker and inflates TTL by hours when chunkSize is small).
-        // Operators with large batches or constrained worker pools
-        // should override the floor via
+        // pause (run-only) AND the chunkSize-based window factor AND
+        // the operator's --batch-timeout (it bounds run()'s producer
+        // wait, not worker drain time). Operators with large batches
+        // or constrained worker pools should override the floor via
         // BatchOptions::lazyParallel(resultTtlSeconds: ...).
-        $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $waitTimeoutSeconds, $sampleCount);
+        $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         // Note: rate-limit throttling deliberately does NOT apply on the
@@ -487,16 +487,22 @@ final class LazyParallelBatch
         $windowIndexes = $this->sampleIndexes($samples);
 
         do {
-            $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
-            if ($outputs !== null) {
-                return $outputs;
-            }
-
+            // Emit intermediate progress BEFORE checking for failure
+            // outputs. collectIndexedOutputsOrNull() throws when it
+            // sees a stored failure, so if we deferred the progress
+            // probe until after that, a poll that found multiple new
+            // successes alongside a failure (e.g. 5 and 10 succeeded
+            // before 14 threw) would skip the intermediate
+            // checkpoint thresholds and only emit the failure-path
+            // forced terminal checkpoint at reportedCompleted —
+            // breaking the documented "one checkpoint per crossed
+            // multiple" contract on failed windows.
             if ($onProgress !== null) {
-                // Best-effort partial-progress count. Bounded by chunk
-                // size, not sampleCount, so the cost stays cheap. If
-                // the result store query throws, swallow it so the
-                // poll loop is not aborted by transient cache trouble.
+                // Best-effort partial-progress count. Bounded by
+                // chunk size, not sampleCount, so the cost stays
+                // cheap. If the result store query throws, swallow
+                // it so the poll loop is not aborted by transient
+                // cache trouble.
                 try {
                     $current = count($this->storedSuccessfulResults($batchId, $sampleCount, $windowIndexes));
                 } catch (Throwable) {
@@ -506,6 +512,11 @@ final class LazyParallelBatch
                     $lastReportedWindowSuccesses = $current;
                     $onProgress($current);
                 }
+            }
+
+            $outputs = $this->collectIndexedOutputsOrNull($batchId, $samples, $sampleCount);
+            if ($outputs !== null) {
+                return $outputs;
             }
 
             if ($this->monotonicTime() >= $deadlineMicrotime) {
@@ -750,12 +761,44 @@ final class LazyParallelBatch
                 return $dispatched;
             }
 
-            $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
+            $deadlineCapped = $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
 
             if ($chunkDeadlineMicrotime !== null && $this->monotonicTime() >= $chunkDeadlineMicrotime) {
                 // throttleDispatch() may have woken early at the
                 // deadline; bail before recording a dispatch we did
                 // not actually make.
+                return $dispatched;
+            }
+
+            // Post-sleep rate-limiter recheck — but only when the
+            // throttle wait was actually capped by the chunk
+            // deadline. Without the cap, throttleDispatch() honoured
+            // the full required wait and the limiter has capacity by
+            // construction; an extra recheck would reject the
+            // dispatch on harmless `usleep()` timer slop. With the
+            // cap, the wait was shortened and the rate window may
+            // not actually be open yet — bail cleanly so a tight
+            // `--batch-timeout` cannot let one extra sample bypass
+            // the configured rate limit.
+            if ($deadlineCapped && $rateLimiter !== null && $rateLimiter->nextWaitMicroseconds($this->monotonicTime()) > 0) {
+                // Park until the deadline so the caller's deadline
+                // check fires consistently. Without this, a usleep
+                // that wakes a few microseconds early would leave
+                // monotonicTime() < chunkDeadline at the caller's
+                // check, the deadline-exceeded path would be
+                // skipped, and waitForIndexedOutputs() would surface
+                // a misleading "did not produce outputs" diagnostic
+                // instead of the documented chunk-dispatch-consumed
+                // message — even though by recheck we already know
+                // the rate window will not reopen before the
+                // deadline.
+                if ($chunkDeadlineMicrotime !== null) {
+                    $remainingMicroseconds = (int) (($chunkDeadlineMicrotime - $this->monotonicTime()) * 1_000_000);
+                    if ($remainingMicroseconds > 0) {
+                        usleep($remainingMicroseconds);
+                    }
+                }
+
                 return $dispatched;
             }
 
@@ -815,30 +858,43 @@ final class LazyParallelBatch
         );
     }
 
-    private function throttleDispatch(?RateLimitWindow $rateLimiter, ?float $deadlineMicrotime = null): void
+    /**
+     * @return bool True when the throttle wait was capped by the chunk
+     *              deadline (i.e. the rate-window may not actually be
+     *              open yet on wake-up — the caller must recheck before
+     *              dispatching). False when no wait happened or the
+     *              full required wait was honoured.
+     */
+    private function throttleDispatch(?RateLimitWindow $rateLimiter, ?float $deadlineMicrotime = null): bool
     {
         if ($rateLimiter === null) {
-            return;
+            return false;
         }
 
         $waitMicroseconds = $rateLimiter->nextWaitMicroseconds($this->monotonicTime());
         if ($waitMicroseconds <= 0) {
-            return;
+            return false;
         }
 
         // Cap the throttle pause at the chunk deadline so the producer
         // window cannot overshoot --batch-timeout while sleeping on
         // a rate-limit pause. The caller will detect the deadline
         // afterwards and bail before recording a dispatch.
+        $deadlineCapped = false;
         if ($deadlineMicrotime !== null) {
             $remainingMicroseconds = (int) (($deadlineMicrotime - $this->monotonicTime()) * 1_000_000);
             if ($remainingMicroseconds <= 0) {
-                return;
+                return true;
             }
-            $waitMicroseconds = min($waitMicroseconds, $remainingMicroseconds);
+            if ($remainingMicroseconds < $waitMicroseconds) {
+                $waitMicroseconds = $remainingMicroseconds;
+                $deadlineCapped = true;
+            }
         }
 
         usleep($waitMicroseconds);
+
+        return $deadlineCapped;
     }
 
     private function reportCheckpointThresholdsCrossed(
@@ -1178,7 +1234,7 @@ final class LazyParallelBatch
      * floor explicitly via
      * `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
      */
-    private function resultTtlSecondsForDispatch(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
+    private function resultTtlSecondsForDispatch(BatchOptions $options, int $sampleCount): int
     {
         $drainBatches = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
         $drainSeconds = $drainBatches * ($options->timeoutSeconds ?? 0);
