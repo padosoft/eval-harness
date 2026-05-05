@@ -130,7 +130,7 @@ final class LazyParallelBatch
                         options: $options,
                         resultTtlSeconds: $resultTtlSeconds,
                         rateLimiter: $rateLimiter,
-                        chunkDeadlineMicrotime: $chunkDeadline,
+                        chunkDeadlineMonotonicSeconds: $chunkDeadline,
                     );
                 } catch (Throwable $e) {
                     $this->throwStoredFailureOrDispatchException(
@@ -215,7 +215,7 @@ final class LazyParallelBatch
                     batchId: $batchId,
                     samples: $sampleWindow,
                     sampleCount: $sampleCount,
-                    deadlineMicrotime: $chunkDeadline,
+                    deadlineMonotonicSeconds: $chunkDeadline,
                     timeoutSecondsForDiagnostic: $waitTimeoutSeconds,
                     onProgress: $onProgress,
                 );
@@ -496,7 +496,7 @@ final class LazyParallelBatch
         string $batchId,
         array $samples,
         int $sampleCount,
-        float $deadlineMicrotime,
+        float $deadlineMonotonicSeconds,
         int $timeoutSecondsForDiagnostic,
         ?callable $onProgress = null,
     ): array {
@@ -537,11 +537,11 @@ final class LazyParallelBatch
                 return $outputs;
             }
 
-            if ($this->monotonicTime() >= $deadlineMicrotime) {
+            if ($this->monotonicTime() >= $deadlineMonotonicSeconds) {
                 break;
             }
 
-            $remainingMicroseconds = max(1, (int) (($deadlineMicrotime - $this->monotonicTime()) * 1_000_000));
+            $remainingMicroseconds = max(1, (int) (($deadlineMonotonicSeconds - $this->monotonicTime()) * 1_000_000));
             usleep(min($pollIntervalMicroseconds, $remainingMicroseconds));
 
             $pollIntervalMicroseconds = min(
@@ -765,7 +765,7 @@ final class LazyParallelBatch
         BatchOptions $options,
         int $resultTtlSeconds,
         ?RateLimitWindow $rateLimiter = null,
-        ?float $chunkDeadlineMicrotime = null,
+        ?float $chunkDeadlineMonotonicSeconds = null,
     ): int {
         $dispatched = 0;
         foreach ($samples as $index => $sample) {
@@ -775,13 +775,13 @@ final class LazyParallelBatch
             // --batch-timeout, breaking the documented hard wall-clock
             // cap on the producer window. The caller will surface a
             // stored failure first or the deadline-exceeded error.
-            if ($chunkDeadlineMicrotime !== null && $this->monotonicTime() >= $chunkDeadlineMicrotime) {
+            if ($chunkDeadlineMonotonicSeconds !== null && $this->monotonicTime() >= $chunkDeadlineMonotonicSeconds) {
                 return $dispatched;
             }
 
-            $deadlineCapped = $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
+            $deadlineCapped = $this->throttleDispatch($rateLimiter, $chunkDeadlineMonotonicSeconds);
 
-            if ($chunkDeadlineMicrotime !== null && $this->monotonicTime() >= $chunkDeadlineMicrotime) {
+            if ($chunkDeadlineMonotonicSeconds !== null && $this->monotonicTime() >= $chunkDeadlineMonotonicSeconds) {
                 // throttleDispatch() may have woken early at the
                 // deadline; bail before recording a dispatch we did
                 // not actually make.
@@ -810,8 +810,8 @@ final class LazyParallelBatch
                 // message — even though by recheck we already know
                 // the rate window will not reopen before the
                 // deadline.
-                if ($chunkDeadlineMicrotime !== null) {
-                    $remainingMicroseconds = (int) (($chunkDeadlineMicrotime - $this->monotonicTime()) * 1_000_000);
+                if ($chunkDeadlineMonotonicSeconds !== null) {
+                    $remainingMicroseconds = (int) (($chunkDeadlineMonotonicSeconds - $this->monotonicTime()) * 1_000_000);
                     if ($remainingMicroseconds > 0) {
                         usleep($remainingMicroseconds);
                     }
@@ -883,7 +883,7 @@ final class LazyParallelBatch
      *              dispatching). False when no wait happened or the
      *              full required wait was honoured.
      */
-    private function throttleDispatch(?RateLimitWindow $rateLimiter, ?float $deadlineMicrotime = null): bool
+    private function throttleDispatch(?RateLimitWindow $rateLimiter, ?float $deadlineMonotonicSeconds = null): bool
     {
         if ($rateLimiter === null) {
             return false;
@@ -899,8 +899,8 @@ final class LazyParallelBatch
         // a rate-limit pause. The caller will detect the deadline
         // afterwards and bail before recording a dispatch.
         $deadlineCapped = false;
-        if ($deadlineMicrotime !== null) {
-            $remainingMicroseconds = (int) (($deadlineMicrotime - $this->monotonicTime()) * 1_000_000);
+        if ($deadlineMonotonicSeconds !== null) {
+            $remainingMicroseconds = (int) (($deadlineMonotonicSeconds - $this->monotonicTime()) * 1_000_000);
             if ($remainingMicroseconds <= 0) {
                 return true;
             }

@@ -2412,3 +2412,11 @@
   - `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M` => `[OK] No errors`.
   - `vendor/bin/pint --test` => passed.
+
+## Macro PR #38 — first Copilot review round
+
+- First Copilot review on macro PR #38 head `e61d67e` (review id `4230343681`) returned a proper review and 3 actionable comments — all real defects, all minor: (1) `expectExceptionMessage()` was called twice in `test_resolver_rejects_explicit_null_mode` — PHPUnit overwrites the previous expectation so only the second substring was actually asserted; (2-3) `$deadlineMicrotime` and `$chunkDeadlineMicrotime` parameter names became misleading after the round-25 monotonic-clock migration — they're now compared against `monotonicTime()` (hrtime-derived), not `microtime(true)`, and a future caller passing a `microtime(true)` value would silently break deadline math.
+- Addressed every Copilot comment in the next push:
+  - Replaced the double `expectExceptionMessage()` with a manual `try/catch` block plus two `assertStringContainsString()` assertions on `$e->getMessage()`. Documents the PHPUnit overwrite gotcha inline so future contributors don't reintroduce the pattern.
+  - Renamed `$deadlineMicrotime` → `$deadlineMonotonicSeconds` and `$chunkDeadlineMicrotime` → `$chunkDeadlineMonotonicSeconds` across `LazyParallelBatch::run()`, `dispatchSampleJobs()`, `waitForIndexedOutputs()`, and `throttleDispatch()`. Aligns the parameter names with the actual time domain (hrtime-derived monotonic seconds) so the wall-clock vs monotonic distinction is visible at every call site.
+- Full local gate passed after the first macro-PR Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (699 tests, 1956 assertions)`, PHPStan no errors, Pint passed.

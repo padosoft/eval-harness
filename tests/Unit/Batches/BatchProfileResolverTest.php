@@ -480,11 +480,18 @@ final class BatchProfileResolverTest extends TestCase
             ],
         ]);
 
-        $this->expectException(EvalRunException::class);
-        $this->expectExceptionMessage("Batch profile 'env-backed' mode is null.");
-        $this->expectExceptionMessage('overrides of built-in profiles inherit the built-in mode');
-
-        new BatchProfileResolver($config);
+        try {
+            new BatchProfileResolver($config);
+            $this->fail('Expected EvalRunException for explicit-null mode override.');
+        } catch (EvalRunException $e) {
+            // Two substring assertions on the same message: PHPUnit
+            // overwrites the previous expectation when
+            // expectExceptionMessage() is called twice, so a manual
+            // catch is the only way to verify both fragments are
+            // present in the diagnostic.
+            $this->assertStringContainsString("Batch profile 'env-backed' mode is null.", $e->getMessage());
+            $this->assertStringContainsString('overrides of built-in profiles inherit the built-in mode', $e->getMessage());
+        }
     }
 
     public function test_resolve_rejects_blank_name(): void
