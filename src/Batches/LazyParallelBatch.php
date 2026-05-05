@@ -992,10 +992,12 @@ final class LazyParallelBatch
     /**
      * Compute the result-store TTL for a run() batch.
      *
-     * run() waits between producer windows AND throttles dispatch on
-     * rate-limit pauses, so its TTL must cover both. The caller-side
-     * floor (default 3600s, configurable per batch) and per-job
-     * timeout still apply.
+     * run() waits between producer windows; rate-limit throttle time
+     * is bounded by the per-window chunk deadline, so it is already
+     * included in `windowWaitSeconds`. Adding it as a separate term
+     * would double-count and over-retain by minutes-to-hours on
+     * heavily throttled runs. The caller-side floor (default 3600s,
+     * configurable per batch) and per-job timeout still apply.
      */
     private function resultTtlSecondsForRun(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
     {
@@ -1007,21 +1009,10 @@ final class LazyParallelBatch
         $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
         $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
 
-        // Producer-side rate limiting adds wall-clock delay between
-        // dispatches, so the TTL must cover dispatch + worker time
-        // together. Worst case: a full rate-window pause between every
-        // burst of `rateLimit` dispatches.
-        $rateLimitSeconds = 0;
-        if ($options->rateLimit !== null) {
-            $rateWindow = $options->rateWindowSeconds ?? 60;
-            $rateBatches = max(1, intdiv($sampleCount + $options->rateLimit - 1, $options->rateLimit));
-            $rateLimitSeconds = ($rateBatches - 1) * $rateWindow;
-        }
-
         return max(
             $this->resultTtlSeconds,
             $waitTimeoutSeconds,
-            $windowWaitSeconds + $rateLimitSeconds,
+            $windowWaitSeconds,
             $options->timeoutSeconds ?? 0,
             $options->resultTtlSeconds ?? 0,
         );

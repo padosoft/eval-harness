@@ -2085,9 +2085,13 @@
   - Added `BatchProfile`, `BatchProfileResolver` with built-in `ci`, `smoke`,
     `nightly` defaults and optional `eval-harness.batches.profiles.*`
     overrides.
-  - Extended `BatchOptions` with `profile`, `chunkSize`, `rateLimit`,
+  - Extended `BatchOptions` with `chunkSize`, `rateLimit`,
     `rateWindowSeconds`, `checkpointEvery` plus serial-mode rejection of
-    those fields and a `effectiveChunkSize()` helper.
+    those fields and an `effectiveChunkSize()` helper. (The originally
+    proposed `$profile` field on `BatchOptions` was removed during the
+    Copilot review loop because it carried no runtime semantics — the
+    operational profile name lives in the `BuildsBatchOptions` trait /
+    config layer where the resolver actually reads it.)
   - Added `RateLimitWindow` (pure sliding-window math) and a
     `BatchProgressReporter` interface with a `NullBatchProgressReporter`
     default. `LazyParallelBatch` now applies the rate limit before each
@@ -2098,8 +2102,8 @@
     profile defaults and lazy-parallel-only fields are dropped silently
     when the resolved mode is serial (without an operator opt-out).
   - Added `--batch-profile`, `--chunk-size`, `--rate-limit`,
-    `--rate-window-seconds`, `--checkpoint-every` flags to
-    `eval-harness:run` and `eval-harness:adversarial`.
+    `--rate-window-seconds`, `--checkpoint-every`, `--result-ttl-seconds`
+    flags to `eval-harness:run` and `eval-harness:adversarial`.
   - Bound `BatchProfileResolver` and a default `BatchProgressReporter`
     in the service provider; passed the reporter into `LazyParallelBatch`.
   - Documented profiles and backpressure in `README.md`,
@@ -2267,3 +2271,9 @@
   - `LazyParallelBatch::dispatchSampleJobs()` carries an explicit caveat comment documenting that the deadline is a hard wall-clock cap only when `dispatcher->dispatch()` returns immediately (Redis / database / beanstalk drivers — the documented Horizon path); on the `sync` queue driver dispatch executes inline and individual slow samples are bounded by `--timeout`, not `--batch-timeout`.
   - README operator-facing batch section now spells out the same caveat: `--batch-timeout` is a hard wall-clock cap on real queue drivers; on the `sync` driver per-sample runtime is bounded by `--timeout`, and operators that need a hard cap on the producer window must use a real queue driver in production.
 - Full local gate passed after the twenty-second Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (674 tests, 1857 assertions)`, PHPStan no errors, Pint passed.
+- Twenty-fourth-round Copilot review on PR #37 head `baf5794` (review id `4226220436`) returned a proper review and 3 actionable comments — one real defect plus two PROGRESS.md doc-drift items: the new `rateLimitSeconds` term in `resultTtlSecondsForRun()` double-counted throttle time because rate-limit pauses are bounded by the per-window chunk deadline and therefore already inside `windowWaitSeconds`, so heavily throttled runs over-retained batch metadata in cache by minutes-to-hours; the macro 8 implementation recap above still mentioned a `$profile` field on `BatchOptions` even though that field was removed earlier in the review loop; and the same recap omitted `--result-ttl-seconds` from the final command surface.
+- Addressed every Copilot comment in the next push:
+  - `LazyParallelBatch::resultTtlSecondsForRun()` no longer adds a separate `rateLimitSeconds` term. The chunk deadline is the per-window wall-clock cap (and run() throttle pauses are capped to the chunk deadline), so `windowWaitSeconds = max(waitTimeout, timeout) * windowCount` is already the upper bound on per-window time spent — no need to add throttle time on top. Existing TTL tests are all on the dispatch() path so they are unaffected.
+  - PROGRESS.md macro 8 implementation recap (line 2088 area) updated: removed the obsolete `$profile` field from the `BatchOptions` extension list and added an explicit note that the field was dropped during the review loop because the operational profile name lives in `BuildsBatchOptions` / config, not the value object.
+  - PROGRESS.md macro 8 implementation recap (line 2102 area) updated to include `--result-ttl-seconds` in the final command-surface flag list alongside the other lazy-parallel knobs.
+- Full local gate passed after the twenty-third Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (674 tests, 1857 assertions)`, PHPStan no errors, Pint passed.
