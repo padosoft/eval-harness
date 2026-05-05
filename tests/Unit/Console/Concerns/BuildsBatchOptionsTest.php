@@ -86,6 +86,66 @@ final class BuildsBatchOptionsTest extends TestCase
         $this->assertSame(4000, $captured->resultTtlSeconds);
     }
 
+    public function test_empty_new_batch_flags_fall_back_to_profile_defaults(): void
+    {
+        // Pin the documented "--flag= falls back to default" pattern
+        // for the new options so unset CI variables can keep using the
+        // profile defaults. Without this, a parser regression on the
+        // new flags would silently break the CI-variable workflow.
+        config(['eval-harness.batches.profiles.observable-defaults' => [
+            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+            'concurrency' => 8,
+            'queue' => 'evals',
+            'timeout_seconds' => 30,
+            'wait_timeout_seconds' => 120,
+            'chunk_size' => 8,
+            'rate_limit' => 30,
+            'rate_window_seconds' => 60,
+            'checkpoint_every' => 25,
+            'result_ttl_seconds' => 4000,
+        ]]);
+        $this->app->forgetInstance(BatchProfileResolver::class);
+
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch-profile' => 'observable-defaults',
+            '--chunk-size' => '',
+            '--rate-limit' => '',
+            '--rate-window-seconds' => '',
+            '--checkpoint-every' => '',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertSame(8, $captured->chunkSize);
+        $this->assertSame(30, $captured->rateLimit);
+        $this->assertSame(60, $captured->rateWindowSeconds);
+        $this->assertSame(25, $captured->checkpointEvery);
+    }
+
+    public function test_empty_new_batch_flags_fall_back_to_baseline_defaults_without_profile(): void
+    {
+        // Without a profile and without explicit values, the new flags
+        // must remain null so BatchOptions stays at the conservative
+        // baseline.
+        $this->artisan('eval-harness-test:capture-batch', [
+            '--batch' => 'lazy-parallel',
+            '--concurrency' => '4',
+            '--queue' => 'evals',
+            '--chunk-size' => '',
+            '--rate-limit' => '',
+            '--rate-window-seconds' => '',
+            '--checkpoint-every' => '',
+        ])->assertExitCode(0);
+
+        $captured = $this->command->captured;
+        $this->assertNotNull($captured);
+        $this->assertSame(BatchOptions::MODE_LAZY_PARALLEL, $captured->mode);
+        $this->assertNull($captured->chunkSize);
+        $this->assertNull($captured->rateLimit);
+        $this->assertNull($captured->rateWindowSeconds);
+        $this->assertNull($captured->checkpointEvery);
+    }
+
     public function test_profile_lazy_only_fields_drop_when_explicit_batch_serial(): void
     {
         // Pair to the profile/serial flip behaviour: explicit

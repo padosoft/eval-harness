@@ -133,19 +133,22 @@ final class BatchOptions
         // Lazy-parallel-only cross-validation: a rate window with no rate
         // limit would otherwise be a silent no-op because LazyParallelBatch
         // only constructs a RateLimitWindow when rateLimit !== null.
+        // Diagnostic stays CLI-neutral because BatchOptions is also a
+        // public value object used by EvalEngine::runBatch() / runEvalSet()
+        // callers outside Artisan.
         if ($rateWindowSeconds !== null && $rateLimit === null) {
             throw new EvalRunException(
-                'Batch rate window seconds is only meaningful with a rate limit; set the rateLimit option (--rate-limit at the CLI) or unset rateWindowSeconds (--rate-window-seconds).'
+                'Batch rate window seconds is only meaningful with a rate limit; set the rateLimit option or unset rateWindowSeconds.'
             );
         }
 
-        // Concurrency caps the producer fan-out; chunk-size only narrows
-        // the dispatch window further. Reject chunk-size > concurrency so
+        // Concurrency caps the producer fan-out; chunk size only narrows
+        // the dispatch window further. Reject chunkSize > concurrency so
         // callers do not accidentally oversubscribe by setting a chunk
         // size larger than the configured fan-out.
         if ($chunkSize !== null && $chunkSize > $concurrency) {
             throw new EvalRunException(sprintf(
-                'Batch chunk size (%d) cannot exceed concurrency (%d). The concurrency option (--concurrency at the CLI) caps the producer fan-out; chunkSize (--chunk-size) only narrows the dispatch window.',
+                'Batch chunk size (%d) cannot exceed concurrency (%d). The concurrency option caps the producer fan-out; chunkSize only narrows the dispatch window.',
                 $chunkSize,
                 $concurrency,
             ));

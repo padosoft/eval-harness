@@ -103,7 +103,7 @@ final class LazyParallelBatch
                 );
 
                 $samplesCompleted += count($sampleWindow);
-                $nextCheckpointThreshold = $this->reportCheckpointIfDue(
+                $nextCheckpointThreshold = $this->reportCheckpointThresholdsCrossed(
                     batchId: $batchId,
                     samplesCompleted: $samplesCompleted,
                     totalSamples: $sampleCount,
@@ -111,6 +111,13 @@ final class LazyParallelBatch
                     nextCheckpointThreshold: $nextCheckpointThreshold,
                 );
             }
+
+            $this->reportCheckpointFinalIfNeeded(
+                batchId: $batchId,
+                samplesCompleted: $samplesCompleted,
+                totalSamples: $sampleCount,
+                checkpointEvery: $checkpointEvery,
+            );
 
             ksort($outputsByIndex);
 
@@ -529,7 +536,7 @@ final class LazyParallelBatch
         }
     }
 
-    private function reportCheckpointIfDue(
+    private function reportCheckpointThresholdsCrossed(
         string $batchId,
         int $samplesCompleted,
         int $totalSamples,
@@ -550,13 +557,30 @@ final class LazyParallelBatch
             $nextCheckpointThreshold += $checkpointEvery;
         }
 
-        // Always emit a final event at end-of-batch, unless the threshold
-        // loop above already emitted exactly at totalSamples.
-        if ($samplesCompleted >= $totalSamples && $totalSamples > 0 && $totalSamples % $checkpointEvery !== 0) {
-            $this->safeReportCheckpoint($batchId, $totalSamples, $totalSamples);
+        return $nextCheckpointThreshold;
+    }
+
+    private function reportCheckpointFinalIfNeeded(
+        string $batchId,
+        int $samplesCompleted,
+        int $totalSamples,
+        ?int $checkpointEvery,
+    ): void {
+        if ($checkpointEvery === null) {
+            return;
         }
 
-        return $nextCheckpointThreshold;
+        // Always emit a terminal end-of-batch event when checkpoint
+        // reporting is enabled. Empty batches still need the event so
+        // dashboards can distinguish a finished short run from a stalled
+        // one. Skip only when the threshold-crossing loop already emitted
+        // exactly at totalSamples (totalSamples > 0 and totalSamples is a
+        // multiple of checkpointEvery).
+        if ($totalSamples > 0 && $totalSamples % $checkpointEvery === 0) {
+            return;
+        }
+
+        $this->safeReportCheckpoint($batchId, $samplesCompleted, $totalSamples);
     }
 
     private function safeReportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void

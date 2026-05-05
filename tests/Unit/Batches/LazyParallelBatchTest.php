@@ -1042,6 +1042,84 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
+    public function test_rate_limit_window_defaults_to_sixty_seconds_when_unset(): void
+    {
+        // Documented contract: when rateLimit is set without
+        // rateWindowSeconds, the producer throttles using a 60-second
+        // rolling window. Reflection avoids dragging real wall-clock
+        // timing into the assertion.
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+
+        $reflection = new \ReflectionMethod(LazyParallelBatch::class, 'rateLimitWindow');
+        $reflection->setAccessible(true);
+
+        $explicitWindow = $reflection->invoke(
+            $batch,
+            BatchOptions::lazyParallel(rateLimit: 5, rateWindowSeconds: 30),
+        );
+        $this->assertNotNull($explicitWindow);
+        $this->assertSame(5, $explicitWindow->rateLimit);
+        $this->assertSame(30, $explicitWindow->rateWindowSeconds);
+
+        $defaultWindow = $reflection->invoke(
+            $batch,
+            BatchOptions::lazyParallel(rateLimit: 7),
+        );
+        $this->assertNotNull($defaultWindow);
+        $this->assertSame(7, $defaultWindow->rateLimit);
+        $this->assertSame(60, $defaultWindow->rateWindowSeconds);
+
+        $unsetWindow = $reflection->invoke($batch, BatchOptions::lazyParallel());
+        $this->assertNull($unsetWindow);
+    }
+
+    public function test_run_emits_final_checkpoint_for_empty_batch(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        // Empty/filtered runs must still emit the documented terminal
+        // event so dashboards can distinguish a finished short run
+        // from a stalled one.
+        $outputs = $batch->run(
+            samples: [],
+            sampleInvocations: [],
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 2,
+                queue: 'evals',
+                timeoutSeconds: 5,
+                checkpointEvery: 25,
+            ),
+        );
+
+        $this->assertSame([], $outputs);
+        $this->assertSame(
+            [['samples_completed' => 0, 'total' => 0]],
+            $reporter->checkpoints,
+        );
+    }
+
     public function test_run_completes_when_progress_reporter_throws(): void
     {
         $this->app['config']->set('queue.default', 'sync');
