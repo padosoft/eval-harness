@@ -68,8 +68,16 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
-    public function test_dispatch_ttl_covers_expected_external_queue_drain(): void
+    public function test_dispatch_ttl_uses_static_floor_not_window_count(): void
     {
+        // dispatch() is fire-and-return; chunkSize / waitTimeout /
+        // timeout combine to the static floor `max(default,
+        // waitTimeout, timeout, configuredTTL)`. The chunkSize-based
+        // windowCount is intentionally NOT a factor here because it
+        // would inflate TTL by hours for large batches with small
+        // chunks even though dispatch() never waits between windows.
+        // Operators with constrained worker pools should override the
+        // floor explicitly via BatchOptions::lazyParallel(resultTtlSeconds: ...).
         Queue::fake();
 
         /** @var Dispatcher $dispatcher */
@@ -89,11 +97,11 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 120;
+            return $job->resultTtlSeconds === 60;
         });
     }
 
-    public function test_dispatch_ttl_uses_per_job_timeout_for_queue_drain_windows(): void
+    public function test_dispatch_ttl_uses_per_job_timeout_floor(): void
     {
         Queue::fake();
 
@@ -117,8 +125,10 @@ final class LazyParallelBatchTest extends TestCase
             options: BatchOptions::lazyParallel(concurrency: 1, timeoutSeconds: 300, waitTimeoutSeconds: 60),
         );
 
+        // Per-job timeout (300s) is the largest static floor; sample
+        // count does not multiply it for dispatch().
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            return $job->resultTtlSeconds === 900;
+            return $job->resultTtlSeconds === 300;
         });
     }
 
@@ -790,8 +800,15 @@ final class LazyParallelBatchTest extends TestCase
         );
     }
 
-    public function test_dispatch_ttl_scales_with_effective_chunk_size_when_smaller_than_concurrency(): void
+    public function test_dispatch_ttl_is_invariant_to_chunk_size(): void
     {
+        // dispatch() is fire-and-return; chunkSize controls only
+        // producer-side enqueue batching, which dispatch() does not
+        // wait between. Older versions multiplied TTL by sampleCount /
+        // chunkSize, which over-retained externally dispatched
+        // batches by hours when chunkSize was small. The invariant
+        // now: chunkSize MUST NOT change the dispatch() TTL — the
+        // floor stays max(default, waitTimeout, timeout, configuredTTL).
         Queue::fake();
 
         /** @var Dispatcher $dispatcher */
@@ -802,9 +819,6 @@ final class LazyParallelBatchTest extends TestCase
             resultTtlSeconds: 10,
         );
 
-        // 10 samples with concurrency=10 and chunk-size=1 means the
-        // command will iterate 10 producer windows, not 1. The TTL must
-        // size for the chunk-driven loop, not the concurrency estimate.
         $samples = [];
         for ($i = 0; $i < 10; $i++) {
             $samples[] = new DatasetSample(
@@ -827,8 +841,8 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
-            // 10 windows * max(waitTimeout=60, timeout=0) = 600 seconds
-            return $job->resultTtlSeconds === 600;
+            // max(default 10, waitTimeout 60, timeout 0, configured 0) = 60.
+            return $job->resultTtlSeconds === 60;
         });
     }
 
@@ -1129,6 +1143,59 @@ final class LazyParallelBatchTest extends TestCase
 
         $unsetWindow = $reflection->invoke($batch, BatchOptions::lazyParallel());
         $this->assertNull($unsetWindow);
+    }
+
+    public function test_run_emits_final_checkpoint_when_batch_fails(): void
+    {
+        // Regression: BatchProgressReporter consumers (dashboards,
+        // log forwarders) need a terminal event even when the batch
+        // exits through failure. Without it, a failed run looks
+        // identical to a stalled run.
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        $reporter = new RecordingBatchProgressReporter;
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        /** @var BatchResultStore $resultStore */
+        $resultStore = $this->app->make(BatchResultStore::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: $resultStore,
+            container: $this->app,
+            resultTtlSeconds: 10,
+            progressReporter: $reporter,
+        );
+
+        $samples = [
+            new DatasetSample(id: 's1', input: ['answer' => 'first'], expectedOutput: 'first'),
+            new DatasetSample(id: 's2', input: ['answer' => 'second'], expectedOutput: 'second'),
+        ];
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelFailingRunner,
+                options: BatchOptions::lazyParallel(
+                    concurrency: 2,
+                    queue: 'evals',
+                    timeoutSeconds: 5,
+                    checkpointEvery: 25,
+                ),
+            );
+            $this->fail('Expected the failing runner to surface as EvalRunException.');
+        } catch (EvalRunException) {
+            // Expected.
+        }
+
+        $this->assertNotEmpty(
+            $reporter->checkpoints,
+            'Failed runs must still emit a terminal checkpoint event so dashboards can distinguish failed from stalled.',
+        );
+        $finalCheckpoint = $reporter->checkpoints[count($reporter->checkpoints) - 1];
+        $this->assertSame(2, $finalCheckpoint['total']);
     }
 
     public function test_run_emits_final_checkpoint_for_empty_batch(): void

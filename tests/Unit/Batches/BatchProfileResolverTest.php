@@ -274,6 +274,25 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_resolver_rejects_non_array_profiles_config(): void
+    {
+        // A misdeclared `profiles` key would otherwise be silently
+        // ignored, and host-app overrides would never apply in
+        // production while looking accepted in source.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => 'not-an-array',
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('eval-harness.batches.profiles must be a map of profile-name => override-array, got string.');
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_profile_rejects_chunk_size_without_concurrency(): void
     {
         // chunk_size with no explicit concurrency would silently clamp

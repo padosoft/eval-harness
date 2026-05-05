@@ -64,7 +64,7 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $outputsByIndex = [];
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
-        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
+        $resultTtlSeconds = $this->resultTtlSecondsForRun($options, $waitTimeoutSeconds, $sampleCount);
         $completed = false;
 
         $rateLimiter = $this->rateLimitWindow($options);
@@ -94,6 +94,7 @@ final class LazyParallelBatch
                         options: $options,
                         resultTtlSeconds: $resultTtlSeconds,
                         rateLimiter: $rateLimiter,
+                        chunkDeadlineMicrotime: $chunkDeadline,
                     );
                 } catch (Throwable $e) {
                     $this->throwStoredFailureOrDispatchException(
@@ -178,6 +179,18 @@ final class LazyParallelBatch
             return $outputs;
         } catch (Throwable $e) {
             if (! $completed) {
+                // Emit the documented end-of-batch checkpoint even on
+                // the failure path so dashboards consuming
+                // BatchProgressReporter can distinguish a finished
+                // failed batch from a stalled one. safeReportCheckpoint
+                // already swallows reporter exceptions so this never
+                // masks the original failure.
+                $this->reportCheckpointFinalIfNeeded(
+                    batchId: $batchId,
+                    samplesCompleted: $samplesCompleted,
+                    totalSamples: $sampleCount,
+                    checkpointEvery: $checkpointEvery,
+                );
                 $this->abortResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
             }
 
@@ -207,12 +220,14 @@ final class LazyParallelBatch
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
         // dispatch() is fire-and-return: callers enqueue now and
-        // collect later, so TTL must NOT include the producer-side
-        // rate-limit pause time (which only applies to run()). The
-        // window-based queue-drain estimate still covers worst-case
-        // worker throughput; operators with bigger pools can pass
-        // BatchOptions::lazyParallel(resultTtlSeconds: ...) to lower it.
-        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount, producerThrottlesDispatch: false);
+        // collect later. TTL math drops the producer-side rate-limit
+        // pause (which only applies to run()) AND the chunkSize-based
+        // window-count factor (which assumes a single sequential
+        // worker and inflates TTL by hours when chunkSize is small).
+        // Operators with large batches or constrained worker pools
+        // should override the floor via
+        // BatchOptions::lazyParallel(resultTtlSeconds: ...).
+        $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $waitTimeoutSeconds);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         // Note: rate-limit throttling deliberately does NOT apply on the
@@ -541,9 +556,27 @@ final class LazyParallelBatch
         BatchOptions $options,
         int $resultTtlSeconds,
         ?RateLimitWindow $rateLimiter = null,
+        ?float $chunkDeadlineMicrotime = null,
     ): void {
         foreach ($samples as $index => $sample) {
-            $this->throttleDispatch($rateLimiter);
+            // Stop dispatching when the chunk deadline has been
+            // reached. Without this check, throttleDispatch() could
+            // keep sleeping through many rate windows past
+            // --batch-timeout, breaking the documented hard wall-clock
+            // cap on the producer window. The caller will surface a
+            // stored failure first or the deadline-exceeded error.
+            if ($chunkDeadlineMicrotime !== null && microtime(true) >= $chunkDeadlineMicrotime) {
+                return;
+            }
+
+            $this->throttleDispatch($rateLimiter, $chunkDeadlineMicrotime);
+
+            if ($chunkDeadlineMicrotime !== null && microtime(true) >= $chunkDeadlineMicrotime) {
+                // throttleDispatch() may have woken early at the
+                // deadline; bail before recording a dispatch we did
+                // not actually make.
+                return;
+            }
 
             $sampleInvocation = $sampleInvocations[$index];
             $job = new EvaluateSampleJob(
@@ -584,16 +617,30 @@ final class LazyParallelBatch
         );
     }
 
-    private function throttleDispatch(?RateLimitWindow $rateLimiter): void
+    private function throttleDispatch(?RateLimitWindow $rateLimiter, ?float $deadlineMicrotime = null): void
     {
         if ($rateLimiter === null) {
             return;
         }
 
         $waitMicroseconds = $rateLimiter->nextWaitMicroseconds(microtime(true));
-        if ($waitMicroseconds > 0) {
-            usleep($waitMicroseconds);
+        if ($waitMicroseconds <= 0) {
+            return;
         }
+
+        // Cap the throttle pause at the chunk deadline so the producer
+        // window cannot overshoot --batch-timeout while sleeping on
+        // a rate-limit pause. The caller will detect the deadline
+        // afterwards and bail before recording a dispatch.
+        if ($deadlineMicrotime !== null) {
+            $remainingMicroseconds = (int) (($deadlineMicrotime - microtime(true)) * 1_000_000);
+            if ($remainingMicroseconds <= 0) {
+                return;
+            }
+            $waitMicroseconds = min($waitMicroseconds, $remainingMicroseconds);
+        }
+
+        usleep($waitMicroseconds);
     }
 
     private function reportCheckpointThresholdsCrossed(
@@ -828,46 +875,61 @@ final class LazyParallelBatch
     }
 
     /**
-     * Compute the result-store TTL for a batch.
+     * Compute the result-store TTL for a run() batch.
      *
-     * `run()` waits between producer windows AND throttles dispatch on
-     * rate-limit pauses, so its TTL must cover both. `dispatch()` is
-     * fire-and-return: it does not throttle and does not wait, so
-     * including the rate-limit pause time would over-retain externally
-     * dispatched batches by hours/days when the profile carries a low
-     * rate limit. Window-based queue-drain time still applies because
-     * workers consume jobs at their own pace, and operators can shrink
-     * the TTL by passing `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
+     * run() waits between producer windows AND throttles dispatch on
+     * rate-limit pauses, so its TTL must cover both. The caller-side
+     * floor (default 3600s, configurable per batch) and per-job
+     * timeout still apply.
      */
-    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, ?int $sampleCount = null, bool $producerThrottlesDispatch = true): int
+    private function resultTtlSecondsForRun(BatchOptions $options, int $waitTimeoutSeconds, int $sampleCount): int
     {
-        $windowWaitSeconds = 0;
-        $rateLimitSeconds = 0;
-        if ($sampleCount !== null) {
-            // Window count must mirror the effective producer window so the TTL
-            // covers the actual loop. When --chunk-size is smaller than
-            // --concurrency, the loop now waits across many more windows than
-            // a concurrency-based estimate would account for.
-            $effectiveChunkSize = $options->effectiveChunkSize();
-            $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
-            $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
+        // Window count must mirror the effective producer window so
+        // the TTL covers the actual loop. When --chunk-size is smaller
+        // than --concurrency, the loop waits across many more windows
+        // than a concurrency-based estimate would account for.
+        $effectiveChunkSize = $options->effectiveChunkSize();
+        $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
+        $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
 
-            // Producer-side rate limiting adds wall-clock delay only on
-            // the run() path that actually throttles. Including it for
-            // dispatch() would inflate the TTL by `(sampleCount /
-            // rateLimit - 1) * rateWindowSeconds`, which can be hours
-            // for a profile that ships with a low default rate.
-            if ($producerThrottlesDispatch && $options->rateLimit !== null) {
-                $rateWindow = $options->rateWindowSeconds ?? 60;
-                $rateBatches = max(1, intdiv($sampleCount + $options->rateLimit - 1, $options->rateLimit));
-                $rateLimitSeconds = ($rateBatches - 1) * $rateWindow;
-            }
+        // Producer-side rate limiting adds wall-clock delay between
+        // dispatches, so the TTL must cover dispatch + worker time
+        // together. Worst case: a full rate-window pause between every
+        // burst of `rateLimit` dispatches.
+        $rateLimitSeconds = 0;
+        if ($options->rateLimit !== null) {
+            $rateWindow = $options->rateWindowSeconds ?? 60;
+            $rateBatches = max(1, intdiv($sampleCount + $options->rateLimit - 1, $options->rateLimit));
+            $rateLimitSeconds = ($rateBatches - 1) * $rateWindow;
         }
 
         return max(
             $this->resultTtlSeconds,
             $waitTimeoutSeconds,
             $windowWaitSeconds + $rateLimitSeconds,
+            $options->timeoutSeconds ?? 0,
+            $options->resultTtlSeconds ?? 0,
+        );
+    }
+
+    /**
+     * Compute the result-store TTL for a dispatch()-only batch.
+     *
+     * dispatch() is fire-and-return: it does not throttle, does not
+     * wait between windows, and the worker pool drains the queue
+     * independently of chunkSize. Multiplying the TTL by
+     * `sampleCount / chunkSize` (or by a producer rate-limit pause
+     * that never happens) would needlessly retain result metadata
+     * for hours / days when the profile carries a small chunkSize or
+     * a low rate limit. Operators with large batches or constrained
+     * worker pools should override this floor explicitly via
+     * `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
+     */
+    private function resultTtlSecondsForDispatch(BatchOptions $options, int $waitTimeoutSeconds): int
+    {
+        return max(
+            $this->resultTtlSeconds,
+            $waitTimeoutSeconds,
             $options->timeoutSeconds ?? 0,
             $options->resultTtlSeconds ?? 0,
         );

@@ -137,6 +137,12 @@ final class BatchProfileResolver
         $overrides = [];
         if ($config !== null) {
             $value = $config->get('eval-harness.batches.profiles');
+            if ($value !== null && ! is_array($value)) {
+                throw new EvalRunException(sprintf(
+                    'eval-harness.batches.profiles must be a map of profile-name => override-array, got %s.',
+                    get_debug_type($value),
+                ));
+            }
             if (is_array($value)) {
                 $overrides = $value;
             }
