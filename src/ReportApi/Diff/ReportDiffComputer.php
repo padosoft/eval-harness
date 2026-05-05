@@ -94,9 +94,30 @@ final class ReportDiffComputer
             throw new ReportDiffSchemaMismatchException(sprintf(
                 "Report on %s side has schema_version '%s'; expected '%s'.",
                 $side,
-                is_string($version) ? $version : 'null',
+                $this->describeSchemaVersion($version),
                 ReportSchema::VERSION,
             ));
+        }
+    }
+
+    private function describeSchemaVersion(mixed $version): string
+    {
+        if (is_string($version)) {
+            return $version;
+        }
+
+        if ($version === null) {
+            return 'null';
+        }
+
+        if (is_scalar($version)) {
+            return get_debug_type($version).'('.(string) $version.')';
+        }
+
+        try {
+            return get_debug_type($version).'('.json_encode($version, JSON_THROW_ON_ERROR).')';
+        } catch (\JsonException) {
+            return get_debug_type($version);
         }
     }
 

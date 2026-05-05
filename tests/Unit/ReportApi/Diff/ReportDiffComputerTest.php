@@ -284,6 +284,17 @@ final class ReportDiffComputerTest extends TestCase
         );
     }
 
+    public function test_mistyped_schema_version_message_includes_actual_type(): void
+    {
+        $this->expectException(ReportDiffSchemaMismatchException::class);
+        $this->expectExceptionMessage("schema_version 'int(123)'");
+
+        $this->computer->compute(
+            $this->minimalReport(['schema_version' => 123]),
+            $this->minimalReport(),
+        );
+    }
+
     public function test_missing_metrics_block_treated_as_empty_not_fatal(): void
     {
         $left = $this->minimalReport();

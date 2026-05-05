@@ -2467,3 +2467,10 @@
 - Third Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `bf07914`) returned 2 new actionable documentation comments plus one stale metrics-type comment already fixed by the previous `metricsBlock()` regression coverage.
 - Addressed the docs comments by changing the README diff endpoint bullet from a hard-coded default prefix to `GET /<configured-prefix>/reports/{id}/diff/{otherId}` and explicitly documenting that `eval-harness.api.prefix` controls the mount point.
 - Added LESSON.md entries for the reusable discoveries: API resources need stable machine keys/discriminators in addition to display labels, and README endpoint bullets under configurable route prefixes should not hard-code only the default prefix.
+
+## 2026-05-06 — Macro 9 / PR #40 fourth Copilot review fix
+
+- Fourth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `e9b9542`) returned 1 new actionable comment plus two stale comments already addressed by prior rounds.
+- Addressed the schema mismatch diagnostic: non-string `schema_version` values now report their actual type/value (`int(123)`, JSON-encoded array/object where possible) instead of collapsing every mistyped value to `null`.
+- Added `ReportDiffComputerTest::test_mistyped_schema_version_message_includes_actual_type` to pin the operator-facing diagnostic.
+- Full local gate passed after the fourth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
