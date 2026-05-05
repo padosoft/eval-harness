@@ -12,6 +12,7 @@ use Padosoft\EvalHarness\Batches\BatchProfile;
 use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
@@ -230,6 +231,33 @@ final class ServiceProviderTest extends TestCase
 
         $batch = $this->app->make(LazyParallelBatch::class);
 
+        $reporterProperty = new \ReflectionProperty($batch, 'progressReporter');
+
+        $this->assertSame($custom, $reporterProperty->getValue($batch));
+    }
+
+    public function test_lazy_parallel_batch_prefers_terminal_progress_reporter_binding(): void
+    {
+        // Host apps that implement the optional sub-contract should
+        // be able to bind under either key. The provider must prefer
+        // the BatchTerminalProgressReporter binding when present so
+        // the terminal-status signal actually reaches LazyParallelBatch.
+        $custom = new class implements BatchTerminalProgressReporter
+        {
+            public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+            {
+                //
+            }
+
+            public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+            {
+                //
+            }
+        };
+        $this->app->instance(BatchTerminalProgressReporter::class, $custom);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
         $reporterProperty = new \ReflectionProperty($batch, 'progressReporter');
 
         $this->assertSame($custom, $reporterProperty->getValue($batch));

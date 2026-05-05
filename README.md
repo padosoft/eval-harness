@@ -554,7 +554,13 @@ Backpressure flags work with any lazy-parallel profile or with
   to N samples per W-second rolling window.
 - `--checkpoint-every=N` emits structured progress events every N
   completed samples; bind a custom `BatchProgressReporter` to forward
-  them to logs or dashboards.
+  them to logs or dashboards. Dashboards that need to distinguish a
+  finished failed batch from a stalled one should implement the
+  optional `BatchTerminalProgressReporter` sub-contract instead — it
+  adds a `reportTerminal(...)` callback with explicit `success` /
+  `failure` / `empty` status. See
+  [docs/HORIZON_BATCH_QUEUES.md](docs/HORIZON_BATCH_QUEUES.md) for an
+  example binding.
 
 To clear an inherited numeric profile value for a one-off run without
 redefining the profile, pass `none` (or `null`) on the corresponding

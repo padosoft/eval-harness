@@ -260,9 +260,48 @@ $this->app->singleton(BatchProgressReporter::class, function () {
 });
 ```
 
-In tests, the default `NullBatchProgressReporter` is used and Horizon
-is never required. Rate limiting works under the `sync` queue too: the
-producer pauses between samples even when each job runs immediately.
+Dashboards that need to distinguish a finished failed batch from a
+stalled one — even when the failure-time `samplesCompleted` happens
+to match an earlier in-progress event — should implement the optional
+`BatchTerminalProgressReporter` sub-contract instead. It adds a
+`reportTerminal(batchId, samplesCompleted, totalSamples, status)`
+method with `STATUS_SUCCESS`, `STATUS_FAILURE`, and `STATUS_EMPTY`
+constants. Bind it under either `BatchProgressReporter::class` or
+`BatchTerminalProgressReporter::class` — the eval-harness service
+provider prefers the sub-contract binding when both keys are present.
+
+```php
+use Padosoft\EvalHarness\Batches\BatchProgressReporter;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
+
+$this->app->singleton(BatchTerminalProgressReporter::class, function () {
+    return new class implements BatchTerminalProgressReporter {
+        public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+        {
+            \Log::info('eval-harness checkpoint', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+            ]);
+        }
+
+        public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+        {
+            \Log::info('eval-harness terminal', [
+                'batch_id' => $batchId,
+                'samples_completed' => $samplesCompleted,
+                'total' => $totalSamples,
+                'status' => $status, // 'success' | 'failure' | 'empty'
+            ]);
+        }
+    };
+});
+```
+
+In tests, the default `NullBatchProgressReporter` is used (it
+implements both contracts) and Horizon is never required. Rate
+limiting works under the `sync` queue too: the producer pauses
+between samples even when each job runs immediately.
 
 ## References
 

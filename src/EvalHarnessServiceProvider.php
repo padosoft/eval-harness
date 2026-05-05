@@ -17,6 +17,7 @@ use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
 use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
+use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
@@ -122,6 +123,14 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new NullBatchProgressReporter;
         });
 
+        // Host apps that implement the optional terminal-status
+        // sub-contract may bind their reporter under either
+        // `BatchProgressReporter::class` (the parent interface that
+        // LazyParallelBatch consumes) or `BatchTerminalProgressReporter::class`.
+        // The LazyParallelBatch factory below prefers the sub-contract
+        // binding when present so the host app does not need to bind
+        // under both keys.
+
         $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);
@@ -151,7 +160,9 @@ class EvalHarnessServiceProvider extends ServiceProvider
                     $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
                     60,
                 ),
-                progressReporter: $app->make(BatchProgressReporter::class),
+                progressReporter: $app->bound(BatchTerminalProgressReporter::class)
+                    ? $app->make(BatchTerminalProgressReporter::class)
+                    : $app->make(BatchProgressReporter::class),
             );
         });
 
