@@ -61,4 +61,21 @@ final class RateLimitWindowTest extends TestCase
 
         new RateLimitWindow(rateLimit: 5, rateWindowSeconds: 0);
     }
+
+    public function test_window_prunes_many_expired_entries_in_one_pass(): void
+    {
+        // Regression for the O(k^2) array_shift() prune. Recording many
+        // timestamps and then advancing past the entire window must keep
+        // the limiter usable without quadratic CPU work.
+        $window = new RateLimitWindow(rateLimit: 1000, rateWindowSeconds: 5);
+
+        for ($i = 0; $i < 5000; $i++) {
+            $window->record(100.0 + ($i * 0.0001));
+        }
+
+        // 200 seconds later, every prior dispatch is expired.
+        $this->assertSame(0, $window->nextWaitMicroseconds(300.0));
+        $window->record(300.0);
+        $this->assertSame(0, $window->nextWaitMicroseconds(300.5));
+    }
 }

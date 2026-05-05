@@ -1473,6 +1473,36 @@ final class AdversarialCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_invalid_rate_window_seconds_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --rate-window-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_window_seconds_without_rate_limit_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => '30',
+        ])
+            ->expectsOutputToContain('Batch rate window seconds is only meaningful with a rate limit')
+            ->assertExitCode(1);
+    }
+
     public function test_serial_mode_rejects_explicit_chunk_size(): void
     {
         $sample = $this->adversarialSample('prompt-injection');

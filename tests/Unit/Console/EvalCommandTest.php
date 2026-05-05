@@ -547,6 +547,73 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_invalid_rate_window_seconds_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-rate-window')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-rate-window',
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --rate-window-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_window_seconds_without_rate_limit_returns_failure(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('rate-window-without-limit')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'rate-window-without-limit',
+            '--batch' => 'lazy-parallel',
+            '--rate-window-seconds' => '30',
+        ])
+            ->expectsOutputToContain('Batch rate window seconds is only meaningful with a rate limit')
+            ->assertExitCode(1);
+    }
+
+    public function test_rate_limit_with_window_runs_under_sync_queue(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('rate-window-happy-path')
+            ->withSamples([
+                new DatasetSample(id: 's1', input: [], expectedOutput: 'hi'),
+                new DatasetSample(id: 's2', input: [], expectedOutput: 'hi'),
+            ])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', TestSampleRunner::class);
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'rate-window-happy-path',
+            '--batch' => 'lazy-parallel',
+            '--queue' => 'evals',
+            '--concurrency' => '2',
+            '--rate-limit' => '10',
+            '--rate-window-seconds' => '1',
+        ])->assertExitCode(0);
+    }
+
     public function test_serial_mode_rejects_explicit_rate_limit(): void
     {
         /** @var EvalEngine $engine */

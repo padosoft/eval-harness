@@ -62,8 +62,19 @@ final class RateLimitWindow
     private function prune(float $now): void
     {
         $cutoff = $now - $this->rateWindowSeconds;
-        while ($this->timestamps !== [] && $this->timestamps[0] <= $cutoff) {
-            array_shift($this->timestamps);
+        $expired = 0;
+        $count = count($this->timestamps);
+        while ($expired < $count && $this->timestamps[$expired] <= $cutoff) {
+            $expired++;
         }
+
+        if ($expired === 0) {
+            return;
+        }
+
+        // Single O(count) slice instead of N array_shift() reindex passes.
+        // array_shift would otherwise turn long high-throughput runs into
+        // a quadratic CPU hot path inside the dispatch loop.
+        $this->timestamps = array_slice($this->timestamps, $expired);
     }
 }

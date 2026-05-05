@@ -94,6 +94,19 @@ final class BatchProfileResolver
         return $this->profiles[$name];
     }
 
+    /** @var list<string> */
+    private const LAZY_ONLY_PROFILE_FIELDS = [
+        'concurrency',
+        'queue',
+        'timeout_seconds',
+        'wait_timeout_seconds',
+        'result_ttl_seconds',
+        'chunk_size',
+        'rate_limit',
+        'rate_window_seconds',
+        'checkpoint_every',
+    ];
+
     /**
      * @return array<string, BatchProfile>
      */
@@ -119,6 +132,23 @@ final class BatchProfileResolver
             }
 
             $existing = $merged[$name] ?? ['mode' => BatchOptions::MODE_SERIAL];
+
+            // When a host-app override flips the resolved mode to serial,
+            // drop inherited lazy-only fields from the built-in so the
+            // merged result remains a valid serial profile. The override
+            // can still set any field explicitly; the explicit value wins
+            // and any lazy-only field set on a serial profile will surface
+            // through BatchProfile validation as before.
+            $existingMode = is_string($existing['mode'] ?? null) ? $existing['mode'] : BatchOptions::MODE_SERIAL;
+            $resolvedMode = is_string($definition['mode'] ?? null) ? $definition['mode'] : $existingMode;
+            if ($resolvedMode === BatchOptions::MODE_SERIAL && $existingMode !== BatchOptions::MODE_SERIAL) {
+                foreach (self::LAZY_ONLY_PROFILE_FIELDS as $field) {
+                    if (! array_key_exists($field, $definition)) {
+                        unset($existing[$field]);
+                    }
+                }
+            }
+
             $merged[$name] = array_replace($existing, $definition);
         }
 

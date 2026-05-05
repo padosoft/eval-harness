@@ -166,6 +166,53 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_override_can_flip_built_in_lazy_profile_to_serial(): void
+    {
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        // ci is lazy-parallel by default; flipping it to
+                        // serial must work even with a single-field
+                        // override (host apps must not be required to
+                        // null every inherited lazy-only field).
+                        'ci' => ['mode' => BatchOptions::MODE_SERIAL],
+                    ],
+                ],
+            ],
+        ]);
+
+        $profile = (new BatchProfileResolver($config))->resolve(BatchProfile::NAME_CI);
+
+        $this->assertSame(BatchOptions::MODE_SERIAL, $profile->mode);
+        $this->assertNull($profile->concurrency);
+        $this->assertNull($profile->timeoutSeconds);
+        $this->assertNull($profile->waitTimeoutSeconds);
+        $this->assertNull($profile->chunkSize);
+        $this->assertNull($profile->checkpointEvery);
+    }
+
+    public function test_override_keeps_explicit_lazy_only_field_then_fails_validation_under_serial_mode(): void
+    {
+        // The resolver should NOT silently drop an explicit lazy-only
+        // field the operator set. Combined with mode=serial it is a real
+        // misconfiguration and BatchProfile must surface it.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'ci' => ['mode' => BatchOptions::MODE_SERIAL, 'concurrency' => 4],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'ci' uses serial mode and cannot set concurrency above 1.");
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_serial_profile_rejects_lazy_parallel_only_field(): void
     {
         $config = new Repository([

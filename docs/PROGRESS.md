@@ -2130,3 +2130,11 @@
   - Removed the false `register()` reference from the `BatchProfileResolver` docblock.
   - Added 4 new ServiceProviderTest cases covering BatchProfileResolver singleton/built-ins/config-overrides and BatchProgressReporter default + LazyParallelBatch wiring.
 - Full local gate passed after the Copilot fixes: `composer validate --strict`, `vendor/bin/phpunit` => `OK (626 tests, 1709 assertions)`, PHPStan no errors, Pint passed.
+- Copilot reviewed PR #37 again at head `fa37dc7` and generated 6 actionable comments: built-in lazy profile cannot be flipped to serial via single-field config override (array_replace inherits lazy-only fields), `--rate-window-seconds` is silently ignored when `--rate-limit` is null, `RateLimitWindow::prune()` was O(k^2) under heavy load via repeated `array_shift()`, the PR body still cited stale 612/1681 test counts, and `--rate-window-seconds` was not exercised in either command test.
+- Addressed every Copilot comment in the next push:
+  - `BatchProfileResolver::buildProfiles()` now drops inherited lazy-only fields when an override flips the resolved mode to serial; explicit lazy-only overrides on serial profiles still surface through `BatchProfile` validation (regression tests: `test_override_can_flip_built_in_lazy_profile_to_serial`, `test_override_keeps_explicit_lazy_only_field_then_fails_validation_under_serial_mode`).
+  - `BatchOptions` now rejects `rateWindowSeconds !== null && rateLimit === null` after the serial-mode validations so the silent no-op surfaces as an explicit error in lazy-parallel mode while serial-mode rejection still takes precedence (regression test: `test_rejects_rate_window_seconds_without_rate_limit`).
+  - `RateLimitWindow::prune()` now does a single `array_slice()` instead of repeated `array_shift()` reindex passes (regression test: `test_window_prunes_many_expired_entries_in_one_pass`).
+  - Added `--rate-window-seconds` coverage to `EvalCommandTest` and `AdversarialCommandTest` (invalid value, lone-window rejection, plus the eval command's lazy-parallel happy path under sync queue).
+- Full local gate passed after the second Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (635 tests, 1730 assertions)`, PHPStan no errors, Pint passed.
+- Reconciled the PR #37 description test counts (had been left at 612/1681 from the original push).

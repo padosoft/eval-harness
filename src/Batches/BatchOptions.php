@@ -129,6 +129,13 @@ final class BatchOptions
                 throw new EvalRunException('Serial batch mode does not use a checkpoint interval.');
             }
         }
+
+        // Lazy-parallel-only cross-validation: a rate window with no rate
+        // limit would otherwise be a silent no-op because LazyParallelBatch
+        // only constructs a RateLimitWindow when rateLimit !== null.
+        if ($rateWindowSeconds !== null && $rateLimit === null) {
+            throw new EvalRunException('Batch rate window seconds is only meaningful with a rate limit; pass --rate-limit=N or unset --rate-window-seconds.');
+        }
     }
 
     public static function serial(?string $profile = null): self

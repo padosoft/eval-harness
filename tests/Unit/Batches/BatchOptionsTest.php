@@ -179,6 +179,14 @@ final class BatchOptionsTest extends TestCase
         BatchOptions::lazyParallel(rateWindowSeconds: 0);
     }
 
+    public function test_rejects_rate_window_seconds_without_rate_limit(): void
+    {
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Batch rate window seconds is only meaningful with a rate limit');
+
+        BatchOptions::lazyParallel(rateWindowSeconds: 30);
+    }
+
     public function test_rejects_invalid_checkpoint_interval(): void
     {
         $this->expectException(EvalRunException::class);
