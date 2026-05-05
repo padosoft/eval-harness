@@ -851,9 +851,16 @@ final class LazyParallelBatch
 
     /**
      * Best-effort terminal event with explicit status for reporters
-     * that implement {@see BatchTerminalProgressReporter}. Reporters
-     * still on the legacy bare-checkpoint contract get the
-     * status-aware fallback in the caller.
+     * that implement {@see BatchTerminalProgressReporter}.
+     *
+     * Reporters still on the legacy bare-checkpoint contract receive
+     * NO terminal-equivalent emission from this method (they only
+     * see the regular `reportCheckpoint()` events emitted at the
+     * configured `checkpointEvery` interval, plus the forced final
+     * checkpoint from `reportCheckpointTerminalForce()` on the
+     * failure path — and only when `checkpointEvery !== null`).
+     * Operators wiring dashboards that need a guaranteed end-of-batch
+     * signal must implement `BatchTerminalProgressReporter`.
      */
     private function safeReportTerminal(
         string $batchId,

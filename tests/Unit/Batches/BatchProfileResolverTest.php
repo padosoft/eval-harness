@@ -366,6 +366,7 @@ final class BatchProfileResolverTest extends TestCase
 
         $this->expectException(EvalRunException::class);
         $this->expectExceptionMessage("Batch profile 'env-backed' mode is null.");
+        $this->expectExceptionMessage('overrides of built-in profiles inherit the built-in mode');
 
         new BatchProfileResolver($config);
     }

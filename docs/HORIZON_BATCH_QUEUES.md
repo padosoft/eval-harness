@@ -87,10 +87,15 @@ whole Horizon pool. Tune `--concurrency` for the maximum producer window
 allowed (and the default dispatch window). When you need tighter backpressure
 than the fan-out cap, set `--chunk-size` lower and remember the runner waits
 after each chunk: in that case chunk-size — not concurrency — is the actual
-in-flight count per producer process. Size `maxProcesses` for the chunk-size
-you actually use under load, not the upper bound. Larger windows keep a busy
-worker pool fed; smaller windows reduce cache/result-store pressure but limit
-producer throughput per command.
+in-flight count per producer process.
+
+`maxProcesses` is a pool-wide setting and must reflect total demand from ALL
+concurrent producers, not just one. If K eval commands can run at the same
+time (CI lanes plus a nightly run, for example), peak in-flight demand is
+roughly `chunk-size × K`. Size `maxProcesses` for that peak — not just one
+producer's chunk-size — or the pool builds a queue backlog. Larger windows
+keep a busy worker pool fed; smaller windows reduce cache/result-store
+pressure but limit producer throughput per command.
 
 ## Timeout Sizing
 

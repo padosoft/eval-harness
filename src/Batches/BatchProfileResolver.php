@@ -209,8 +209,14 @@ final class BatchProfileResolver
         // would silently swallow both cases and disable lazy-parallel
         // behavior in production without surfacing the env mistake.
         if (array_key_exists('mode', $definition) && $definition['mode'] === null) {
+            // The fallback when `mode` is absent depends on whether the
+            // profile inherits a built-in: an override of `ci` /
+            // `nightly` keeps the built-in's mode, an override of
+            // `smoke` or a brand-new profile defaults to serial. The
+            // diagnostic spells out both paths so operators wiring
+            // env-backed overrides know what to expect.
             throw new EvalRunException(sprintf(
-                "Batch profile '%s' mode is null. Set 'mode' to '%s' or '%s', or omit the key to use the default ('%s').",
+                "Batch profile '%s' mode is null. Set 'mode' to '%s' or '%s', or omit the key (overrides of built-in profiles inherit the built-in mode; brand-new profiles default to '%s').",
                 $name,
                 BatchOptions::MODE_SERIAL,
                 BatchOptions::MODE_LAZY_PARALLEL,

@@ -511,9 +511,12 @@ fan-out cap and is also the default dispatch window size; pass
 The producer waits after each chunk completes before dispatching the
 next, so when `--chunk-size < --concurrency`, **chunk-size becomes the
 effective in-flight limit per producer process**, not concurrency.
-Size Horizon worker pool capacity for the chunk-size you actually use,
-not the concurrency upper bound. Worker counts themselves are
-configured in Horizon.
+Total worker pool demand scales with concurrent producers: if K eval
+commands run at the same time, peak in-flight demand is roughly
+`chunk-size × K`. Size Horizon worker pool capacity for the actual
+peak (`chunk-size × concurrent producers`) — not just one producer's
+chunk-size — or the queue will build a backlog. Worker counts
+themselves are configured in Horizon.
 `--timeout` is the per-sample job timeout; `--batch-timeout` caps the
 producer's wait on each dispatch window. It bounds BOTH the dispatch
 phase (including any producer-side `--rate-limit` pauses) AND the
