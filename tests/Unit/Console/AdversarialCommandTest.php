@@ -1381,37 +1381,24 @@ final class AdversarialCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
-    public function test_smoke_profile_runs_serial_against_saved_outputs(): void
+    public function test_ci_profile_resolves_to_lazy_parallel_against_bound_sut(): void
     {
+        // Saved-output runs bypass batchOptions(), so the only way to
+        // observe profile resolution from the adversarial command is the
+        // SUT-bound path. ci profile mode is lazy-parallel; a closure SUT
+        // must surface the SampleRunner requirement, otherwise the
+        // command would silently fall back to the default serial mode and
+        // accept the closure.
         $sample = $this->adversarialSample('prompt-injection');
-        $this->assertIsString($sample->expectedOutput);
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
 
-        $outputs = tempnam(sys_get_temp_dir(), 'eval-adv-profile-outputs-');
-        $report = tempnam(sys_get_temp_dir(), 'eval-adv-profile-report-');
-        $this->assertNotFalse($outputs);
-        $this->assertNotFalse($report);
-
-        try {
-            file_put_contents($outputs, json_encode([
-                'outputs' => [
-                    $sample->id => $sample->expectedOutput,
-                ],
-            ], JSON_THROW_ON_ERROR));
-
-            // smoke profile resolves to serial mode without an SUT binding;
-            // saved outputs should score cleanly without any queue plumbing.
-            $this->artisan('eval-harness:adversarial', [
-                '--category' => ['prompt-injection'],
-                '--metric' => ['exact-match'],
-                '--outputs' => $outputs,
-                '--batch-profile' => 'smoke',
-                '--json' => true,
-                '--out' => $report,
-            ])->assertExitCode(0);
-        } finally {
-            @unlink($outputs);
-            @unlink($report);
-        }
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch-profile' => 'ci',
+        ])
+            ->expectsOutputToContain('Lazy parallel batch mode requires a SampleRunner system-under-test')
+            ->assertExitCode(1);
     }
 
     public function test_unknown_profile_returns_failure(): void

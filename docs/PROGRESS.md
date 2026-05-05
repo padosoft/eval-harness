@@ -2138,3 +2138,10 @@
   - Added `--rate-window-seconds` coverage to `EvalCommandTest` and `AdversarialCommandTest` (invalid value, lone-window rejection, plus the eval command's lazy-parallel happy path under sync queue).
 - Full local gate passed after the second Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (635 tests, 1730 assertions)`, PHPStan no errors, Pint passed.
 - Reconciled the PR #37 description test counts (had been left at 612/1681 from the original push).
+- Copilot reviewed PR #37 again at head `f5749f7` and generated 4 actionable test-coverage comments: the smoke profile test passed even if `--batch-profile=smoke` was ignored (default is also serial), the `--batch=serial` override-success test did not actually prove precedence, the adversarial smoke-saved-outputs test bypassed `batchOptions()` so the profile was never resolved, and `--checkpoint-every` was missing EvalCommand coverage.
+- Addressed every Copilot comment in the next push:
+  - Replaced the weak smoke profile test with `test_smoke_profile_actually_resolves_to_serial_mode` which pairs `--batch-profile=smoke` with `--rate-limit=5`; the resolved serial mode rejects the lazy-parallel-only flag, so the test fails when the profile is silently ignored.
+  - Added `test_ci_profile_resolves_to_lazy_parallel_without_explicit_batch_flag`: a closure SUT under `--batch-profile=ci` must fail with the SampleRunner requirement, proving the ci profile lazy-parallel mode actually applied. Together with the existing `--batch=serial` override-success test, this pair pins the precedence in both directions.
+  - Replaced `test_smoke_profile_runs_serial_against_saved_outputs` (saved-outputs path skipped `batchOptions()`) with `test_ci_profile_resolves_to_lazy_parallel_against_bound_sut` so adversarial profile resolution is also observable.
+  - Added `test_invalid_checkpoint_every_returns_failure` to EvalCommandTest mirroring the AdversarialCommand coverage.
+- Full local gate passed after the third Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (637 tests, 1733 assertions)`, PHPStan no errors, Pint passed.

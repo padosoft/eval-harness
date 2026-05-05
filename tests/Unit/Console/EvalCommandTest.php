@@ -452,20 +452,53 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
-    public function test_smoke_profile_runs_serial_without_explicit_batch_flag(): void
+    public function test_smoke_profile_actually_resolves_to_serial_mode(): void
     {
+        // The smoke profile is serial, which is also the default batch mode,
+        // so a "happy path" smoke profile run does not prove the profile
+        // was applied. Pair --batch-profile=smoke with --rate-limit=5: if
+        // the profile is applied, the resolved mode stays serial and
+        // BatchOptions rejects the lazy-parallel-only flag. If the profile
+        // were silently ignored and somehow flipped to lazy-parallel, the
+        // command would succeed instead.
         /** @var EvalEngine $engine */
         $engine = $this->app->make(EvalEngine::class);
-        $engine->dataset('profile-smoke')
+        $engine->dataset('profile-smoke-observable')
             ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
             ->withMetrics(['exact-match'])
             ->register();
         $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
 
         $this->artisan('eval-harness:run', [
-            'dataset' => 'profile-smoke',
+            'dataset' => 'profile-smoke-observable',
             '--batch-profile' => 'smoke',
-        ])->assertExitCode(0);
+            '--rate-limit' => '5',
+        ])
+            ->expectsOutputToContain('Serial batch mode does not use a rate limit.')
+            ->assertExitCode(1);
+    }
+
+    public function test_ci_profile_resolves_to_lazy_parallel_without_explicit_batch_flag(): void
+    {
+        // The ci profile mode is lazy-parallel; a closure SUT cannot satisfy
+        // the lazy-parallel SampleRunner requirement, so this command must
+        // fail with that exact error. Default batch mode is serial which
+        // would have accepted the closure, so a green run here would mean
+        // the profile was silently ignored.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('profile-ci-resolves')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'profile-ci-resolves',
+            '--batch-profile' => 'ci',
+        ])
+            ->expectsOutputToContain('Lazy parallel batch mode requires a SampleRunner system-under-test')
+            ->assertExitCode(1);
     }
 
     public function test_unknown_profile_returns_failure(): void
@@ -488,6 +521,11 @@ final class EvalCommandTest extends TestCase
 
     public function test_explicit_batch_flag_overrides_profile_mode(): void
     {
+        // Paired with the no-override test above: without --batch=serial,
+        // ci profile fails with the SampleRunner error; with --batch=serial
+        // the override wins, mode resolves to serial, and the lazy-parallel
+        // profile defaults are dropped. Together both tests pin the
+        // explicit-CLI-wins-over-profile precedence in both directions.
         /** @var EvalEngine $engine */
         $engine = $this->app->make(EvalEngine::class);
         $engine->dataset('profile-override')
@@ -496,8 +534,6 @@ final class EvalCommandTest extends TestCase
             ->register();
         $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
 
-        // ci defaults to lazy-parallel; explicit --batch=serial should win
-        // and the lazy-parallel-only fields from ci should be silently dropped.
         $this->artisan('eval-harness:run', [
             'dataset' => 'profile-override',
             '--batch-profile' => 'ci',
@@ -526,6 +562,25 @@ final class EvalCommandTest extends TestCase
             '--batch-profile' => 'ci',
             '--queue' => 'evals',
         ])->assertExitCode(0);
+    }
+
+    public function test_invalid_checkpoint_every_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-checkpoint-every')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-checkpoint-every',
+            '--batch' => 'lazy-parallel',
+            '--checkpoint-every' => 'abc',
+        ])
+            ->expectsOutputToContain('The --checkpoint-every option must be a positive integer.')
+            ->assertExitCode(1);
     }
 
     public function test_invalid_chunk_size_returns_failure(): void
