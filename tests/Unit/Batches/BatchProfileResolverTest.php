@@ -342,6 +342,34 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_resolver_rejects_explicit_null_mode(): void
+    {
+        // Round-26 fix: explicit null `mode` (e.g. `'mode' =>
+        // env('FOO')` when the env var is unset) must NOT silently
+        // fall back to serial. Operators wiring profiles through env
+        // would otherwise see lazy-parallel behavior disabled in
+        // production with no diagnostic. A missing key (no `mode`
+        // entry at all) still defaults to serial — only an explicit
+        // null is rejected.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'env-backed' => [
+                            'mode' => null,
+                            'concurrency' => 4,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'env-backed' mode is null.");
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_resolve_rejects_blank_name(): void
     {
         $resolver = new BatchProfileResolver;

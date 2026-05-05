@@ -202,6 +202,21 @@ final class BatchProfileResolver
             ));
         }
 
+        // Distinguish "mode key absent" (default to serial) from
+        // "mode key explicitly null" (env-var-backed config with the
+        // env unset — `'mode' => env('FOO')` returns null which is a
+        // misconfig, not an opt-in to serial). The `??` shortcut
+        // would silently swallow both cases and disable lazy-parallel
+        // behavior in production without surfacing the env mistake.
+        if (array_key_exists('mode', $definition) && $definition['mode'] === null) {
+            throw new EvalRunException(sprintf(
+                "Batch profile '%s' mode is null. Set 'mode' to '%s' or '%s', or omit the key to use the default ('%s').",
+                $name,
+                BatchOptions::MODE_SERIAL,
+                BatchOptions::MODE_LAZY_PARALLEL,
+                BatchOptions::MODE_SERIAL,
+            ));
+        }
         $mode = $definition['mode'] ?? BatchOptions::MODE_SERIAL;
         if (! is_string($mode)) {
             throw new EvalRunException(sprintf("Batch profile '%s' mode must be a string.", $name));

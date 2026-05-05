@@ -309,6 +309,15 @@ final class LazyParallelBatch
      * useful for Queue::fake() assertions and external schedulers. Engine runs
      * should use run(), which applies the concurrency window before collecting.
      *
+     * Fire-and-return semantics hold ONLY on real queue drivers (Redis,
+     * database, beanstalk — the documented Horizon path) where
+     * `dispatcher->dispatch()` enqueues the job and returns immediately.
+     * On Laravel's `sync` driver, dispatch executes each job INLINE in
+     * this method, so dispatch() blocks for the full sample runtime per
+     * sample. Callers using `sync` (typically tests and quick scripts)
+     * should size TTLs and execution flow against worst-case synchronous
+     * runner time, not against the abstract fire-and-return contract.
+     *
      * @param  list<DatasetSample>  $samples
      * @param  list<SampleInvocation>  $sampleInvocations
      */
@@ -336,9 +345,19 @@ final class LazyParallelBatch
 
         // Note: rate-limit throttling deliberately does NOT apply on the
         // external dispatch-only path. Callers use dispatch() to enqueue
-        // now and collect later (the documented fire-and-return flow);
+        // now and collect later (the documented fire-and-return flow on
+        // real queue drivers — Redis / database / beanstalk / Horizon);
         // blocking inside the producer would defeat the purpose. Workers
         // drain the queue at their own pace.
+        //
+        // Sync queue caveat: with Laravel's `sync` driver,
+        // `dispatcher->dispatch()` runs each job INLINE inside this
+        // loop, so dispatch() effectively blocks for the full sample
+        // runtime per sample. The TTL math still skips the producer-
+        // side rate-limit pause (this method does not throttle) but
+        // callers using `sync` for tests should size their own
+        // execution flow / TTL expectations against the worst-case
+        // synchronous runner time.
         try {
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 $this->dispatchSampleJobs(
