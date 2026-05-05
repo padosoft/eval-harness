@@ -560,9 +560,15 @@ final class LazyParallelBatch
                 $job->onQueue($options->queue);
             }
 
-            $this->dispatcher->dispatch($job);
-
+            // Record dispatch timestamp BEFORE the dispatcher actually
+            // hands off the job. On the sync queue driver, dispatch()
+            // runs the job synchronously, so recording afterwards would
+            // capture completion time instead of dispatch time and a
+            // slow sample would stretch the next throttle wait by its
+            // own runtime.
             $rateLimiter?->record(microtime(true));
+
+            $this->dispatcher->dispatch($job);
         }
     }
 
