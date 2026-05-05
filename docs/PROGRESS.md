@@ -2465,3 +2465,10 @@
 - Third Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `67835f2`) returned 2 new actionable comments plus two stale comments already addressed in the prior round.
 - Addressed invalid disk handling by wrapping manifest disk resolution in `ReportArtifactUnavailableException`, so bad `eval-harness.adversarial.manifests.disk` config maps to the controller's 503 path instead of leaking Laravel's `InvalidArgumentException` as a generic 500. Pinned with `test_invalid_manifest_disk_returns_service_unavailable`.
 - Reworked the request-pass-through regression test so it is meaningful: `ManifestController` now delegates resource rendering through an injectable `ManifestResourceFactory`, and the test swaps that factory to assert it receives the actual route `Request`. This catches a future regression to the global `request()` helper without adding test-only fields to the public JSON payload.
+
+## 2026-05-06 — Macro 9 / PR #41 fourth Copilot review fix
+
+- Fourth Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `92e1b33`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Addressed the test double portability issue by replacing by-reference promoted-property syntax with an explicit property and reference assignment inside the constructor.
+- Corrected `ManifestResource`'s docblock from "Envelope shape" to "Data payload shape" because the controller builds the outer Report API envelope.
+- Full local gate passed after the fourth PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (709 tests, 1983 assertions)`, PHPStan no errors, Pint passed.

@@ -9,7 +9,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifest;
 
 /**
- * Envelope shape for an adversarial manifest show endpoint.
+ * Data payload shape for an adversarial manifest show endpoint.
  *
  * Renders the parsed `AdversarialRunManifest` as plain associative
  * arrays so HTTP clients see the same shape the manifest file on disk

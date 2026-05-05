@@ -138,7 +138,12 @@ final class ManifestRouteTest extends TestCase
         $this->app->bind(ManifestResourceFactory::class, static function () use (&$seenRequest): ManifestResourceFactory {
             return new class($seenRequest) extends ManifestResourceFactory
             {
-                public function __construct(private mixed &$seenRequest) {}
+                private mixed $seenRequest;
+
+                public function __construct(mixed &$seenRequest)
+                {
+                    $this->seenRequest = &$seenRequest;
+                }
 
                 public function toArray(AdversarialRunManifest $manifest, Request $request): array
                 {
