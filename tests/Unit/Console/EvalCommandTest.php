@@ -289,6 +289,53 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_empty_batch_mode_is_rejected(): void
+    {
+        // Round-37 fix: `--batch=` (empty) was silently treated as
+        // "not provided" and fell through to the profile/default
+        // mode. With profile support an env var like
+        // `--batch=$EVAL_BATCH_MODE --batch-profile=ci` (env
+        // unset) would silently switch the run to lazy-parallel.
+        // Only the numeric flags support empty fall-through.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-batch-mode')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-batch-mode',
+            '--batch' => '',
+        ])
+            ->expectsOutputToContain('--batch option requires a non-empty mode')
+            ->assertExitCode(1);
+    }
+
+    public function test_empty_queue_is_rejected(): void
+    {
+        // Round-37 fix: `--queue=` (empty) was silently treated as
+        // "not provided" and fell through to the inherited profile
+        // queue. An unset env var like `--queue=$EVAL_QUEUE
+        // --batch-profile=nightly` would silently dispatch onto
+        // the profile's queue instead of surfacing the misconfig.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-empty-queue')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'reject-empty-queue',
+            '--queue' => '',
+        ])
+            ->expectsOutputToContain('--queue option requires a non-empty queue name')
+            ->assertExitCode(1);
+    }
+
     public function test_empty_batch_profile_is_rejected(): void
     {
         // Round-36 fix: `--batch-profile=` (empty) was silently

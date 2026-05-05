@@ -302,7 +302,19 @@ trait BuildsBatchOptions
     {
         if ($this->batchOptionWasProvided('batch')) {
             $value = $this->option('batch');
-            if (is_string($value) && $value !== '') {
+            // Empty `--batch=` is rejected: only the numeric flags
+            // (--timeout, --batch-timeout, --chunk-size,
+            // --rate-limit, --rate-window-seconds,
+            // --result-ttl-seconds, --checkpoint-every) document
+            // empty-value fall-through to profile/baseline default.
+            // Allowing the mode flag to fall through to the profile
+            // would silently switch a run into lazy-parallel when an
+            // env var like `--batch=$EVAL_BATCH_MODE
+            // --batch-profile=ci` resolves the env to empty.
+            if ($value === '') {
+                throw new EvalRunException('The --batch option requires a non-empty mode (serial or lazy-parallel). Omit the flag entirely to use the profile/baseline default.');
+            }
+            if (is_string($value)) {
                 return $value;
             }
         }
@@ -344,9 +356,17 @@ trait BuildsBatchOptions
             // need to clear an inherited profile queue should override
             // the profile in `eval-harness.batches.profiles.*` config
             // instead of via the CLI.
-            if ($value === null || $value === '') {
-                // Empty: treat as not provided.
-            } else {
+            //
+            // Empty `--queue=` is rejected for the same reason as the
+            // mode/profile flags: only the numeric flags document
+            // empty-value fall-through to profile/baseline default.
+            // Allowing `--queue=$EVAL_QUEUE` (env unset) to silently
+            // dispatch onto the profile's inherited queue would mask
+            // a configuration mistake.
+            if ($value === '') {
+                throw new EvalRunException('The --queue option requires a non-empty queue name. Omit the flag entirely to inherit the profile queue, or override the profile in eval-harness.batches.profiles.* config to clear an inherited value.');
+            }
+            if ($value !== null) {
                 if (! is_string($value)) {
                     throw new EvalRunException('The --queue option must be a non-empty string.');
                 }
