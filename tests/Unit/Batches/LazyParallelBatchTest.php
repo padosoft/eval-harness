@@ -168,6 +168,48 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
+    public function test_dispatch_ttl_uses_default_wait_timeout_floor_when_per_job_timeout_is_null(): void
+    {
+        // Round-43 fix: BatchOptions::lazyParallel(timeoutSeconds:
+        // null) is the documented default — callers rely on the
+        // queue worker's own timeout. Without a fallback, drainSeconds
+        // collapses to 0 and large dispatched batches expire after
+        // only the constructor floor (default 3600s) regardless of
+        // sample count, breaking delayed collectOutputs() flows.
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+            defaultWaitTimeoutSeconds: 60,
+        );
+        // 100 samples, concurrency 1 → 100 drain batches.
+        $samples = [];
+        $invocations = [];
+        for ($i = 0; $i < 100; $i++) {
+            $sample = new DatasetSample(id: 's'.($i + 1), input: ['answer' => 'a'], expectedOutput: 'a');
+            $samples[] = $sample;
+            $invocations[] = SampleInvocation::fromDatasetSample($sample);
+        }
+
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $invocations,
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 1),
+        );
+
+        Queue::assertPushed(EvaluateSampleJob::class, static function (EvaluateSampleJob $job): bool {
+            // drainBatches = 100, perDrainBatchSeconds =
+            // defaultWaitTimeoutSeconds = 60. drainSeconds = 6000.
+            // Constructor floor 10 < 6000, so TTL = 6000.
+            return $job->resultTtlSeconds === 6000;
+        });
+    }
+
     public function test_dispatch_cleans_result_store_when_dispatcher_fails(): void
     {
         $samples = $this->samples();

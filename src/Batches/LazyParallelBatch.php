@@ -91,9 +91,15 @@ final class LazyParallelBatch
         $samplesCompleted = 0;
         $nextCheckpointThreshold = $checkpointEvery;
 
-        $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
-
         try {
+            // Initialize the result store inside the try so a cache
+            // outage at startup still emits STATUS_FAILURE to
+            // dashboards. Without this, an unavailable result
+            // store would surface as a silent stall (no SUCCESS,
+            // no FAILURE) even though a batch id was already
+            // allocated and the run is unmistakably broken.
+            $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
+
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 // The chunk deadline covers BOTH dispatch (which can
                 // include rate-limit pauses) and result collection so
@@ -214,26 +220,6 @@ final class LazyParallelBatch
                 );
             }
 
-            $this->reportCheckpointFinalIfNeeded(
-                batchId: $batchId,
-                samplesCompleted: $samplesCompleted,
-                totalSamples: $sampleCount,
-                checkpointEvery: $checkpointEvery,
-            );
-
-            // Reporters that implement the optional terminal-status
-            // contract get an explicit success/empty signal here so
-            // they can distinguish a finished batch from any
-            // in-progress emission with the same counts.
-            $this->safeReportTerminal(
-                batchId: $batchId,
-                samplesCompleted: $samplesCompleted,
-                totalSamples: $sampleCount,
-                status: $sampleCount === 0
-                    ? BatchTerminalProgressReporter::STATUS_EMPTY
-                    : BatchTerminalProgressReporter::STATUS_SUCCESS,
-            );
-
             ksort($outputsByIndex);
 
             $outputs = [];
@@ -248,6 +234,28 @@ final class LazyParallelBatch
 
                 $outputs[] = $outputsByIndex[$index];
             }
+
+            $this->reportCheckpointFinalIfNeeded(
+                batchId: $batchId,
+                samplesCompleted: $samplesCompleted,
+                totalSamples: $sampleCount,
+                checkpointEvery: $checkpointEvery,
+            );
+
+            // Emit terminal SUCCESS / EMPTY only after output
+            // assembly + validation has succeeded. If we emitted
+            // earlier and the validation loop above threw (missing
+            // index, mismatched stored output), dashboards would
+            // receive STATUS_SUCCESS followed by STATUS_FAILURE for
+            // the same batch — contradictory terminal states.
+            $this->safeReportTerminal(
+                batchId: $batchId,
+                samplesCompleted: $samplesCompleted,
+                totalSamples: $sampleCount,
+                status: $sampleCount === 0
+                    ? BatchTerminalProgressReporter::STATUS_EMPTY
+                    : BatchTerminalProgressReporter::STATUS_SUCCESS,
+            );
 
             $completed = true;
             $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
@@ -1246,7 +1254,16 @@ final class LazyParallelBatch
     private function resultTtlSecondsForDispatch(BatchOptions $options, int $sampleCount): int
     {
         $drainBatches = max(1, intdiv($sampleCount + $options->concurrency - 1, $options->concurrency));
-        $drainSeconds = $drainBatches * ($options->timeoutSeconds ?? 0);
+        // When `--timeout` is null (the documented default — callers
+        // rely on the queue worker's own timeout), fall back to the
+        // package's default wait-timeout floor so per-drain-batch
+        // runtime is non-zero. Otherwise drainSeconds collapses to
+        // 0 and long externally-dispatched batches would expire
+        // after only the constructor floor (default 3600s)
+        // regardless of sample count, breaking delayed
+        // collectOutputs() flows on big batches.
+        $perDrainBatchSeconds = $options->timeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
+        $drainSeconds = $drainBatches * $perDrainBatchSeconds;
 
         return max(
             $this->resultTtlSeconds,
