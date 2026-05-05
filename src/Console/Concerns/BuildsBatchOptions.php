@@ -8,6 +8,7 @@ use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\BatchProfile;
 use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
 trait BuildsBatchOptions
 {
@@ -73,29 +74,41 @@ trait BuildsBatchOptions
             return;
         }
 
-        // Use line() with explicit comment styling instead of warn().
-        // warn() routes through SymfonyStyle::warning() which prints a
-        // multi-line block with padding that interleaves padding lines
-        // between the prefix and the flag list, making
-        // expectsOutputToContain() assertions on individual flag names
-        // brittle in tests. A plain styled line keeps the message on a
-        // single line and is still visually distinct in terminal use.
-        $this->line(sprintf(
+        $message = sprintf(
             '<comment>Warning: Ignoring batch flags (%s) because --outputs is set; saved-output scoring bypasses the batch dispatch path.</comment>',
             implode(', ', $passed),
-        ));
+        );
+
+        // Route the warning to STDERR so it does NOT pollute stdout
+        // when callers run `eval-harness:run --outputs ... --json`
+        // (without `--out`) and pipe stdout to a JSON parser. The
+        // JSON contract documents stdout as machine-parseable; the
+        // warning belongs alongside other diagnostic output. Fall
+        // back to the regular line writer when the OutputInterface
+        // does not split error output (BufferedOutput in Artisan
+        // tests, for example) so test assertions still see the
+        // message in the captured output buffer.
+        $output = $this->output->getOutput();
+        if ($output instanceof ConsoleOutputInterface) {
+            $output->getErrorOutput()->writeln($message);
+
+            return;
+        }
+
+        $this->line($message);
     }
 
     /**
      * Detect whether the operator explicitly passed a batch flag.
      *
-     * `hasParameterOption()` works when Artisan parsed real CLI
-     * tokens, but in `$this->artisan('cmd', [...])` tests Laravel's
-     * `ArrayInput` populates the parsed-options bag directly without
-     * tokens, so the token check returns false. Fall back to
-     * comparing the option value against the signature default —
-     * any non-null, non-empty value that differs from the default
-     * counts as explicitly passed in both contexts.
+     * Works in both ArgvInput (real CLI) and ArrayInput
+     * (`Artisan::call(...)` / artisan testing) contexts. The
+     * sentinel-based `getParameterOption()` walks the original
+     * parameter source directly, so it sees explicit-default-valued
+     * flags like `--batch=serial` or `--concurrency=1` that the
+     * value-vs-default fallback would miss. `hasParameterOption()`
+     * is checked first because it is the canonical Symfony helper
+     * for this check on real CLI invocations.
      */
     private function batchFlagWasPassed(string $flag): bool
     {
@@ -104,21 +117,31 @@ trait BuildsBatchOptions
             return false;
         }
 
+        return $this->inputContainsParameterOption($flag);
+    }
+
+    /**
+     * @internal Used by `batchOptionWasProvided()` and
+     *           `batchFlagWasPassed()` so cross-field reconciliation
+     *           AND the runtime warning agree on what "operator
+     *           passed this flag" means across input types.
+     */
+    private function inputContainsParameterOption(string $flag): bool
+    {
         if ($this->input->hasParameterOption($flag, true)) {
             return true;
         }
 
-        $value = $this->option($name);
-        if ($value === null || $value === '') {
-            return false;
-        }
+        // Sentinel string returned only when the flag is absent from
+        // the input source. The marker is namespaced by call to make
+        // accidental collision with a real operator value impossible
+        // — `getParameterOption()`'s contract returns the actual
+        // string value when the flag is present, so any non-sentinel
+        // result (including `null`, `''`, `'1'`, etc.) means the
+        // operator passed the flag.
+        $sentinel = "\0__eval_harness_param_absent__\0";
 
-        $default = $this->getDefinition()->getOption($name)->getDefault();
-        if ($default === null) {
-            return true;
-        }
-
-        return (string) $value !== (string) $default;
+        return $this->input->getParameterOption($flag, $sentinel, true) !== $sentinel;
     }
 
     private function batchOptions(): BatchOptions
@@ -308,7 +331,7 @@ trait BuildsBatchOptions
             return false;
         }
 
-        return $this->input->hasParameterOption('--'.$name, true);
+        return $this->inputContainsParameterOption('--'.$name);
     }
 
     /**
