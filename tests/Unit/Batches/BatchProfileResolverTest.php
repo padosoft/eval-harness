@@ -326,6 +326,34 @@ final class BatchProfileResolverTest extends TestCase
         $this->assertNull($profile->chunkSize);
     }
 
+    public function test_overriding_concurrency_with_numeric_string_drops_inherited_chunk_size(): void
+    {
+        // Round-42 fix: env-backed Laravel config values like
+        // `'concurrency' => env('FOO')` arrive as STRINGS;
+        // normalizePositiveInt coerces them later. The round-41
+        // dependent-clear only ran on `is_int` — string overrides
+        // skipped the clear and the resolver would throw at
+        // validation time. The dependent-clear must accept both
+        // real ints and numeric strings.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'nightly' => [
+                            'concurrency' => '8',
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $resolver = new BatchProfileResolver($config);
+        $profile = $resolver->resolve('nightly');
+
+        $this->assertSame(8, $profile->concurrency);
+        $this->assertNull($profile->chunkSize);
+    }
+
     public function test_overriding_rate_limit_to_null_drops_inherited_rate_window_seconds(): void
     {
         // Round-41 fix: an override like `['nightly' =>

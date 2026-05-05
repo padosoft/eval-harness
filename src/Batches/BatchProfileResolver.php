@@ -211,11 +211,36 @@ final class BatchProfileResolver
             if (array_key_exists('rate_limit', $definition) && $definition['rate_limit'] === null) {
                 unset($existing['rate_window_seconds']);
             }
-            if (array_key_exists('concurrency', $definition) && is_int($definition['concurrency'])) {
-                $existingChunkSize = $existing['chunk_size'] ?? null;
-                if (is_int($existingChunkSize) && $existingChunkSize > $definition['concurrency']
-                    && ! array_key_exists('chunk_size', $definition)) {
-                    unset($existing['chunk_size']);
+            // Accept both real ints and numeric strings here. Laravel
+            // env-backed config values (`'concurrency' => env('FOO')`)
+            // arrive as strings; numeric coercion happens later in
+            // `normalizePositiveInt()`. Restricting the dependent-clear
+            // to `is_int(...)` would let env-backed overrides skip
+            // the clear and the resolver would throw at validation
+            // time even though the override is otherwise valid.
+            if (array_key_exists('concurrency', $definition)) {
+                $overrideConcurrency = $definition['concurrency'];
+                $overrideConcurrencyAsInt = null;
+                if (is_int($overrideConcurrency)) {
+                    $overrideConcurrencyAsInt = $overrideConcurrency;
+                } elseif (is_string($overrideConcurrency) && ctype_digit(trim($overrideConcurrency))) {
+                    $overrideConcurrencyAsInt = (int) trim($overrideConcurrency);
+                }
+
+                if ($overrideConcurrencyAsInt !== null) {
+                    $existingChunkSize = $existing['chunk_size'] ?? null;
+                    $existingChunkSizeAsInt = null;
+                    if (is_int($existingChunkSize)) {
+                        $existingChunkSizeAsInt = $existingChunkSize;
+                    } elseif (is_string($existingChunkSize) && ctype_digit(trim($existingChunkSize))) {
+                        $existingChunkSizeAsInt = (int) trim($existingChunkSize);
+                    }
+
+                    if ($existingChunkSizeAsInt !== null
+                        && $existingChunkSizeAsInt > $overrideConcurrencyAsInt
+                        && ! array_key_exists('chunk_size', $definition)) {
+                        unset($existing['chunk_size']);
+                    }
                 }
             }
 

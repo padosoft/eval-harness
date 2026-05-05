@@ -1227,12 +1227,21 @@ final class LazyParallelBatch
      * enough for `collectOutputs()` to read it back, so the TTL
      * must reflect worker-side drain time. Worker pool capacity is
      * unknown to the harness; concurrency (the producer fan-out
-     * cap) is the closest proxy. Per-drain-batch runtime is bounded
-     * by `--timeout` (the per-job queue worker timeout), and total
-     * drain time = ceil(sampleCount / concurrency) windows.
-     * Operators with larger or smaller pools should override the
-     * floor explicitly via
-     * `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
+     * cap) is used as the proxy and total drain time is estimated
+     * as ceil(sampleCount / concurrency) windows of `--timeout`.
+     *
+     * Pool-mismatch caveat: Horizon `maxProcesses` can legitimately
+     * be SMALLER than `--concurrency` (e.g. running 4 workers
+     * against `--concurrency=20` to bound provider QPS). In that
+     * setup the actual drain time is
+     * `ceil(sampleCount / maxProcesses) * --timeout` — larger than
+     * what this estimate produces — so result metadata can expire
+     * before delayed `collectOutputs()` finishes. Operators in the
+     * pool-mismatch case (and operators with substantially LARGER
+     * pools who want a tighter TTL) MUST override the floor
+     * explicitly via `BatchOptions::lazyParallel(resultTtlSeconds:
+     * ...)`. The harness has no portable way to introspect Horizon
+     * worker counts so this is a conscious operator hand-off.
      */
     private function resultTtlSecondsForDispatch(BatchOptions $options, int $sampleCount): int
     {
