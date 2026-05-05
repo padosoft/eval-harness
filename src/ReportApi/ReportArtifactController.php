@@ -14,10 +14,12 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class ReportArtifactController
 {
+    private ReportJsonDecoder $jsonDecoder;
+
     public function __construct(
-        private ?ReportJsonDecoder $jsonDecoder = null,
+        ?ReportJsonDecoder $jsonDecoder = null,
     ) {
-        $this->jsonDecoder ??= new ReportJsonDecoder;
+        $this->jsonDecoder = $jsonDecoder ?? new ReportJsonDecoder;
     }
 
     public function index(Request $request, ReportArtifactRepository $reports): JsonResponse
