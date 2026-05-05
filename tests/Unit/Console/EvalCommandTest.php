@@ -534,6 +534,25 @@ final class EvalCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_invalid_result_ttl_seconds_returns_failure(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('invalid-result-ttl')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'invalid-result-ttl',
+            '--batch' => 'lazy-parallel',
+            '--result-ttl-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --result-ttl-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
     public function test_invalid_chunk_size_returns_failure(): void
     {
         /** @var EvalEngine $engine */

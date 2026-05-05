@@ -1460,6 +1460,21 @@ final class AdversarialCommandTest extends TestCase
             ->assertExitCode(1);
     }
 
+    public function test_invalid_result_ttl_seconds_returns_failure(): void
+    {
+        $sample = $this->adversarialSample('prompt-injection');
+        $this->app->bind('eval-harness.sut', fn () => fn (array $_input): string => (string) $sample->expectedOutput);
+
+        $this->artisan('eval-harness:adversarial', [
+            '--category' => ['prompt-injection'],
+            '--metric' => ['exact-match'],
+            '--batch' => 'lazy-parallel',
+            '--result-ttl-seconds' => 'abc',
+        ])
+            ->expectsOutputToContain('The --result-ttl-seconds option must be a positive integer.')
+            ->assertExitCode(1);
+    }
+
     public function test_invalid_rate_window_seconds_returns_failure(): void
     {
         $sample = $this->adversarialSample('prompt-injection');

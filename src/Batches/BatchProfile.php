@@ -111,6 +111,17 @@ final class BatchProfile
                 $concurrency,
             ));
         }
+
+        // chunk_size without an explicit concurrency would silently fall
+        // back to baseline concurrency=1 in the trait, where the
+        // cross-field reconciliation then clamps chunk_size back to 1.
+        // Surface that as a profile misconfig instead of a slow run.
+        if ($chunkSize !== null && $concurrency === null) {
+            throw new EvalRunException(sprintf(
+                "Batch profile '%s' sets chunk_size but does not set concurrency; chunk_size requires an explicit concurrency to size against (otherwise the trait clamps chunk_size to the baseline 1).",
+                $name,
+            ));
+        }
     }
 
     private function assertPositiveOrNull(string $field, ?int $value): void

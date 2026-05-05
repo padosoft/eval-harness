@@ -563,7 +563,7 @@ flag. For example, with `--batch-profile=nightly` (which sets
 `--rate-limit=none --checkpoint-every=none` disables both for that
 single invocation while keeping every other profile field. The same
 sentinel works for `--timeout`, `--batch-timeout`, `--chunk-size`,
-`--rate-window-seconds`, `--result-ttl-seconds`, and
+`--rate-limit`, `--rate-window-seconds`, `--result-ttl-seconds`, and
 `--checkpoint-every`. `--queue` is excluded — queue names are
 arbitrary strings, so override the profile in
 `eval-harness.batches.profiles.*` config when an inherited queue must

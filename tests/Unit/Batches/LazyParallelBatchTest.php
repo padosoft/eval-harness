@@ -832,6 +832,58 @@ final class LazyParallelBatchTest extends TestCase
         });
     }
 
+    public function test_dispatch_does_not_throttle_on_rate_limit(): void
+    {
+        // Regression: dispatch() must remain the documented
+        // fire-and-return flow. If rate-limit throttling leaked back
+        // into dispatch() (as happened on a prior commit), even small
+        // batches with a low rateLimit would block the producer for
+        // wall-clock seconds before returning a batch id. Pin the
+        // wall-clock budget: 12 dispatches at rateLimit=2 /
+        // rateWindowSeconds=60 must not sleep across multiple rate
+        // windows. We assert finishing well under one rate window
+        // (allowing generous CI overhead).
+        Queue::fake();
+
+        /** @var Dispatcher $dispatcher */
+        $dispatcher = $this->app->make(Dispatcher::class);
+        $batch = new LazyParallelBatch(
+            dispatcher: $dispatcher,
+            resultStore: new RecordingBatchResultStore,
+            resultTtlSeconds: 10,
+        );
+
+        $samples = [];
+        for ($i = 0; $i < 12; $i++) {
+            $samples[] = new DatasetSample(
+                id: 's'.($i + 1),
+                input: ['answer' => 'a'.($i + 1)],
+                expectedOutput: 'a'.($i + 1),
+            );
+        }
+
+        $start = microtime(true);
+        $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(
+                concurrency: 12,
+                queue: 'evals',
+                rateLimit: 2,
+                rateWindowSeconds: 60,
+            ),
+        );
+        $elapsedSeconds = microtime(true) - $start;
+
+        Queue::assertPushed(EvaluateSampleJob::class, 12);
+        $this->assertLessThan(
+            10.0,
+            $elapsedSeconds,
+            'dispatch() must remain fire-and-return: throttling on the rate limiter would consume multiple 60s rate windows for 12 samples at rateLimit=2.',
+        );
+    }
+
     public function test_run_uses_effective_chunk_size_for_producer_window(): void
     {
         // RecordingBatchResultStore captures one `outputs:` event per

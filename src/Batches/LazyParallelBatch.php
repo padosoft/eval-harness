@@ -206,15 +206,20 @@ final class LazyParallelBatch
         $batchId = $this->newBatchId();
         $sampleCount = count($samples);
         $waitTimeoutSeconds = $options->waitTimeoutSeconds ?? $this->defaultWaitTimeoutSeconds;
-        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount);
+        // dispatch() is fire-and-return: callers enqueue now and
+        // collect later, so TTL must NOT include the producer-side
+        // rate-limit pause time (which only applies to run()). The
+        // window-based queue-drain estimate still covers worst-case
+        // worker throughput; operators with bigger pools can pass
+        // BatchOptions::lazyParallel(resultTtlSeconds: ...) to lower it.
+        $resultTtlSeconds = $this->resultTtlSecondsFor($options, $waitTimeoutSeconds, $sampleCount, producerThrottlesDispatch: false);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
 
         // Note: rate-limit throttling deliberately does NOT apply on the
         // external dispatch-only path. Callers use dispatch() to enqueue
         // now and collect later (the documented fire-and-return flow);
         // blocking inside the producer would defeat the purpose. Workers
-        // drain the queue at their own pace, and the result-store TTL
-        // already accounts for the worst-case rate-limit pause time.
+        // drain the queue at their own pace.
         try {
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 $this->dispatchSampleJobs(
@@ -816,7 +821,19 @@ final class LazyParallelBatch
         );
     }
 
-    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, ?int $sampleCount = null): int
+    /**
+     * Compute the result-store TTL for a batch.
+     *
+     * `run()` waits between producer windows AND throttles dispatch on
+     * rate-limit pauses, so its TTL must cover both. `dispatch()` is
+     * fire-and-return: it does not throttle and does not wait, so
+     * including the rate-limit pause time would over-retain externally
+     * dispatched batches by hours/days when the profile carries a low
+     * rate limit. Window-based queue-drain time still applies because
+     * workers consume jobs at their own pace, and operators can shrink
+     * the TTL by passing `BatchOptions::lazyParallel(resultTtlSeconds: ...)`.
+     */
+    private function resultTtlSecondsFor(BatchOptions $options, int $waitTimeoutSeconds, ?int $sampleCount = null, bool $producerThrottlesDispatch = true): int
     {
         $windowWaitSeconds = 0;
         $rateLimitSeconds = 0;
@@ -829,12 +846,12 @@ final class LazyParallelBatch
             $windowCount = max(1, intdiv($sampleCount + $effectiveChunkSize - 1, $effectiveChunkSize));
             $windowWaitSeconds = max($waitTimeoutSeconds, $options->timeoutSeconds ?? 0) * $windowCount;
 
-            // Producer-side rate limiting also adds wall-clock delay before
-            // later samples are even enqueued. The worst case is a full
-            // rate-window pause between every full burst of `rateLimit`
-            // dispatches, so the TTL must cover dispatch + worker time
-            // together.
-            if ($options->rateLimit !== null) {
+            // Producer-side rate limiting adds wall-clock delay only on
+            // the run() path that actually throttles. Including it for
+            // dispatch() would inflate the TTL by `(sampleCount /
+            // rateLimit - 1) * rateWindowSeconds`, which can be hours
+            // for a profile that ships with a low default rate.
+            if ($producerThrottlesDispatch && $options->rateLimit !== null) {
                 $rateWindow = $options->rateWindowSeconds ?? 60;
                 $rateBatches = max(1, intdiv($sampleCount + $options->rateLimit - 1, $options->rateLimit));
                 $rateLimitSeconds = ($rateBatches - 1) * $rateWindow;

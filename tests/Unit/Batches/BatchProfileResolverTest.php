@@ -274,6 +274,30 @@ final class BatchProfileResolverTest extends TestCase
         new BatchProfileResolver($config);
     }
 
+    public function test_profile_rejects_chunk_size_without_concurrency(): void
+    {
+        // chunk_size with no explicit concurrency would silently clamp
+        // to the baseline (1) in the trait, which would degrade
+        // throughput without any operator-visible signal.
+        $config = new Repository([
+            'eval-harness' => [
+                'batches' => [
+                    'profiles' => [
+                        'partial' => [
+                            'mode' => BatchOptions::MODE_LAZY_PARALLEL,
+                            'chunk_size' => 8,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("Batch profile 'partial' sets chunk_size but does not set concurrency");
+
+        new BatchProfileResolver($config);
+    }
+
     public function test_resolver_rejects_unknown_profile_keys(): void
     {
         // Typos like `concurency` or `checkpointEvery` would otherwise
