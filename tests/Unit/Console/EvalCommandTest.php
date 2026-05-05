@@ -289,6 +289,68 @@ final class EvalCommandTest extends TestCase
         }
     }
 
+    public function test_explicit_null_batch_profile_via_artisan_call_is_rejected(): void
+    {
+        // Round-38 fix: programmatic Artisan::call(['--batch-profile'
+        // => null]) was hitting the early "value === null → no
+        // profile" return, recreating the silent fallback the
+        // empty-string guard was meant to prevent. Round-38 unifies
+        // null and '' on the rejection path.
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-batch-profile')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-batch-profile',
+            '--batch-profile' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--batch-profile option requires a non-empty profile name', Artisan::output());
+    }
+
+    public function test_explicit_null_batch_mode_via_artisan_call_is_rejected(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-batch-mode')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-batch-mode',
+            '--batch' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--batch option requires a non-empty mode', Artisan::output());
+    }
+
+    public function test_explicit_null_queue_via_artisan_call_is_rejected(): void
+    {
+        /** @var EvalEngine $engine */
+        $engine = $this->app->make(EvalEngine::class);
+        $engine->dataset('reject-null-queue')
+            ->withSamples([new DatasetSample(id: 's1', input: [], expectedOutput: 'hi')])
+            ->withMetrics(['exact-match'])
+            ->register();
+        $this->app->bind('eval-harness.sut', fn () => fn (array $in): string => 'hi');
+
+        $exit = Artisan::call('eval-harness:run', [
+            'dataset' => 'reject-null-queue',
+            '--queue' => null,
+        ]);
+
+        $this->assertSame(1, $exit);
+        $this->assertStringContainsString('--queue option requires a non-empty queue name', Artisan::output());
+    }
+
     public function test_empty_batch_mode_is_rejected(): void
     {
         // Round-37 fix: `--batch=` (empty) was silently treated as

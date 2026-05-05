@@ -263,6 +263,49 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame($custom, $reporterProperty->getValue($batch));
     }
 
+    public function test_lazy_parallel_batch_uses_aliased_reporter_under_factory_terminal_binding(): void
+    {
+        // Round-38 fix: when a host app binds the terminal reporter
+        // via `bind()` (factory, not singleton), the LazyParallelBatch
+        // factory must route through `BatchProgressReporter::class`
+        // (which the singletonIf alias resolves to the terminal
+        // binding) instead of resolving the terminal key directly.
+        // Otherwise LazyParallelBatch gets a DIFFERENT instance from
+        // any other consumer type-hinting the parent interface,
+        // breaking the "bind under either key" contract.
+        $instances = [];
+        $this->app->bind(BatchTerminalProgressReporter::class, function () use (&$instances) {
+            $reporter = new class implements BatchTerminalProgressReporter
+            {
+                public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
+                {
+                    //
+                }
+
+                public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
+                {
+                    //
+                }
+            };
+            $instances[] = $reporter;
+
+            return $reporter;
+        });
+        $this->app->forgetInstance(BatchProgressReporter::class);
+        $this->app->forgetInstance(LazyParallelBatch::class);
+
+        $batch = $this->app->make(LazyParallelBatch::class);
+        $reporterFromBatch = (new \ReflectionProperty($batch, 'progressReporter'))->getValue($batch);
+        $reporterFromContainer = $this->app->make(BatchProgressReporter::class);
+
+        // Both consumers must see the same instance — the singletonIf
+        // alias caches the first resolution so subsequent
+        // `BatchProgressReporter` makes return that same object even
+        // though the underlying `bind()` factory would otherwise
+        // produce fresh instances.
+        $this->assertSame($reporterFromBatch, $reporterFromContainer);
+    }
+
     public function test_parent_progress_reporter_resolves_to_terminal_binding_when_only_terminal_is_bound(): void
     {
         // Round-35 fix: the "bind under either key" contract only

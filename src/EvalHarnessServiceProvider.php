@@ -165,9 +165,18 @@ class EvalHarnessServiceProvider extends ServiceProvider
                     $config->get('eval-harness.batches.lazy_parallel.wait_timeout_seconds'),
                     60,
                 ),
-                progressReporter: $app->bound(BatchTerminalProgressReporter::class)
-                    ? $app->make(BatchTerminalProgressReporter::class)
-                    : $app->make(BatchProgressReporter::class),
+                // Route through `BatchProgressReporter::class` only.
+                // The parent-interface singletonIf above resolves to
+                // the host app's `BatchTerminalProgressReporter`
+                // binding when present, so the factory does NOT
+                // resolve the terminal key directly. Without this,
+                // a host app binding the terminal reporter via
+                // `bind()` (factory, not singleton) would yield a
+                // DIFFERENT instance to LazyParallelBatch than to
+                // any other consumer type-hinting the parent
+                // interface — breaking the advertised "bind under
+                // either key" contract.
+                progressReporter: $app->make(BatchProgressReporter::class),
             );
         });
 

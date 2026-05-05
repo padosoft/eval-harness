@@ -266,57 +266,56 @@ trait BuildsBatchOptions
             return null;
         }
 
-        $value = $this->option('batch-profile');
-        if ($value === null) {
-            return null;
-        }
-
-        // Empty `--batch-profile=` is rejected: only the numeric
-        // flags (--timeout, --batch-timeout, --chunk-size,
-        // --rate-limit, --rate-window-seconds, --result-ttl-seconds,
+        // Empty `--batch-profile=` (and explicit-null
+        // `['--batch-profile' => null]` via `Artisan::call(...)`)
+        // is rejected: only the numeric flags (--timeout,
+        // --batch-timeout, --chunk-size, --rate-limit,
+        // --rate-window-seconds, --result-ttl-seconds,
         // --checkpoint-every) document empty-value fall-through to
-        // the profile/baseline default. Treating an empty profile
-        // name as "no profile" would let an unset CI variable
-        // (`--batch-profile=$EVAL_PROFILE` with `EVAL_PROFILE`
-        // unset) silently change batch mode and backpressure
+        // profile/baseline default. Treating an empty/null profile
+        // name as "no profile" would let an unset env variable
+        // (`--batch-profile=$EVAL_PROFILE` with `EVAL_PROFILE` unset
+        // on real CLI, or `['--batch-profile' => env('FOO')]` via
+        // Artisan::call) silently change batch mode and backpressure
         // without any diagnostic. Operators that do not want a
         // profile must omit the flag entirely.
-        if ($value === '' && $this->batchOptionWasProvided('batch-profile')) {
-            throw new EvalRunException('The --batch-profile option requires a non-empty profile name (e.g. ci, smoke, nightly). Omit the flag entirely to skip profile resolution.');
-        }
-        if ($value === '') {
-            return null;
+        if ($this->batchOptionWasProvided('batch-profile')) {
+            $value = $this->option('batch-profile');
+            if ($value === null || $value === '') {
+                throw new EvalRunException('The --batch-profile option requires a non-empty profile name (e.g. ci, smoke, nightly). Omit the flag entirely to skip profile resolution.');
+            }
+
+            if (! is_string($value)) {
+                throw new EvalRunException('The --batch-profile option must be a non-empty string.');
+            }
+
+            /** @var BatchProfileResolver $resolver */
+            $resolver = $this->laravel->make(BatchProfileResolver::class);
+
+            return $resolver->resolve($value);
         }
 
-        if (! is_string($value)) {
-            throw new EvalRunException('The --batch-profile option must be a non-empty string.');
-        }
-
-        /** @var BatchProfileResolver $resolver */
-        $resolver = $this->laravel->make(BatchProfileResolver::class);
-
-        return $resolver->resolve($value);
+        return null;
     }
 
     private function resolveBatchMode(?BatchProfile $profile): string
     {
         if ($this->batchOptionWasProvided('batch')) {
             $value = $this->option('batch');
-            // Empty `--batch=` is rejected: only the numeric flags
-            // (--timeout, --batch-timeout, --chunk-size,
-            // --rate-limit, --rate-window-seconds,
-            // --result-ttl-seconds, --checkpoint-every) document
-            // empty-value fall-through to profile/baseline default.
-            // Allowing the mode flag to fall through to the profile
-            // would silently switch a run into lazy-parallel when an
-            // env var like `--batch=$EVAL_BATCH_MODE
-            // --batch-profile=ci` resolves the env to empty.
-            if ($value === '') {
+            // Reject empty AND explicit-null `--batch` for the same
+            // reason as `--batch-profile`: only numeric flags
+            // document empty-value fall-through. An ArrayInput
+            // caller passing `['--batch' => null]` (e.g. via
+            // env-backed config) would otherwise silently switch a
+            // run into lazy-parallel via the profile inheritance.
+            if ($value === null || $value === '') {
                 throw new EvalRunException('The --batch option requires a non-empty mode (serial or lazy-parallel). Omit the flag entirely to use the profile/baseline default.');
             }
-            if (is_string($value)) {
-                return $value;
+            if (! is_string($value)) {
+                throw new EvalRunException('The --batch option must be a non-empty string (serial or lazy-parallel).');
             }
+
+            return $value;
         }
 
         if ($profile !== null) {
@@ -357,22 +356,21 @@ trait BuildsBatchOptions
             // the profile in `eval-harness.batches.profiles.*` config
             // instead of via the CLI.
             //
-            // Empty `--queue=` is rejected for the same reason as the
-            // mode/profile flags: only the numeric flags document
-            // empty-value fall-through to profile/baseline default.
-            // Allowing `--queue=$EVAL_QUEUE` (env unset) to silently
+            // Empty `--queue=` AND explicit-null
+            // `['--queue' => null]` (programmatic Artisan::call with
+            // env-backed config) are rejected for the same reason as
+            // the mode/profile flags: only numeric flags document
+            // empty-value fall-through. Allowing them to silently
             // dispatch onto the profile's inherited queue would mask
-            // a configuration mistake.
-            if ($value === '') {
+            // the configuration mistake.
+            if ($value === null || $value === '') {
                 throw new EvalRunException('The --queue option requires a non-empty queue name. Omit the flag entirely to inherit the profile queue, or override the profile in eval-harness.batches.profiles.* config to clear an inherited value.');
             }
-            if ($value !== null) {
-                if (! is_string($value)) {
-                    throw new EvalRunException('The --queue option must be a non-empty string.');
-                }
-
-                return $value;
+            if (! is_string($value)) {
+                throw new EvalRunException('The --queue option must be a non-empty string.');
             }
+
+            return $value;
         }
 
         if ($modeIsSerial) {
