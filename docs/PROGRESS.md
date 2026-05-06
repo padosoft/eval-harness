@@ -2696,3 +2696,9 @@
 - Aligned the dataset trend resource payload annotation with its returned keys.
 - Documented the dataset trend endpoint in README feature and Report API sections, including the `limit` cap and schema discriminator.
 - Full local gate passed after the seventh PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 merged
+
+- PR #43 (`task/report-api-completeness-v9-dataset-trend`) received a current-head Copilot review on `a985ba3` with `generated no new comments` and all six GitHub Actions matrix jobs green.
+- Merged PR #43 into macro branch `task/report-api-completeness-v9` with merge commit `7c1c7ec`.
+- Macro Task 9 API slices now include report diff, adversarial manifest discovery, live batch registry/progress, and dataset trend endpoints.
