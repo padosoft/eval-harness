@@ -2556,3 +2556,10 @@
   - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
   - `vendor/bin/pint --test` => passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 first review fix
+
+- First automated review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `314a892`) returned 1 actionable comment: aborted batches retained failure result entries, but `CacheBatchResultStore::progress()` counted failures through `failures()`, which intentionally returns an empty array once metadata status is no longer `active`.
+- Addressed the terminal progress bug by making `progress()` count retained terminal result payloads directly, preserving success/failure validation while working for `active`, `finished`, and `aborted` metadata states.
+- Added `CacheBatchResultStoreTest::test_progress_reports_failures_after_batch_abort` to pin the failure count after `abort()`.
+- Full local gate passed after the first PR #42 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (748 tests, 2083 assertions)`, PHPStan no errors, Pint passed.

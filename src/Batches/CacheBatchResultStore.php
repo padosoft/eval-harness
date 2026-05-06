@@ -74,10 +74,7 @@ final class CacheBatchResultStore implements BatchResultStore
             return ['successes' => 0, 'failures' => 0];
         }
 
-        return [
-            'successes' => count($this->successfulResults($batchId, $payload['sample_count'])),
-            'failures' => count($this->failures($batchId, $payload['sample_count'])),
-        ];
+        return $this->terminalResultCounts($batchId, $payload['sample_count']);
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -230,6 +227,71 @@ final class CacheBatchResultStore implements BatchResultStore
             ['sample_count' => $sampleCount, 'status' => $status, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
+    }
+
+    /**
+     * @return array{successes: int, failures: int}
+     */
+    private function terminalResultCounts(string $batchId, int $sampleCount): array
+    {
+        $counts = ['successes' => 0, 'failures' => 0];
+
+        foreach ($this->indexesToScan($sampleCount, null) as $index) {
+            $payload = $this->cache->get($this->resultKey($batchId, $index));
+            if ($payload === null) {
+                continue;
+            }
+
+            if (! is_array($payload) || ! array_key_exists('status', $payload)) {
+                throw new EvalRunException(sprintf(
+                    'Stored lazy parallel batch result for index %d is invalid.',
+                    $index,
+                ));
+            }
+
+            if ($payload['status'] === 'success') {
+                if (
+                    ! array_key_exists('sample_id', $payload)
+                    || ! is_string($payload['sample_id'])
+                    || ! array_key_exists('actual_output', $payload)
+                    || ! is_string($payload['actual_output'])
+                ) {
+                    throw new EvalRunException(sprintf(
+                        'Stored lazy parallel batch output for index %d is invalid.',
+                        $index,
+                    ));
+                }
+
+                $counts['successes']++;
+
+                continue;
+            }
+
+            if ($payload['status'] === 'failure') {
+                if (
+                    ! array_key_exists('sample_id', $payload)
+                    || ! is_string($payload['sample_id'])
+                    || ! array_key_exists('error', $payload)
+                    || ! is_string($payload['error'])
+                ) {
+                    throw new EvalRunException(sprintf(
+                        'Stored lazy parallel batch failure for index %d is invalid.',
+                        $index,
+                    ));
+                }
+
+                $counts['failures']++;
+
+                continue;
+            }
+
+            throw new EvalRunException(sprintf(
+                'Stored lazy parallel batch result for index %d is invalid.',
+                $index,
+            ));
+        }
+
+        return $counts;
     }
 
     /**

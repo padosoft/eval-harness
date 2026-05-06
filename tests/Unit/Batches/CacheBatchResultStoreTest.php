@@ -115,6 +115,17 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame([], $store->failures('closed-batch', 1));
     }
 
+    public function test_progress_reports_failures_after_batch_abort(): void
+    {
+        $store = $this->store();
+        $store->start('aborted-progress', 2, 60);
+        $store->recordFailure('aborted-progress', 0, 's1', 'runner exploded', 60);
+
+        $store->abort('aborted-progress', 2, 60);
+
+        $this->assertSame(['successes' => 0, 'failures' => 1], $store->progress('aborted-progress'));
+    }
+
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
     {
         $cache = new GetRecordingCacheRepository($this->cache->getStore());
