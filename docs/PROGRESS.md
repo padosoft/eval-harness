@@ -2710,3 +2710,11 @@
 - Confirmed the README banner image is present at `resources/banner.png` and already rendered immediately after badges and before the TOC.
 - Expanded README feature documentation for live batch registry/progress and the full v1.2 Report API endpoint set.
 - Full local gate passed after the companion UI spec/docs slice: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 first review fix
+
+- Opened macro PR #44 (`task/report-api-completeness-v9` -> `main`) after merging PRs #40, #41, #42, and #43; all six GitHub Actions matrix jobs passed on head `ad8d6b8`.
+- First review on PR #44 returned 1 actionable comment: dataset trend discovery assumed reports lived under `{prefix}/{dataset}` even though documented `--out` paths can place JSON reports anywhere under the report prefix.
+- Changed dataset trend discovery to scan all JSON artifacts under the configured report prefix and filter decoded reports by their `dataset` field.
+- Added regression coverage for arbitrary report paths, missing dataset with other reports present, and missing report prefix returning empty trend points.
+- Full local gate passed after the first macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (770 tests, 2148 assertions)`, PHPStan no errors, Pint passed.

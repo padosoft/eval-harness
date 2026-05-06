@@ -43,6 +43,43 @@ final class DatasetTrendRouteTest extends TestCase
             ->assertJsonPath('data.points.1.cohorts.0.label', 'all');
     }
 
+    public function test_dataset_trend_discovers_reports_saved_under_arbitrary_prefix_paths(): void
+    {
+        Storage::fake('eval-api');
+        $this->putReportAt('eval-harness/reports/evals/ci-rag.json', 'rag', 20.0, 0.8);
+        $this->putReportAt('eval-harness/reports/eval-report.json', 'rag', 10.0, 0.7);
+        $this->putReportAt('eval-harness/reports/evals/other.json', 'other', 30.0, 0.9);
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend')
+            ->assertOk()
+            ->assertJsonPath('data.count', 2)
+            ->assertJsonPath('data.points.0.path', 'eval-report.json')
+            ->assertJsonPath('data.points.1.path', 'evals/ci-rag.json');
+    }
+
+    public function test_missing_dataset_returns_empty_points_when_prefix_has_other_reports(): void
+    {
+        Storage::fake('eval-api');
+        $this->putReportAt('eval-harness/reports/evals/other.json', 'other', 30.0, 0.9);
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend')
+            ->assertOk()
+            ->assertJsonPath('data.dataset', 'rag')
+            ->assertJsonPath('data.count', 0)
+            ->assertJsonPath('data.points', []);
+    }
+
+    public function test_missing_report_prefix_returns_empty_points(): void
+    {
+        Storage::fake('eval-api');
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend')
+            ->assertOk()
+            ->assertJsonPath('data.dataset', 'rag')
+            ->assertJsonPath('data.count', 0)
+            ->assertJsonPath('data.points', []);
+    }
+
     public function test_dataset_trend_caps_limit_to_one_hundred(): void
     {
         Storage::fake('eval-api');
@@ -126,13 +163,9 @@ final class DatasetTrendRouteTest extends TestCase
     public function test_trend_read_failures_return_service_unavailable(): void
     {
         $disk = Mockery::mock(Filesystem::class);
-        $disk->shouldReceive('exists')
+        $disk->shouldReceive('allFiles')
             ->once()
-            ->with('eval-harness/reports/rag')
-            ->andReturn(true);
-        $disk->shouldReceive('files')
-            ->once()
-            ->with('eval-harness/reports/rag')
+            ->with('eval-harness/reports')
             ->andReturn(['eval-harness/reports/rag/broken.json']);
         $disk->shouldReceive('get')
             ->once()
@@ -170,7 +203,12 @@ final class DatasetTrendRouteTest extends TestCase
 
     private function putReport(string $dataset, string $filename, float $startedAt, float $macroF1): void
     {
-        Storage::disk('eval-api')->put('eval-harness/reports/'.$dataset.'/'.$filename, json_encode([
+        $this->putReportAt('eval-harness/reports/'.$dataset.'/'.$filename, $dataset, $startedAt, $macroF1);
+    }
+
+    private function putReportAt(string $path, string $dataset, float $startedAt, float $macroF1): void
+    {
+        Storage::disk('eval-api')->put($path, json_encode([
             'schema_version' => 'eval-harness.report.v1',
             'dataset' => $dataset,
             'started_at' => $startedAt,

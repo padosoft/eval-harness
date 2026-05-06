@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\ReportApi\Trend;
 
 use Illuminate\Contracts\Filesystem\Filesystem;
-use Illuminate\Filesystem\FilesystemAdapter;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
 use Padosoft\EvalHarness\Reports\ReportSchema;
@@ -24,20 +23,11 @@ final class DatasetTrendRepository
     {
         $limit = max(1, min(100, $limit));
         $prefix = $this->reports->prefix();
-        $basePath = $prefix === '' ? $datasetName : $prefix.'/'.$datasetName;
         $points = [];
         $disk = $this->reports->disk();
 
         try {
-            if ($disk instanceof FilesystemAdapter) {
-                if (! $disk->directoryExists($basePath)) {
-                    return [];
-                }
-            } elseif (! $disk->exists($basePath)) {
-                return [];
-            }
-
-            $paths = $disk->files($basePath);
+            $paths = $disk->allFiles($prefix === '' ? null : $prefix);
         } catch (Throwable $e) {
             throw new ReportArtifactUnavailableException('Dataset trend listing could not be read.', previous: $e);
         }
