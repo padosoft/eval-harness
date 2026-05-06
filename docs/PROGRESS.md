@@ -2750,3 +2750,10 @@
 - Added regression coverage for invalid report disk resolution on the report index and dataset trend route.
 - Reworded the adversarial manifest config comment to use `/<configured-prefix>/...` instead of a hard-coded default API prefix.
 - Full local gate passed after the fifth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2156 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 sixth Copilot review fix
+
+- Sixth review on PR #44 (`task/report-api-completeness-v9`, head `62dbcb6`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Made progress-counter TTL refresh exception-safe: if a lock-protected refresh fails after incrementing a counter, `incrementProgressCounter()` rolls back the counter before surfacing the cache failure.
+- Added regression coverage that a failed metadata refresh leaves progress counters at zero after the result key rollback.
+- Full local gate passed after the sixth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2157 assertions)`, PHPStan no errors, Pint passed.

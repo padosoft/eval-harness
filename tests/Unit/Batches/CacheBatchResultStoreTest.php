@@ -188,6 +188,8 @@ final class CacheBatchResultStoreTest extends TestCase
             $this->assertSame('meta refresh down', $e->getMessage());
         }
 
+        $this->assertSame(['successes' => 0, 'failures' => 0], $store->progress('rollback-progress'));
+
         $cache->throwOnMetaRefresh = false;
         $store->recordSuccess('rollback-progress', 0, 's1', 'first output', 120);
 

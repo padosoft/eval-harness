@@ -315,9 +315,11 @@ final class CacheBatchResultStore implements BatchResultStore
             ? $this->progressSuccessKey($batchId)
             : $this->progressFailureKey($batchId);
 
-        $increment = function () use ($counterKey, $ttlSeconds): bool {
+        $incremented = false;
+        $increment = function () use ($counterKey, $ttlSeconds, &$incremented): bool {
             $added = $this->cache->add($counterKey, 0, $ttlSeconds);
             $this->cache->increment($counterKey);
+            $incremented = true;
 
             return $added;
         };
@@ -347,12 +349,34 @@ final class CacheBatchResultStore implements BatchResultStore
 
                     return true;
                 }
-            } catch (\Throwable) {
-                // Fall back to atomic increment; existing counter TTLs cannot be safely refreshed here.
+            } catch (\Throwable $e) {
+                if ($incremented) {
+                    try {
+                        $this->decrementProgressCounter($batchId, $status);
+                    } catch (\Throwable) {
+                        // Preserve the original cache failure; rollback is best-effort.
+                    }
+
+                    throw $e;
+                }
+
+                // Lock acquisition failed before any counter change; fall back to atomic increment.
             }
         }
 
-        return $increment();
+        try {
+            return $increment();
+        } catch (\Throwable $e) {
+            if ($incremented) {
+                try {
+                    $this->decrementProgressCounter($batchId, $status);
+                } catch (\Throwable) {
+                    // Preserve the original cache failure; rollback is best-effort.
+                }
+            }
+
+            throw $e;
+        }
     }
 
     private function decrementProgressCounter(string $batchId, string $status): void
