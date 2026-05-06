@@ -26,4 +26,8 @@ final class ReportApiSchema
     public const SCHEMA_ADVERSARIAL_MANIFESTS = 'eval-harness.report-api.v1.adversarial-manifests';
 
     public const SCHEMA_ADVERSARIAL_MANIFEST = 'eval-harness.report-api.v1.adversarial-manifest';
+
+    public const SCHEMA_BATCHES_LIVE = 'eval-harness.report-api.v1.batches-live';
+
+    public const SCHEMA_BATCH_PROGRESS = 'eval-harness.report-api.v1.batch-progress';
 }

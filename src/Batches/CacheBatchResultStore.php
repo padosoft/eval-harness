@@ -34,6 +34,8 @@ final class CacheBatchResultStore implements BatchResultStore
             ['sample_count' => $sampleCount, 'status' => self::STATUS_ACTIVE, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
+        $this->cache->put($this->progressSuccessKey($batchId), 0, $ttlSeconds);
+        $this->cache->put($this->progressFailureKey($batchId), 0, $ttlSeconds);
     }
 
     public function sampleCount(string $batchId): ?int
@@ -54,6 +56,38 @@ final class CacheBatchResultStore implements BatchResultStore
         }
 
         return $payload['ttl_seconds'];
+    }
+
+    /**
+     * @return array{sample_count: int, status: string, ttl_seconds: int}|null
+     */
+    public function metadata(string $batchId): ?array
+    {
+        return $this->metaPayload($batchId);
+    }
+
+    /**
+     * @return array{successes: int, failures: int}
+     */
+    public function progress(string $batchId): array
+    {
+        $payload = $this->metaPayload($batchId);
+        if ($payload === null) {
+            return ['successes' => 0, 'failures' => 0];
+        }
+
+        return $this->progressCounters($batchId);
+    }
+
+    /**
+     * @return array{successes: int, failures: int}
+     */
+    public function progressCounters(string $batchId): array
+    {
+        return [
+            'successes' => $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'),
+            'failures' => $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
+        ];
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -209,12 +243,18 @@ final class CacheBatchResultStore implements BatchResultStore
     }
 
     /**
-     * @param  array{status: 'success', sample_id: string, actual_output: string}|array{status: 'failure', sample_id: string, error: string}  $payload
+     * @param  array{status: string, sample_id: string, actual_output?: string, error?: string}  $payload
      */
     private function recordTerminalResult(string $batchId, int $index, array $payload, int $ttlSeconds): void
     {
         $this->assertNonNegativeIndex($index);
         $this->assertPositiveTtl($ttlSeconds);
+        if ($payload['status'] !== 'success' && $payload['status'] !== 'failure') {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch terminal result status '%s' is invalid.",
+                $payload['status'],
+            ));
+        }
 
         if ($this->status($batchId) !== self::STATUS_ACTIVE) {
             return;
@@ -236,16 +276,108 @@ final class CacheBatchResultStore implements BatchResultStore
 
         if ($metaPayload['status'] === self::STATUS_ACTIVE) {
             $effectiveTtlSeconds = max($metaPayload['ttl_seconds'], $ttlSeconds);
-            $this->cache->put(
-                $this->metaKey($batchId),
-                [
-                    'sample_count' => $metaPayload['sample_count'],
-                    'status' => self::STATUS_ACTIVE,
-                    'ttl_seconds' => $effectiveTtlSeconds,
-                ],
-                $effectiveTtlSeconds,
-            );
+            $counterIncremented = false;
+            try {
+                $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
+                $counterIncremented = true;
+                $this->cache->put(
+                    $this->metaKey($batchId),
+                    [
+                        'sample_count' => $metaPayload['sample_count'],
+                        'status' => self::STATUS_ACTIVE,
+                        'ttl_seconds' => $effectiveTtlSeconds,
+                    ],
+                    $effectiveTtlSeconds,
+                );
+            } catch (\Throwable $e) {
+                $this->cache->forget($resultKey);
+                if ($counterIncremented) {
+                    $this->decrementProgressCounter($batchId, $payload['status']);
+                }
+
+                throw $e;
+            }
         }
+    }
+
+    private function incrementProgressCounter(string $batchId, string $status, int $ttlSeconds): void
+    {
+        if ($status !== 'success' && $status !== 'failure') {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch terminal result status '%s' is invalid.",
+                $status,
+            ));
+        }
+
+        $counterKey = $status === 'success'
+            ? $this->progressSuccessKey($batchId)
+            : $this->progressFailureKey($batchId);
+
+        $increment = function () use ($counterKey, $ttlSeconds): void {
+            $this->cache->add($counterKey, 0, $ttlSeconds);
+            $this->cache->increment($counterKey);
+        };
+
+        $incrementAndRefreshTtl = function () use ($batchId, $increment, $ttlSeconds): void {
+            $increment();
+            $this->cache->put(
+                $this->progressSuccessKey($batchId),
+                $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'),
+                $ttlSeconds,
+            );
+            $this->cache->put(
+                $this->progressFailureKey($batchId),
+                $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
+                $ttlSeconds,
+            );
+        };
+
+        if (method_exists($this->cache, 'lock')) {
+            try {
+                /** @var mixed $lock */
+                $lock = $this->cache->lock($this->progressLockKey($batchId), 10);
+                if (is_object($lock) && method_exists($lock, 'block')) {
+                    $lock->block(5, $incrementAndRefreshTtl);
+
+                    return;
+                }
+            } catch (\Throwable) {
+                // Fall back to the atomic increment without a TTL refresh.
+            }
+        }
+
+        $increment();
+    }
+
+    private function decrementProgressCounter(string $batchId, string $status): void
+    {
+        $counterKey = $status === 'success'
+            ? $this->progressSuccessKey($batchId)
+            : $this->progressFailureKey($batchId);
+
+        $this->cache->decrement($counterKey);
+    }
+
+    private function counterValue(string $batchId, string $key, string $label): int
+    {
+        $value = $this->cache->get($key);
+        if ($value === null) {
+            return 0;
+        }
+
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+
+        if (! is_int($value) || $value < 0) {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch %s progress counter for batch '%s' is invalid.",
+                $label,
+                $batchId,
+            ));
+        }
+
+        return $value;
     }
 
     /**
@@ -362,6 +494,21 @@ final class CacheBatchResultStore implements BatchResultStore
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('%s:%s:result:%d', self::KEY_PREFIX, $batchId, $index);
+    }
+
+    private function progressSuccessKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:successes', self::KEY_PREFIX, $batchId);
+    }
+
+    private function progressFailureKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:failures', self::KEY_PREFIX, $batchId);
+    }
+
+    private function progressLockKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:lock', self::KEY_PREFIX, $batchId);
     }
 
     private function assertNonNegativeSampleCount(int $sampleCount): void

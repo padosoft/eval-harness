@@ -2540,3 +2540,87 @@
   - GraphQL `requestReviewsByLogin` with `botLogins[]=copilot-pull-request-reviewer[bot]` and `union=true`
   - remove/re-add reviewer through `gh pr edit`
 - GitHub continued to show Copilot as a requested reviewer, but `gh api repos/padosoft/eval-harness/pulls/41/reviews` never returned a review for `350932c`. The latest real current-head actionable comment (`4cdb923`) was fixed and locally gated; older comments returned by the comments API are stale against current code.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 merged and PR 9.3 batch live registry implementation
+
+- Merged PR #41 (`task/report-api-completeness-v9-adversarial-manifests`) into macro branch `task/report-api-completeness-v9` via merge commit `67a295efa034058a3ffd4754a8440ce02b619ff0`.
+- Started PR 9.3 on branch `task/report-api-completeness-v9-batch-live`.
+- Implemented cache-backed live batch discovery:
+  - Added `BatchLiveRegistry` using the single cache key `eval-harness:batches:live`, best-effort `Cache::lock()` atomic read-modify-write when the cache repository exposes locks, and self-healing pruning for expired rows or batch ids whose result metadata no longer exists.
+  - Added the opt-out config flag `eval-harness.batches.live_registry.enabled`, defaulting to `true`.
+  - Wired `LazyParallelBatch::run()` and `dispatch()` to register/deregister live ids, with `dispatch()` keeping the id live until `collectOutputs()` finishes it.
+  - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
+- Full local gate passed for the 9.3 implementation (current after review fix rounds):
+  - `composer validate --strict` => valid.
+  - `vendor/bin/phpunit` => `OK (757 tests, 2099 assertions)`.
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
+  - `vendor/bin/pint --test` => passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 first review fix
+
+- First automated review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `314a892`) returned 1 actionable comment: aborted batches retained failure result entries, but `CacheBatchResultStore::progress()` counted failures through `failures()`, which intentionally returns an empty array once metadata status is no longer `active`.
+- Addressed the terminal progress bug by making `progress()` count retained terminal result payloads directly, preserving success/failure validation while working for `active`, `finished`, and `aborted` metadata states.
+- Added `CacheBatchResultStoreTest::test_progress_reports_failures_after_batch_abort` to pin the failure count after `abort()`.
+- Full local gate passed after the first PR #42 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (748 tests, 2083 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 second Copilot review fix
+
+- Second Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `f7ef9d7`) returned 3 actionable comments.
+- Hardened `BatchLiveRegistry::live()` self-healing so malformed result metadata is treated like missing metadata and pruned instead of bubbling a 500 from `/batches/live`.
+- Mapped invalid batch progress metadata/result payloads to HTTP 422 in `BatchLiveController`, while preserving 404 for genuinely missing metadata.
+- Reworked service-provider bindings so `BatchResultStore::class` remains the primary overridable contract via `singletonIf()`, while `CacheBatchResultStore::class` remains explicitly resolvable for cache-backed Report API progress endpoints.
+- Added regression coverage for malformed live metadata pruning, invalid progress payload 422s, and consumer override of `BatchResultStore`.
+- Full local gate passed after the second PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (752 tests, 2089 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 third Copilot review fix
+
+- Third Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `e1fad53`) returned new actionable comments plus duplicates already addressed by the second-round patch.
+- Kept live registry entries monotonic for repeated registration of the same batch id: a later shorter TTL no longer shortens an existing longer `expires_at`.
+- Wrapped lock acquisition/blocking in `BatchLiveRegistry` so unsupported lock stores or lock contention fall back to the unlocked best-effort mutation path instead of breaking live discovery.
+- Replaced progress endpoint O(sample_count) scans with compact cache counters updated only when a terminal result is first recorded. `progress()` now reads metadata plus two progress counter keys.
+- Updated regression coverage for same-id TTL preservation, compact progress reads, duplicate delivery counts, and invalid progress counter 422s.
+- Full local gate passed after the third PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fourth Copilot review fix
+
+- Fourth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `dbc32a8`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Removed post-increment progress counter `get()`/`put()` refreshes that could overwrite a newer concurrent increment with a stale value. Progress counters now rely on atomic cache `increment()` after the initial counter key is added.
+- Updated the initial PR #42 implementation progress entry to show the current full-gate count after review fix rounds, matching the PR description and latest local gate.
+- Full local gate passed after the fourth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fifth Copilot review fix
+
+- Fifth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `d22b5a9`) returned 2 new actionable comments plus stale duplicate comments already addressed by prior rounds.
+- Changed `BatchLiveController::progress()` to resolve the active `BatchResultStore` contract. If a host app overrides it with a non-cache-backed store, the progress endpoint now returns a clear 503 instead of silently reading from the package default cache store and returning misleading data.
+- Added 503 mapping for non-validation backend failures in live/progress controller reads, while preserving 422 for `EvalRunException` invalid payloads and 404 for missing batch metadata.
+- Added route coverage for non-cache-backed active batch stores.
+- Full local gate passed after the fifth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 sixth Copilot review fix
+
+- Sixth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `52c2278`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Made progress counter TTL refresh lock-protected when the cache store supports locks: the counter increment and TTL extension now happen under a per-batch progress lock, avoiding stale read/write clobbering while keeping a fallback atomic increment path when locks are unavailable.
+- Full local gate passed after the sixth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 seventh Copilot review fix
+
+- Seventh Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `9a85dfe`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Allowed progress counters read from cache to be non-negative digit-only strings as well as integers, covering Redis-style scalar returns after `increment()` while still rejecting negatives, decimals, and non-numeric values.
+- Added `CacheBatchResultStoreTest::test_progress_accepts_numeric_string_counters_from_cache_backends`.
+- Full local gate passed after the seventh PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (755 tests, 2094 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 eighth Copilot review fix
+
+- Eighth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `2df3791`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Added explicit terminal-result status validation before cache writes and before progress counter updates, so unexpected statuses cannot be silently counted as failures.
+- Added `CacheBatchResultStoreTest::test_terminal_result_status_must_be_known_before_progress_counter_updates`.
+- Full local gate passed after the eighth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (756 tests, 2096 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 ninth Copilot review fix
+
+- Ninth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `b0c02f9`) returned 2 new actionable comments plus stale duplicate comments already addressed by prior rounds.
+- Added exception-safe rollback around post-add progress/metadata updates: if counter update or metadata refresh fails after the result key is added, the result key is removed and any incremented progress counter is decremented so retry can recover.
+- Switched `BatchLiveController::progress()` to read compact counters via `progressCounters()` after metadata has already been validated, avoiding a second metadata read and the stale-200 race where metadata disappears between reads.
+- Added `CacheBatchResultStoreTest::test_result_write_rolls_back_when_progress_metadata_refresh_fails`.
+- Full local gate passed after the ninth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (757 tests, 2099 assertions)`, PHPStan no errors, Pint passed.
