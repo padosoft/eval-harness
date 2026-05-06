@@ -387,7 +387,7 @@ Tests:
 - `ManifestRouteTest` — index / show / empty-config 404 / traversal
   rejection.
 - `BatchLiveRouteTest` — live list filtering, expired-entry
-  self-heal, opt-out flag returns 404.
+  self-heal, opt-out flag returns 200 with an empty live list.
 - `BatchProgressRouteTest` — active / finished / aborted / unknown
   states.
 - `BatchLiveRegistryTest` — TTL race, abort-mid-flight cleanup,

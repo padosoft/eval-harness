@@ -314,7 +314,7 @@ final class LazyParallelBatch
 
             throw $e;
         } finally {
-            $this->liveRegistry?->deregister($batchId);
+            $this->deregisterLiveBatchSafely($batchId);
         }
     }
 
@@ -435,7 +435,7 @@ final class LazyParallelBatch
             }
         } finally {
             if (! $dispatched) {
-                $this->liveRegistry?->deregister($batchId);
+                $this->deregisterLiveBatchSafely($batchId);
             }
         }
 
@@ -474,7 +474,7 @@ final class LazyParallelBatch
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
             $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
-            $this->liveRegistry?->deregister($batchId);
+            $this->deregisterLiveBatchSafely($batchId);
 
             return array_values($outputsByIndex);
         }
@@ -484,7 +484,7 @@ final class LazyParallelBatch
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
             $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
-            $this->liveRegistry?->deregister($batchId);
+            $this->deregisterLiveBatchSafely($batchId);
 
             return array_values($outputsByIndex);
         }
@@ -1326,6 +1326,15 @@ final class LazyParallelBatch
     private function abortResultsSafely(string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
         $this->cleanupResultsSafely('abort', $batchId, $sampleCount, $resultTtlSeconds);
+    }
+
+    private function deregisterLiveBatchSafely(string $batchId): void
+    {
+        try {
+            $this->liveRegistry?->deregister($batchId);
+        } catch (Throwable) {
+            // Live registry cleanup is best-effort and must not mask the primary batch outcome.
+        }
     }
 
     /**

@@ -171,8 +171,8 @@ surface small and the offline path fast.
   read-only API contracts. The live registry is enabled by default and can
   be disabled with `eval-harness.batches.live_registry.enabled`.
 - **Adversarial manifest discovery endpoints** —
-  `GET /eval-harness/api/adversarial/manifests` and
-  `GET /eval-harness/api/adversarial/manifests/{name}` enumerate
+  `GET /<configured-prefix>/adversarial/manifests` and
+  `GET /<configured-prefix>/adversarial/manifests/{name}` enumerate
   adversarial run manifests written to a configured disk so a
   companion UI can browse compliance history without scraping the
   filesystem. Opt-in via

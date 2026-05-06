@@ -368,15 +368,18 @@ Wireframe:
 
 ## 5. Data Contracts
 
-The UI must pin on `schema_version` and inspect the per-payload `schema`
-discriminator before rendering endpoint-specific content.
+The UI must pin on `schema_version` for every Report API response.
+Macro 9 / eval-harness v1.2 endpoints also emit a per-payload `schema`
+discriminator and the UI should inspect it before rendering
+endpoint-specific content. Earlier v1 endpoints remain legacy-compatible:
+they emit `schema_version` but do not currently emit a `schema` field.
 
 | Screen | Endpoint | Schema |
 | --- | --- | --- |
-| Reports list | `GET /reports` | `eval-harness.report-api.v1.reports` |
-| Report detail | `GET /reports/{id}` | `eval-harness.report-api.v1.report` |
-| Cohorts | `GET /reports/{id}/cohorts` | `eval-harness.report-api.v1.cohorts` |
-| Histograms | `GET /reports/{id}/histograms` | `eval-harness.report-api.v1.histograms` |
+| Reports list | `GET /reports` | Legacy: `schema_version` only |
+| Report detail | `GET /reports/{id}` | Legacy: `schema_version` only |
+| Cohorts | `GET /reports/{id}/cohorts` | Legacy: `schema_version` only |
+| Histograms | `GET /reports/{id}/histograms` | Legacy: `schema_version` only |
 | Diff | `GET /reports/{id}/diff/{otherId}` | `eval-harness.report-api.v1.diff` |
 | Adversarial list | `GET /adversarial/manifests` | `eval-harness.report-api.v1.adversarial-manifests` |
 | Adversarial detail | `GET /adversarial/manifests/{name}` | `eval-harness.report-api.v1.adversarial-manifest` |
@@ -388,7 +391,7 @@ Response handling:
 
 | Status | UI behavior |
 | --- | --- |
-| 200 | Render normally after schema validation |
+| 200 | Render normally after `schema_version` validation and `schema` validation when present |
 | 404 | Show empty/missing state scoped to the widget or screen |
 | 422 | Show invalid parameter state and reset filters when possible |
 | 503 | Show storage/cache unavailable state with retry affordance |
