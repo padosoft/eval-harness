@@ -285,7 +285,7 @@ Tests:
 - `EvalCommandTest` extensions for profile precedence, unknown-profile
   diagnostics, and serial/lazy-parallel option compatibility.
 
-## Macro Task 9 - Report API Completeness For Companion UI Package v1.2 [IN PROGRESS]
+## Macro Task 9 - Report API Completeness For Companion UI Package v1.2 [DONE 2026-05-06]
 
 Branch: `task/report-api-completeness-v9`
 

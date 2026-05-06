@@ -2779,3 +2779,17 @@
 - Wrapped the outer `recordTerminalResult()` counter rollback decrement in best-effort `try/catch` so rollback failures cannot mask the original cache failure.
 - Added regression coverage that a decrement failure during rollback preserves the original metadata refresh exception.
 - Full local gate passed after the ninth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 complete / v1.2.0 release bookkeeping
+
+- Merged sub-PRs for Macro Task 9:
+  - PR #40 — report diff endpoint.
+  - PR #41 — adversarial manifest discovery endpoints.
+  - PR #42 — batch live registry and progress endpoints.
+  - PR #43 — dataset trend endpoint.
+  - PR #44 — macro PR `task/report-api-completeness-v9` into `main`.
+- PR #44 reached a current-head Copilot review on `d95c3dc` with `generated no new comments`; all six GitHub Actions matrix jobs were green.
+- Main merge commit: `40d3128`.
+- Local pre-merge/macro gate passed on PR #44 head: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.
+- Local post-merge gate passed on `main` after PR #44 merge: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.
+- Release URL: https://github.com/padosoft/eval-harness/releases/tag/v1.2.0
