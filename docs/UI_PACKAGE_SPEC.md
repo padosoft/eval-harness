@@ -285,6 +285,11 @@ Endpoint:
 | --- | --- |
 | `GET /datasets/{name}/trend?limit=N` | Chronological trend points |
 
+The backend caps trend scans with
+`eval-harness.api.trend.max_files_scanned` (default 5000 JSON files under
+the report prefix). The UI should surface a retry/configuration hint if the
+endpoint returns 503 because the cap is exceeded.
+
 Wireframe:
 
 ```text

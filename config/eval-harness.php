@@ -154,6 +154,12 @@ return [
                 static fn (string $middleware): string => trim($middleware),
                 explode(',', (string) env('EVAL_HARNESS_API_MIDDLEWARE')),
             ))),
+        'trend' => [
+            'max_files_scanned' => TimeoutNormalizer::normalize(
+                env('EVAL_HARNESS_API_TREND_MAX_FILES_SCANNED'),
+                5000,
+            ),
+        ],
     ],
 
     /*

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\ReportApi\Trend;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
@@ -14,6 +15,7 @@ final class DatasetTrendRepository
 {
     public function __construct(
         private readonly ReportArtifactRepository $reports,
+        private readonly ConfigRepository $config,
     ) {}
 
     /**
@@ -25,6 +27,7 @@ final class DatasetTrendRepository
         $prefix = $this->reports->prefix();
         $points = [];
         $disk = $this->reports->disk();
+        $maxFilesScanned = $this->maxFilesScanned();
 
         try {
             $paths = $disk->allFiles($prefix === '' ? null : $prefix);
@@ -32,9 +35,19 @@ final class DatasetTrendRepository
             throw new ReportArtifactUnavailableException('Dataset trend listing could not be read.', previous: $e);
         }
 
+        sort($paths);
+        $scannedJsonFiles = 0;
         foreach ($paths as $path) {
             if (! is_string($path) || ! str_ends_with($path, '.json')) {
                 continue;
+            }
+
+            $scannedJsonFiles++;
+            if ($scannedJsonFiles > $maxFilesScanned) {
+                throw new ReportArtifactUnavailableException(sprintf(
+                    'Dataset trend scan exceeded the configured maximum of %d JSON report files.',
+                    $maxFilesScanned,
+                ));
             }
 
             $point = $this->pointFor($disk, $prefix, $path, $datasetName);
@@ -135,5 +148,12 @@ final class DatasetTrendRepository
     {
         return ($left['started_at'] <=> $right['started_at'])
             ?: ($left['path'] <=> $right['path']);
+    }
+
+    private function maxFilesScanned(): int
+    {
+        $value = $this->config->get('eval-harness.api.trend.max_files_scanned', 5000);
+
+        return is_int($value) && $value > 0 ? $value : 5000;
     }
 }

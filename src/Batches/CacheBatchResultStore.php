@@ -278,17 +278,19 @@ final class CacheBatchResultStore implements BatchResultStore
             $effectiveTtlSeconds = max($metaPayload['ttl_seconds'], $ttlSeconds);
             $counterIncremented = false;
             try {
-                $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
+                $counterTtlRefreshed = $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
                 $counterIncremented = true;
-                $this->cache->put(
-                    $this->metaKey($batchId),
-                    [
-                        'sample_count' => $metaPayload['sample_count'],
-                        'status' => self::STATUS_ACTIVE,
-                        'ttl_seconds' => $effectiveTtlSeconds,
-                    ],
-                    $effectiveTtlSeconds,
-                );
+                if ($counterTtlRefreshed) {
+                    $this->cache->put(
+                        $this->metaKey($batchId),
+                        [
+                            'sample_count' => $metaPayload['sample_count'],
+                            'status' => self::STATUS_ACTIVE,
+                            'ttl_seconds' => $effectiveTtlSeconds,
+                        ],
+                        $effectiveTtlSeconds,
+                    );
+                }
             } catch (\Throwable $e) {
                 $this->cache->forget($resultKey);
                 if ($counterIncremented) {
@@ -300,7 +302,7 @@ final class CacheBatchResultStore implements BatchResultStore
         }
     }
 
-    private function incrementProgressCounter(string $batchId, string $status, int $ttlSeconds): void
+    private function incrementProgressCounter(string $batchId, string $status, int $ttlSeconds): bool
     {
         if ($status !== 'success' && $status !== 'failure') {
             throw new EvalRunException(sprintf(
@@ -313,12 +315,14 @@ final class CacheBatchResultStore implements BatchResultStore
             ? $this->progressSuccessKey($batchId)
             : $this->progressFailureKey($batchId);
 
-        $increment = function () use ($counterKey, $ttlSeconds): void {
-            $this->cache->add($counterKey, 0, $ttlSeconds);
+        $increment = function () use ($counterKey, $ttlSeconds): bool {
+            $added = $this->cache->add($counterKey, 0, $ttlSeconds);
             $this->cache->increment($counterKey);
+
+            return $added;
         };
 
-        $incrementAndRefreshTtl = function () use ($batchId, $increment, $ttlSeconds): void {
+        $incrementAndRefreshTtl = function () use ($batchId, $increment, $ttlSeconds): bool {
             $increment();
             $this->cache->put(
                 $this->progressSuccessKey($batchId),
@@ -330,6 +334,8 @@ final class CacheBatchResultStore implements BatchResultStore
                 $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
                 $ttlSeconds,
             );
+
+            return true;
         };
 
         if (method_exists($this->cache, 'lock')) {
@@ -339,14 +345,14 @@ final class CacheBatchResultStore implements BatchResultStore
                 if (is_object($lock) && method_exists($lock, 'block')) {
                     $lock->block(5, $incrementAndRefreshTtl);
 
-                    return;
+                    return true;
                 }
             } catch (\Throwable) {
-                // Fall back to the atomic increment without a TTL refresh.
+                // Fall back to atomic increment; existing counter TTLs cannot be safely refreshed here.
             }
         }
 
-        $increment();
+        return $increment();
     }
 
     private function decrementProgressCounter(string $batchId, string $status): void

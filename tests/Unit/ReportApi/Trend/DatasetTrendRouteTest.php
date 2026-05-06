@@ -94,6 +94,19 @@ final class DatasetTrendRouteTest extends TestCase
             ->assertJsonPath('data.points.0.started_at', 6);
     }
 
+    public function test_dataset_trend_returns_service_unavailable_when_scan_limit_is_exceeded(): void
+    {
+        $this->app['config']->set('eval-harness.api.trend.max_files_scanned', 2);
+        Storage::fake('eval-api');
+        $this->putReportAt('eval-harness/reports/a.json', 'rag', 10.0, 0.7);
+        $this->putReportAt('eval-harness/reports/b.json', 'other', 20.0, 0.8);
+        $this->putReportAt('eval-harness/reports/c.json', 'rag', 30.0, 0.9);
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend')
+            ->assertServiceUnavailable()
+            ->assertJsonPath('message', 'Dataset trend could not be read.');
+    }
+
     public function test_empty_dataset_returns_empty_points(): void
     {
         Storage::fake('eval-api');

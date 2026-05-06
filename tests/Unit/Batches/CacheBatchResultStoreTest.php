@@ -300,6 +300,26 @@ final class CacheBatchResultStoreTest extends TestCase
         ], $metaPuts);
     }
 
+    public function test_no_lock_progress_fallback_does_not_extend_metadata_when_existing_counter_ttl_cannot_refresh(): void
+    {
+        $cache = new ThrowingLockPutRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('no-lock-refresh', 2, 60);
+        $store->recordSuccess('no-lock-refresh', 0, 's1', 'first output', 60);
+        $cache->putRecords = [];
+
+        $store->recordSuccess('no-lock-refresh', 1, 's2', 'second output', 120);
+
+        $metaPuts = array_values(array_filter(
+            $cache->putRecords,
+            fn (array $record): bool => $record['key'] === $this->metaKey('no-lock-refresh'),
+        ));
+
+        $this->assertSame([], $metaPuts);
+        $this->assertSame(['successes' => 2, 'failures' => 0], $store->progress('no-lock-refresh'));
+    }
+
     private function store(): CacheBatchResultStore
     {
         return new CacheBatchResultStore($this->cache);
@@ -355,7 +375,7 @@ final class GetRecordingCacheRepository extends IlluminateCacheRepository
     }
 }
 
-final class PutRecordingCacheRepository extends IlluminateCacheRepository
+class PutRecordingCacheRepository extends IlluminateCacheRepository
 {
     /** @var list<array{key: mixed, value: mixed, ttl: mixed}> */
     public array $putRecords = [];
@@ -366,9 +386,22 @@ final class PutRecordingCacheRepository extends IlluminateCacheRepository
 
         return parent::put($key, $value, $ttl);
     }
+
+    public function lock($name, $seconds = 0, $owner = null): BlockingCallbackLock
+    {
+        return new BlockingCallbackLock;
+    }
 }
 
-final class ThrowingMetaRefreshCacheRepository extends IlluminateCacheRepository
+final class ThrowingLockPutRecordingCacheRepository extends PutRecordingCacheRepository
+{
+    public function lock($name, $seconds = 0, $owner = null): never
+    {
+        throw new \RuntimeException('lock unavailable');
+    }
+}
+
+final class ThrowingMetaRefreshCacheRepository extends PutRecordingCacheRepository
 {
     public bool $throwOnMetaRefresh = false;
 
@@ -385,5 +418,13 @@ final class ThrowingMetaRefreshCacheRepository extends IlluminateCacheRepository
         }
 
         return parent::put($key, $value, $ttl);
+    }
+}
+
+final class BlockingCallbackLock
+{
+    public function block($seconds, ?callable $callback = null): mixed
+    {
+        return $callback === null ? true : $callback();
     }
 }

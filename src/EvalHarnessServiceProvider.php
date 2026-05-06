@@ -103,6 +103,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
         $this->app->singleton(DatasetTrendRepository::class, static function (Container $app): DatasetTrendRepository {
             return new DatasetTrendRepository(
                 reports: $app->make(ReportArtifactRepository::class),
+                config: $app->make(ConfigRepository::class),
             );
         });
 

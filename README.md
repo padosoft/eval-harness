@@ -190,7 +190,9 @@ surface small and the offline path fast.
 - **Dataset trend endpoint** —
   `GET /<configured-prefix>/datasets/{name}/trend?limit=N` scans stored JSON
   reports for one dataset, skips malformed artifacts, caps `limit` at 100,
-  and returns chronological points with metrics, cohorts, usage, and the
+  caps scanned JSON files through
+  `eval-harness.api.trend.max_files_scanned`, and returns chronological
+  points with metrics, cohorts, usage, and the
   `eval-harness.report-api.v1.trend` schema discriminator.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
@@ -432,6 +434,9 @@ behind your host app's existing admin middleware.
     'enabled' => true,
     'prefix' => 'admin/eval-harness/api',
     'middleware' => ['web', 'auth'],
+    'trend' => [
+        'max_files_scanned' => 5000,
+    ],
 ],
 ```
 

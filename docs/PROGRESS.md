@@ -2733,3 +2733,12 @@
 - Third review on PR #44 (`task/report-api-completeness-v9`, head `aa454f3`) returned 1 actionable docs comment.
 - Reworded roadmap guardrails to distinguish `ReportArtifactId::decode()` protection for report/diff endpoints from the explicit dataset-name segment validation used by the trend endpoint.
 - Full local gate passed after the third macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (771 tests, 2150 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 fourth Copilot review fix
+
+- Fourth review on PR #44 (`task/report-api-completeness-v9`, head `8f9e930`) returned 2 actionable comments.
+- Adjusted `CacheBatchResultStore` progress-counter fallback so, when cache locks are unavailable and existing counter TTLs cannot be safely refreshed, metadata TTL is not extended beyond the existing counter TTL window.
+- Added regression coverage for the no-lock existing-counter fallback path.
+- Added `eval-harness.api.trend.max_files_scanned` (default 5000) and made dataset trend scans fail fast with 503 when the configured JSON artifact scan cap is exceeded.
+- Documented the trend scan cap in README and `docs/UI_PACKAGE_SPEC.md`.
+- Full local gate passed after the fourth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (773 tests, 2154 assertions)`, PHPStan no errors, Pint passed.
