@@ -146,6 +146,16 @@ final class CacheBatchResultStoreTest extends TestCase
         ], $cache->getKeys);
     }
 
+    public function test_progress_accepts_numeric_string_counters_from_cache_backends(): void
+    {
+        $store = $this->store();
+        $store->start('numeric-string-progress', 2, 60);
+        $this->cache->put($this->progressSuccessKey('numeric-string-progress'), '1', 60);
+        $this->cache->put($this->progressFailureKey('numeric-string-progress'), '0', 60);
+
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('numeric-string-progress'));
+    }
+
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
     {
         $cache = new GetRecordingCacheRepository($this->cache->getStore());

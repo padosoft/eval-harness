@@ -324,6 +324,10 @@ final class CacheBatchResultStore implements BatchResultStore
             return 0;
         }
 
+        if (is_string($value) && ctype_digit($value)) {
+            return (int) $value;
+        }
+
         if (! is_int($value) || $value < 0) {
             throw new EvalRunException(sprintf(
                 "Stored lazy parallel batch %s progress counter for batch '%s' is invalid.",
