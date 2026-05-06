@@ -89,7 +89,11 @@ final class ReportArtifactRepository
         $diskName = $this->config->get('eval-harness.reports.disk', 'local');
         $diskName = is_string($diskName) && trim($diskName) !== '' ? trim($diskName) : 'local';
 
-        return $this->filesystems->disk($diskName);
+        try {
+            return $this->filesystems->disk($diskName);
+        } catch (Throwable $e) {
+            throw new ReportArtifactUnavailableException('Report artifact disk could not be resolved.', previous: $e);
+        }
     }
 
     /**

@@ -2742,3 +2742,11 @@
 - Added `eval-harness.api.trend.max_files_scanned` (default 5000) and made dataset trend scans fail fast with 503 when the configured JSON artifact scan cap is exceeded.
 - Documented the trend scan cap in README and `docs/UI_PACKAGE_SPEC.md`.
 - Full local gate passed after the fourth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (773 tests, 2154 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 fifth Copilot review fix
+
+- Fifth review on PR #44 (`task/report-api-completeness-v9`, head `79d67e1`) returned 2 new actionable comments plus stale comments already addressed in the fourth round.
+- Wrapped report disk resolution in `ReportArtifactRepository::disk()` and rethrow as `ReportArtifactUnavailableException`, so invalid report disks map to 503 instead of 500.
+- Added regression coverage for invalid report disk resolution on the report index and dataset trend route.
+- Reworded the adversarial manifest config comment to use `/<configured-prefix>/...` instead of a hard-coded default API prefix.
+- Full local gate passed after the fifth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2156 assertions)`, PHPStan no errors, Pint passed.

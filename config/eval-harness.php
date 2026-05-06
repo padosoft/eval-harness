@@ -113,7 +113,7 @@ return [
     | The CLI `eval-harness:adversarial --adversarial-manifest=<path>` keeps
     | accepting arbitrary filesystem paths. This config block is purely
     | additive: it lets the read-only Report API enumerate adversarial run
-    | manifests via /eval-harness/api/adversarial/manifests (Macro 9+).
+    | manifests via /<configured-prefix>/adversarial/manifests (Macro 9+).
     |
     | When `disk` is null, the manifest discovery endpoints respond
     | 404 + "discovery_not_configured" so a companion UI degrades
