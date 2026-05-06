@@ -173,6 +173,30 @@ final class CacheBatchResultStoreTest extends TestCase
         ], 60);
     }
 
+    public function test_result_write_rolls_back_when_progress_metadata_refresh_fails(): void
+    {
+        $cache = new ThrowingMetaRefreshCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('rollback-progress', 1, 60);
+        $cache->throwOnMetaRefresh = true;
+
+        try {
+            $store->recordSuccess('rollback-progress', 0, 's1', 'first output', 120);
+            $this->fail('Expected metadata refresh failure.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('meta refresh down', $e->getMessage());
+        }
+
+        $cache->throwOnMetaRefresh = false;
+        $store->recordSuccess('rollback-progress', 0, 's1', 'first output', 120);
+
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('rollback-progress'));
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ], $store->successfulResults('rollback-progress', 1));
+    }
+
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
     {
         $cache = new GetRecordingCacheRepository($this->cache->getStore());
@@ -339,6 +363,26 @@ final class PutRecordingCacheRepository extends IlluminateCacheRepository
     public function put($key, $value, $ttl = null): bool
     {
         $this->putRecords[] = ['key' => $key, 'value' => $value, 'ttl' => $ttl];
+
+        return parent::put($key, $value, $ttl);
+    }
+}
+
+final class ThrowingMetaRefreshCacheRepository extends IlluminateCacheRepository
+{
+    public bool $throwOnMetaRefresh = false;
+
+    public function put($key, $value, $ttl = null): bool
+    {
+        if (
+            $this->throwOnMetaRefresh
+            && is_string($key)
+            && str_ends_with($key, ':meta')
+            && is_array($value)
+            && ($value['ttl_seconds'] ?? null) === 120
+        ) {
+            throw new \RuntimeException('meta refresh down');
+        }
 
         return parent::put($key, $value, $ttl);
     }

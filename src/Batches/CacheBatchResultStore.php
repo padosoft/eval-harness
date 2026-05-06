@@ -76,6 +76,14 @@ final class CacheBatchResultStore implements BatchResultStore
             return ['successes' => 0, 'failures' => 0];
         }
 
+        return $this->progressCounters($batchId);
+    }
+
+    /**
+     * @return array{successes: int, failures: int}
+     */
+    public function progressCounters(string $batchId): array
+    {
         return [
             'successes' => $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'),
             'failures' => $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
@@ -268,16 +276,27 @@ final class CacheBatchResultStore implements BatchResultStore
 
         if ($metaPayload['status'] === self::STATUS_ACTIVE) {
             $effectiveTtlSeconds = max($metaPayload['ttl_seconds'], $ttlSeconds);
-            $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
-            $this->cache->put(
-                $this->metaKey($batchId),
-                [
-                    'sample_count' => $metaPayload['sample_count'],
-                    'status' => self::STATUS_ACTIVE,
-                    'ttl_seconds' => $effectiveTtlSeconds,
-                ],
-                $effectiveTtlSeconds,
-            );
+            $counterIncremented = false;
+            try {
+                $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
+                $counterIncremented = true;
+                $this->cache->put(
+                    $this->metaKey($batchId),
+                    [
+                        'sample_count' => $metaPayload['sample_count'],
+                        'status' => self::STATUS_ACTIVE,
+                        'ttl_seconds' => $effectiveTtlSeconds,
+                    ],
+                    $effectiveTtlSeconds,
+                );
+            } catch (\Throwable $e) {
+                $this->cache->forget($resultKey);
+                if ($counterIncremented) {
+                    $this->decrementProgressCounter($batchId, $payload['status']);
+                }
+
+                throw $e;
+            }
         }
     }
 
@@ -328,6 +347,15 @@ final class CacheBatchResultStore implements BatchResultStore
         }
 
         $increment();
+    }
+
+    private function decrementProgressCounter(string $batchId, string $status): void
+    {
+        $counterKey = $status === 'success'
+            ? $this->progressSuccessKey($batchId)
+            : $this->progressFailureKey($batchId);
+
+        $this->cache->decrement($counterKey);
     }
 
     private function counterValue(string $batchId, string $key, string $label): int

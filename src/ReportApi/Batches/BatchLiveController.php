@@ -63,7 +63,7 @@ final class BatchLiveController
         }
 
         try {
-            $progress = $resultStore->progress($id);
+            $progress = $resultStore->progressCounters($id);
         } catch (EvalRunException $e) {
             throw new UnprocessableEntityHttpException($e->getMessage(), previous: $e);
         } catch (Throwable $e) {
