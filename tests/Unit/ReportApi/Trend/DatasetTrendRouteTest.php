@@ -62,6 +62,14 @@ final class DatasetTrendRouteTest extends TestCase
             ->assertJsonPath('data.points', []);
     }
 
+    public function test_path_traversal_dataset_name_returns_not_found_before_storage_access(): void
+    {
+        Storage::fake('eval-api');
+
+        $this->getJson('/eval-harness/api/datasets/../trend')
+            ->assertNotFound();
+    }
+
     public function test_malformed_reports_are_skipped(): void
     {
         Storage::fake('eval-api');

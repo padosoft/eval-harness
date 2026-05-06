@@ -2649,3 +2649,10 @@
 - Preserved `cohorts` and `usage` summaries in each trend point so UI clients can plot cohort/cost/latency series without fetching every full report.
 - Treated missing dataset report directories as empty trend results while still mapping genuine listing failures to 503.
 - Full local gate passed after the first PR #43 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (762 tests, 2122 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 second Copilot review fix
+
+- Second Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `3204b26`) returned 1 new actionable comment plus one stale cohort/usage comment already addressed in the prior round.
+- Added dataset name traversal validation before storage access; `.` / `..` / names containing `..` now return 404 instead of reaching Flysystem.
+- Added route coverage for traversal dataset names.
+- Full local gate passed after the second PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (763 tests, 2123 assertions)`, PHPStan no errors, Pint passed.

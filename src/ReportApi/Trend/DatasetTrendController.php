@@ -8,12 +8,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 final class DatasetTrendController
 {
     public function show(Request $request, DatasetTrendRepository $trends, string $name): JsonResponse
     {
+        if ($name === '.' || $name === '..' || str_contains($name, '..')) {
+            throw new NotFoundHttpException("Dataset '{$name}' trend was not found.");
+        }
+
         $limit = $this->limit($request->query('limit'));
 
         try {
