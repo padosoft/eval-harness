@@ -70,19 +70,16 @@ final class BatchLiveRouteTest extends TestCase
             ->assertUnprocessable();
     }
 
-    public function test_batch_progress_returns_unprocessable_when_result_payload_is_invalid(): void
+    public function test_batch_progress_returns_unprocessable_when_progress_counter_is_invalid(): void
     {
         /** @var CacheFactory $cacheFactory */
         $cacheFactory = $this->app->make(CacheFactory::class);
         $cache = $cacheFactory->store('array');
         $store = new CacheBatchResultStore($cache);
-        $store->start('invalid-progress-result', 1, 60);
-        $cache->put('eval-harness:batch-results:invalid-progress-result:result:0', [
-            'status' => 'failure',
-            'sample_id' => 's1',
-        ], 60);
+        $store->start('invalid-progress-counter', 1, 60);
+        $cache->put('eval-harness:batch-results:invalid-progress-counter:progress:failures', 'not-an-int', 60);
 
-        $this->getJson('/eval-harness/api/batches/invalid-progress-result/progress')
+        $this->getJson('/eval-harness/api/batches/invalid-progress-counter/progress')
             ->assertUnprocessable();
     }
 }

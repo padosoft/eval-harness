@@ -44,14 +44,14 @@ final class BatchLiveRegistryTest extends TestCase
 
     public function test_later_shorter_registration_keeps_existing_longer_entry(): void
     {
-        $this->store->start('long-batch', 1, 3600);
-        $this->store->start('short-batch', 1, 60);
+        $this->store->start('same-batch', 1, 3600);
         $registry = new BatchLiveRegistry($this->cache, $this->store);
 
-        $registry->register('long-batch', 3600);
-        $registry->register('short-batch', 60);
+        $registry->register('same-batch', 3600);
+        $firstExpiresAt = $registry->live()['same-batch'];
+        $registry->register('same-batch', 60);
 
-        $this->assertSame(['long-batch', 'short-batch'], array_keys($registry->live()));
+        $this->assertSame($firstExpiresAt, $registry->live()['same-batch']);
     }
 
     public function test_live_read_prunes_expired_entries_and_missing_result_metadata(): void

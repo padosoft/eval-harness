@@ -99,6 +99,7 @@ final class CacheBatchResultStoreTest extends TestCase
             0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
         ], $store->successfulResults('duplicate-delivery', 1));
         $this->assertSame([], $store->failures('duplicate-delivery', 1));
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('duplicate-delivery'));
     }
 
     public function test_finished_batches_keep_existing_successes_readable_until_ttl_expiry(): void
@@ -124,6 +125,25 @@ final class CacheBatchResultStoreTest extends TestCase
         $store->abort('aborted-progress', 2, 60);
 
         $this->assertSame(['successes' => 0, 'failures' => 1], $store->progress('aborted-progress'));
+    }
+
+    public function test_progress_reads_metadata_and_compact_counters_only(): void
+    {
+        $cache = new GetRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('compact-progress', 2, 60);
+        $store->recordSuccess('compact-progress', 0, 's1', 'first output', 60);
+        $store->recordFailure('compact-progress', 1, 's2', 'runner exploded', 60);
+
+        $cache->getKeys = [];
+
+        $this->assertSame(['successes' => 1, 'failures' => 1], $store->progress('compact-progress'));
+        $this->assertSame([
+            $this->metaKey('compact-progress'),
+            $this->progressSuccessKey('compact-progress'),
+            $this->progressFailureKey('compact-progress'),
+        ], $cache->getKeys);
     }
 
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
@@ -237,6 +257,16 @@ final class CacheBatchResultStoreTest extends TestCase
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('eval-harness:batch-results:%s:result:%d', $batchId, $index);
+    }
+
+    private function progressSuccessKey(string $batchId): string
+    {
+        return sprintf('eval-harness:batch-results:%s:progress:successes', $batchId);
+    }
+
+    private function progressFailureKey(string $batchId): string
+    {
+        return sprintf('eval-harness:batch-results:%s:progress:failures', $batchId);
     }
 
     private function metaKey(string $batchId): string

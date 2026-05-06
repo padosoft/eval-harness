@@ -27,7 +27,7 @@ final class BatchLiveRegistry
 
         $expiresAt = time() + $ttlSeconds;
         $this->mutate(function (array $live) use ($batchId, $expiresAt): array {
-            $live[$batchId] = $expiresAt;
+            $live[$batchId] = max($live[$batchId] ?? 0, $expiresAt);
 
             return $live;
         });
@@ -81,10 +81,14 @@ final class BatchLiveRegistry
         };
 
         if (method_exists($this->cache, 'lock')) {
-            /** @var mixed $lock */
-            $lock = $this->cache->lock(self::LOCK, 10);
-            if (is_object($lock) && method_exists($lock, 'block')) {
-                return $lock->block(5, $runner);
+            try {
+                /** @var mixed $lock */
+                $lock = $this->cache->lock(self::LOCK, 10);
+                if (is_object($lock) && method_exists($lock, 'block')) {
+                    return $lock->block(5, $runner);
+                }
+            } catch (Throwable) {
+                // Live discovery is best-effort on stores without portable locks.
             }
         }
 

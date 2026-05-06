@@ -34,6 +34,8 @@ final class CacheBatchResultStore implements BatchResultStore
             ['sample_count' => $sampleCount, 'status' => self::STATUS_ACTIVE, 'ttl_seconds' => $ttlSeconds],
             $ttlSeconds,
         );
+        $this->cache->put($this->progressSuccessKey($batchId), 0, $ttlSeconds);
+        $this->cache->put($this->progressFailureKey($batchId), 0, $ttlSeconds);
     }
 
     public function sampleCount(string $batchId): ?int
@@ -74,7 +76,10 @@ final class CacheBatchResultStore implements BatchResultStore
             return ['successes' => 0, 'failures' => 0];
         }
 
-        return $this->terminalResultCounts($batchId, $payload['sample_count']);
+        return [
+            'successes' => $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'),
+            'failures' => $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
+        ];
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -230,71 +235,6 @@ final class CacheBatchResultStore implements BatchResultStore
     }
 
     /**
-     * @return array{successes: int, failures: int}
-     */
-    private function terminalResultCounts(string $batchId, int $sampleCount): array
-    {
-        $counts = ['successes' => 0, 'failures' => 0];
-
-        foreach ($this->indexesToScan($sampleCount, null) as $index) {
-            $payload = $this->cache->get($this->resultKey($batchId, $index));
-            if ($payload === null) {
-                continue;
-            }
-
-            if (! is_array($payload) || ! array_key_exists('status', $payload)) {
-                throw new EvalRunException(sprintf(
-                    'Stored lazy parallel batch result for index %d is invalid.',
-                    $index,
-                ));
-            }
-
-            if ($payload['status'] === 'success') {
-                if (
-                    ! array_key_exists('sample_id', $payload)
-                    || ! is_string($payload['sample_id'])
-                    || ! array_key_exists('actual_output', $payload)
-                    || ! is_string($payload['actual_output'])
-                ) {
-                    throw new EvalRunException(sprintf(
-                        'Stored lazy parallel batch output for index %d is invalid.',
-                        $index,
-                    ));
-                }
-
-                $counts['successes']++;
-
-                continue;
-            }
-
-            if ($payload['status'] === 'failure') {
-                if (
-                    ! array_key_exists('sample_id', $payload)
-                    || ! is_string($payload['sample_id'])
-                    || ! array_key_exists('error', $payload)
-                    || ! is_string($payload['error'])
-                ) {
-                    throw new EvalRunException(sprintf(
-                        'Stored lazy parallel batch failure for index %d is invalid.',
-                        $index,
-                    ));
-                }
-
-                $counts['failures']++;
-
-                continue;
-            }
-
-            throw new EvalRunException(sprintf(
-                'Stored lazy parallel batch result for index %d is invalid.',
-                $index,
-            ));
-        }
-
-        return $counts;
-    }
-
-    /**
      * @param  array{status: 'success', sample_id: string, actual_output: string}|array{status: 'failure', sample_id: string, error: string}  $payload
      */
     private function recordTerminalResult(string $batchId, int $index, array $payload, int $ttlSeconds): void
@@ -322,6 +262,7 @@ final class CacheBatchResultStore implements BatchResultStore
 
         if ($metaPayload['status'] === self::STATUS_ACTIVE) {
             $effectiveTtlSeconds = max($metaPayload['ttl_seconds'], $ttlSeconds);
+            $this->incrementProgressCounter($batchId, $payload['status'], $effectiveTtlSeconds);
             $this->cache->put(
                 $this->metaKey($batchId),
                 [
@@ -332,6 +273,37 @@ final class CacheBatchResultStore implements BatchResultStore
                 $effectiveTtlSeconds,
             );
         }
+    }
+
+    private function incrementProgressCounter(string $batchId, string $status, int $ttlSeconds): void
+    {
+        $counterKey = $status === 'success'
+            ? $this->progressSuccessKey($batchId)
+            : $this->progressFailureKey($batchId);
+
+        $this->cache->add($counterKey, 0, $ttlSeconds);
+        $this->cache->increment($counterKey);
+
+        $this->cache->put($this->progressSuccessKey($batchId), $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'), $ttlSeconds);
+        $this->cache->put($this->progressFailureKey($batchId), $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'), $ttlSeconds);
+    }
+
+    private function counterValue(string $batchId, string $key, string $label): int
+    {
+        $value = $this->cache->get($key);
+        if ($value === null) {
+            return 0;
+        }
+
+        if (! is_int($value) || $value < 0) {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch %s progress counter for batch '%s' is invalid.",
+                $label,
+                $batchId,
+            ));
+        }
+
+        return $value;
     }
 
     /**
@@ -448,6 +420,16 @@ final class CacheBatchResultStore implements BatchResultStore
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('%s:%s:result:%d', self::KEY_PREFIX, $batchId, $index);
+    }
+
+    private function progressSuccessKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:successes', self::KEY_PREFIX, $batchId);
+    }
+
+    private function progressFailureKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:failures', self::KEY_PREFIX, $batchId);
     }
 
     private function assertNonNegativeSampleCount(int $sampleCount): void

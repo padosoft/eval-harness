@@ -2572,3 +2572,12 @@
 - Reworked service-provider bindings so `BatchResultStore::class` remains the primary overridable contract via `singletonIf()`, while `CacheBatchResultStore::class` remains explicitly resolvable for cache-backed Report API progress endpoints.
 - Added regression coverage for malformed live metadata pruning, invalid progress payload 422s, and consumer override of `BatchResultStore`.
 - Full local gate passed after the second PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (752 tests, 2089 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 third Copilot review fix
+
+- Third Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `e1fad53`) returned new actionable comments plus duplicates already addressed by the second-round patch.
+- Kept live registry entries monotonic for repeated registration of the same batch id: a later shorter TTL no longer shortens an existing longer `expires_at`.
+- Wrapped lock acquisition/blocking in `BatchLiveRegistry` so unsupported lock stores or lock contention fall back to the unlocked best-effort mutation path instead of breaking live discovery.
+- Replaced progress endpoint O(sample_count) scans with compact cache counters updated only when a terminal result is first recorded. `progress()` now reads metadata plus two progress counter keys.
+- Updated regression coverage for same-id TTL preservation, compact progress reads, duplicate delivery counts, and invalid progress counter 422s.
+- Full local gate passed after the third PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
