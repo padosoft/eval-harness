@@ -56,6 +56,30 @@ final class CacheBatchResultStore implements BatchResultStore
         return $payload['ttl_seconds'];
     }
 
+    /**
+     * @return array{sample_count: int, status: string, ttl_seconds: int}|null
+     */
+    public function metadata(string $batchId): ?array
+    {
+        return $this->metaPayload($batchId);
+    }
+
+    /**
+     * @return array{successes: int, failures: int}
+     */
+    public function progress(string $batchId): array
+    {
+        $payload = $this->metaPayload($batchId);
+        if ($payload === null) {
+            return ['successes' => 0, 'failures' => 0];
+        }
+
+        return [
+            'successes' => count($this->successfulResults($batchId, $payload['sample_count'])),
+            'failures' => count($this->failures($batchId, $payload['sample_count'])),
+        ];
+    }
+
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
         $this->close($batchId, $sampleCount, $ttlSeconds, self::STATUS_FINISHED);

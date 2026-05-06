@@ -2540,3 +2540,19 @@
   - GraphQL `requestReviewsByLogin` with `botLogins[]=copilot-pull-request-reviewer[bot]` and `union=true`
   - remove/re-add reviewer through `gh pr edit`
 - GitHub continued to show Copilot as a requested reviewer, but `gh api repos/padosoft/eval-harness/pulls/41/reviews` never returned a review for `350932c`. The latest real current-head actionable comment (`4cdb923`) was fixed and locally gated; older comments returned by the comments API are stale against current code.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 merged and PR 9.3 batch live registry implementation
+
+- Merged PR #41 (`task/report-api-completeness-v9-adversarial-manifests`) into macro branch `task/report-api-completeness-v9` via merge commit `67a295efa034058a3ffd4754a8440ce02b619ff0`.
+- Started PR 9.3 on branch `task/report-api-completeness-v9-batch-live`.
+- Implemented cache-backed live batch discovery:
+  - Added `BatchLiveRegistry` using the single cache key `eval-harness:batches:live`, best-effort `Cache::lock()` atomic read-modify-write when the cache repository exposes locks, and self-healing pruning for expired rows or batch ids whose result metadata no longer exists.
+  - Added the opt-out config flag `eval-harness.batches.live_registry.enabled`, defaulting to `true`.
+  - Wired `LazyParallelBatch::run()` and `dispatch()` to register/deregister live ids, with `dispatch()` keeping the id live until `collectOutputs()` finishes it.
+  - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
+- Full local gate passed for the 9.3 implementation:
+  - `composer validate --strict` => valid.
+  - `vendor/bin/phpunit` => `OK (747 tests, 2082 assertions)`.
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
+  - `vendor/bin/pint --test` => passed.

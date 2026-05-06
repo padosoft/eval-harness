@@ -14,6 +14,7 @@ use Illuminate\Support\ServiceProvider;
 use Padosoft\EvalHarness\Adversarial\AdversarialDatasetFactory;
 use Padosoft\EvalHarness\Adversarial\AdversarialRegressionGate;
 use Padosoft\EvalHarness\Adversarial\AdversarialRunManifestStore;
+use Padosoft\EvalHarness\Batches\BatchLiveRegistry;
 use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
@@ -180,7 +181,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
         // both keys should bind both explicitly in their own
         // service provider — typical Laravel container hygiene.
 
-        $this->app->singleton(BatchResultStore::class, static function (Container $app): BatchResultStore {
+        $this->app->singleton(CacheBatchResultStore::class, static function (Container $app): CacheBatchResultStore {
             /** @var CacheFactory $cache */
             $cache = $app->make(CacheFactory::class);
             /** @var ConfigRepository $config */
@@ -190,6 +191,25 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
             return new CacheBatchResultStore(
                 $cache->store($cacheStore !== '' ? $cacheStore : null),
+            );
+        });
+        $this->app->alias(CacheBatchResultStore::class, BatchResultStore::class);
+
+        $this->app->singleton(BatchLiveRegistry::class, static function (Container $app): BatchLiveRegistry {
+            /** @var CacheFactory $cache */
+            $cache = $app->make(CacheFactory::class);
+            /** @var ConfigRepository $config */
+            $config = $app->make(ConfigRepository::class);
+            $cacheStore = $config->get('eval-harness.batches.lazy_parallel.cache_store');
+            $cacheStore = is_string($cacheStore) ? trim($cacheStore) : null;
+
+            return new BatchLiveRegistry(
+                cache: $cache->store($cacheStore !== '' ? $cacheStore : null),
+                resultStore: $app->make(BatchResultStore::class),
+                enabled: RuntimeOptions::normalizeBoolean(
+                    $config->get('eval-harness.batches.live_registry.enabled'),
+                    true,
+                ),
             );
         });
 
@@ -221,6 +241,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 // interface — breaking the advertised "bind under
                 // either key" contract.
                 progressReporter: $app->make(BatchProgressReporter::class),
+                liveRegistry: $app->make(BatchLiveRegistry::class),
             );
         });
 

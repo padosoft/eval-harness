@@ -181,6 +181,13 @@ return [
             ),
         ],
 
+        'live_registry' => [
+            'enabled' => RuntimeOptions::normalizeBoolean(
+                env('EVAL_HARNESS_BATCH_LIVE_REGISTRY_ENABLED'),
+                true,
+            ),
+        ],
+
         /*
         |----------------------------------------------------------------------
         | Operational profiles
