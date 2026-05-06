@@ -116,6 +116,28 @@ final class LazyParallelBatchTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function test_live_batch_register_cleanup_does_not_throw(): void
+    {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->andThrow(new RuntimeException('cache unavailable'));
+
+        $resultStore = Mockery::mock(BatchResultStore::class);
+        $registry = new BatchLiveRegistry($cache, $resultStore);
+        $batch = new LazyParallelBatch(
+            dispatcher: Mockery::mock(Dispatcher::class),
+            resultStore: $resultStore,
+            liveRegistry: $registry,
+        );
+
+        $method = new ReflectionMethod(LazyParallelBatch::class, 'registerLiveBatchSafely');
+        $method->setAccessible(true);
+        $method->invoke($batch, 'batch-live', 60);
+
+        $this->addToAssertionCount(1);
+    }
+
     public function test_dispatch_pushes_jobs_to_configured_queue_without_running_queue_fake(): void
     {
         Queue::fake();

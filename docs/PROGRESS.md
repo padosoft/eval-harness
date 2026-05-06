@@ -2765,3 +2765,10 @@
 - Switched `eval-harness.api.trend.max_files_scanned` from `TimeoutNormalizer` to `RuntimeOptions::normalizePositiveInt()`.
 - Added unit coverage for positive integer normalization.
 - Full local gate passed after the seventh macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (776 tests, 2162 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 eighth Copilot review fix
+
+- Eighth Copilot review on PR #44 (`task/report-api-completeness-v9`, head `6055390`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Made live batch registry registration best-effort in both `run()` and `dispatch()` so observability cache failures cannot abort otherwise valid batch execution.
+- Added regression coverage that `registerLiveBatchSafely()` swallows registry cache failures.
+- Full local gate passed after the eighth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (777 tests, 2164 assertions)`, PHPStan no errors, Pint passed.

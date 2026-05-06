@@ -110,7 +110,7 @@ final class LazyParallelBatch
             // no FAILURE) even though a batch id was already
             // allocated and the run is unmistakably broken.
             $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
-            $this->liveRegistry?->register($batchId, $resultTtlSeconds);
+            $this->registerLiveBatchSafely($batchId, $resultTtlSeconds);
 
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 // The chunk deadline covers BOTH dispatch (which can
@@ -389,7 +389,7 @@ final class LazyParallelBatch
         // BatchOptions::lazyParallel(resultTtlSeconds: ...).
         $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
-        $this->liveRegistry?->register($batchId, $resultTtlSeconds);
+        $this->registerLiveBatchSafely($batchId, $resultTtlSeconds);
 
         $dispatched = false;
         // Note: rate-limit throttling deliberately does NOT apply on the
@@ -1334,6 +1334,15 @@ final class LazyParallelBatch
             $this->liveRegistry?->deregister($batchId);
         } catch (Throwable) {
             // Live registry cleanup is best-effort and must not mask the primary batch outcome.
+        }
+    }
+
+    private function registerLiveBatchSafely(string $batchId, int $resultTtlSeconds): void
+    {
+        try {
+            $this->liveRegistry?->register($batchId, $resultTtlSeconds);
+        } catch (Throwable) {
+            // Live registry is observability-only; cache issues must not break batch execution.
         }
     }
 
