@@ -7,7 +7,9 @@ namespace Padosoft\EvalHarness\ReportApi\Trend;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
+use Padosoft\EvalHarness\Reports\ReportSchema;
 use Throwable;
 
 final class DatasetTrendRepository
@@ -18,7 +20,7 @@ final class DatasetTrendRepository
     ) {}
 
     /**
-     * @return list<array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>}>
+     * @return list<array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}>
      */
     public function trend(string $datasetName, int $limit): array
     {
@@ -26,9 +28,18 @@ final class DatasetTrendRepository
         $prefix = $this->prefix();
         $basePath = $prefix === '' ? $datasetName : $prefix.'/'.$datasetName;
         $points = [];
+        $disk = $this->disk();
 
         try {
-            $paths = $this->disk()->files($basePath);
+            if ($disk instanceof FilesystemAdapter) {
+                if (! $disk->directoryExists($basePath)) {
+                    return [];
+                }
+            } elseif (! $disk->exists($basePath)) {
+                return [];
+            }
+
+            $paths = $disk->files($basePath);
         } catch (Throwable $e) {
             throw new ReportArtifactUnavailableException('Dataset trend listing could not be read.', previous: $e);
         }
@@ -50,7 +61,7 @@ final class DatasetTrendRepository
     }
 
     /**
-     * @return array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>}|null
+     * @return array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}|null
      */
     private function pointFor(string $path, string $datasetName): ?array
     {
@@ -70,7 +81,11 @@ final class DatasetTrendRepository
             return null;
         }
 
-        if (! is_array($payload) || ($payload['dataset'] ?? null) !== $datasetName) {
+        if (
+            ! is_array($payload)
+            || ($payload['schema_version'] ?? null) !== ReportSchema::VERSION
+            || ($payload['dataset'] ?? null) !== $datasetName
+        ) {
             return null;
         }
 
@@ -84,6 +99,8 @@ final class DatasetTrendRepository
         $totalSamples = $payload['total_samples'] ?? null;
         $totalFailures = $payload['total_failures'] ?? null;
         $metrics = $payload['metrics'] ?? [];
+        $cohorts = $payload['cohorts'] ?? [];
+        $usage = $payload['usage'] ?? [];
 
         return [
             'path' => $this->relativePath($path),
@@ -93,6 +110,8 @@ final class DatasetTrendRepository
             'total_samples' => is_int($totalSamples) ? $totalSamples : null,
             'total_failures' => is_int($totalFailures) ? $totalFailures : null,
             'metrics' => is_array($metrics) ? $metrics : [],
+            'cohorts' => is_array($cohorts) && array_is_list($cohorts) ? $cohorts : [],
+            'usage' => is_array($usage) ? $usage : [],
         ];
     }
 

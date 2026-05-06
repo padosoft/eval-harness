@@ -2641,3 +2641,11 @@
   - Returns empty `points` for empty datasets instead of 404.
   - Emits per-payload schema discriminator `SCHEMA_TREND`.
 - Full local gate passed for the 9.4 implementation: `composer validate --strict`, `vendor/bin/phpunit` => `OK (761 tests, 2117 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 first review fix
+
+- First review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a8a8d5c`) returned 3 actionable comments.
+- Added `schema_version` filtering so stale/incompatible report JSON files are skipped before trend point creation.
+- Preserved `cohorts` and `usage` summaries in each trend point so UI clients can plot cohort/cost/latency series without fetching every full report.
+- Treated missing dataset report directories as empty trend results while still mapping genuine listing failures to 503.
+- Full local gate passed after the first PR #43 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (762 tests, 2122 assertions)`, PHPStan no errors, Pint passed.
