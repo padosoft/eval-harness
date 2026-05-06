@@ -2552,7 +2552,7 @@
   - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
 - Full local gate passed for the 9.3 implementation (current after review fix rounds):
   - `composer validate --strict` => valid.
-  - `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`.
+  - `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`.
   - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
   - `vendor/bin/pint --test` => passed.
@@ -2588,3 +2588,11 @@
 - Removed post-increment progress counter `get()`/`put()` refreshes that could overwrite a newer concurrent increment with a stale value. Progress counters now rely on atomic cache `increment()` after the initial counter key is added.
 - Updated the initial PR #42 implementation progress entry to show the current full-gate count after review fix rounds, matching the PR description and latest local gate.
 - Full local gate passed after the fourth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fifth Copilot review fix
+
+- Fifth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `d22b5a9`) returned 2 new actionable comments plus stale duplicate comments already addressed by prior rounds.
+- Changed `BatchLiveController::progress()` to resolve the active `BatchResultStore` contract. If a host app overrides it with a non-cache-backed store, the progress endpoint now returns a clear 503 instead of silently reading from the package default cache store and returning misleading data.
+- Added 503 mapping for non-validation backend failures in live/progress controller reads, while preserving 422 for `EvalRunException` invalid payloads and 404 for missing batch metadata.
+- Added route coverage for non-cache-backed active batch stores.
+- Full local gate passed after the fifth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.

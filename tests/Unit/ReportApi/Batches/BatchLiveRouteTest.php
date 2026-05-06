@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Tests\Unit\ReportApi\Batches;
 
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Padosoft\EvalHarness\Batches\BatchLiveRegistry;
+use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -81,5 +82,61 @@ final class BatchLiveRouteTest extends TestCase
 
         $this->getJson('/eval-harness/api/batches/invalid-progress-counter/progress')
             ->assertUnprocessable();
+    }
+
+    public function test_batch_progress_returns_service_unavailable_when_active_store_is_not_cache_backed(): void
+    {
+        $this->app->instance(BatchResultStore::class, new NonCacheBatchLiveRouteResultStore);
+
+        $this->getJson('/eval-harness/api/batches/custom-store/progress')
+            ->assertServiceUnavailable();
+    }
+}
+
+final class NonCacheBatchLiveRouteResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return 1;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return 60;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }
