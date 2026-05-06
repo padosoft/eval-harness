@@ -2596,3 +2596,9 @@
 - Added 503 mapping for non-validation backend failures in live/progress controller reads, while preserving 422 for `EvalRunException` invalid payloads and 404 for missing batch metadata.
 - Added route coverage for non-cache-backed active batch stores.
 - Full local gate passed after the fifth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 sixth Copilot review fix
+
+- Sixth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `52c2278`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Made progress counter TTL refresh lock-protected when the cache store supports locks: the counter increment and TTL extension now happen under a per-batch progress lock, avoiding stale read/write clobbering while keeping a fallback atomic increment path when locks are unavailable.
+- Full local gate passed after the sixth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.

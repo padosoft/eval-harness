@@ -281,8 +281,40 @@ final class CacheBatchResultStore implements BatchResultStore
             ? $this->progressSuccessKey($batchId)
             : $this->progressFailureKey($batchId);
 
-        $this->cache->add($counterKey, 0, $ttlSeconds);
-        $this->cache->increment($counterKey);
+        $increment = function () use ($counterKey, $ttlSeconds): void {
+            $this->cache->add($counterKey, 0, $ttlSeconds);
+            $this->cache->increment($counterKey);
+        };
+
+        $incrementAndRefreshTtl = function () use ($batchId, $increment, $ttlSeconds): void {
+            $increment();
+            $this->cache->put(
+                $this->progressSuccessKey($batchId),
+                $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'),
+                $ttlSeconds,
+            );
+            $this->cache->put(
+                $this->progressFailureKey($batchId),
+                $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'),
+                $ttlSeconds,
+            );
+        };
+
+        if (method_exists($this->cache, 'lock')) {
+            try {
+                /** @var mixed $lock */
+                $lock = $this->cache->lock($this->progressLockKey($batchId), 10);
+                if (is_object($lock) && method_exists($lock, 'block')) {
+                    $lock->block(5, $incrementAndRefreshTtl);
+
+                    return;
+                }
+            } catch (\Throwable) {
+                // Fall back to the atomic increment without a TTL refresh.
+            }
+        }
+
+        $increment();
     }
 
     private function counterValue(string $batchId, string $key, string $label): int
@@ -427,6 +459,11 @@ final class CacheBatchResultStore implements BatchResultStore
     private function progressFailureKey(string $batchId): string
     {
         return sprintf('%s:%s:progress:failures', self::KEY_PREFIX, $batchId);
+    }
+
+    private function progressLockKey(string $batchId): string
+    {
+        return sprintf('%s:%s:progress:lock', self::KEY_PREFIX, $batchId);
     }
 
     private function assertNonNegativeSampleCount(int $sampleCount): void
