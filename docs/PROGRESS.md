@@ -2550,9 +2550,9 @@
   - Added the opt-out config flag `eval-harness.batches.live_registry.enabled`, defaulting to `true`.
   - Wired `LazyParallelBatch::run()` and `dispatch()` to register/deregister live ids, with `dispatch()` keeping the id live until `collectOutputs()` finishes it.
   - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
-- Full local gate passed for the 9.3 implementation:
+- Full local gate passed for the 9.3 implementation (current after review fix rounds):
   - `composer validate --strict` => valid.
-  - `vendor/bin/phpunit` => `OK (747 tests, 2082 assertions)`.
+  - `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`.
   - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
   - `vendor/bin/pint --test` => passed.
@@ -2581,3 +2581,10 @@
 - Replaced progress endpoint O(sample_count) scans with compact cache counters updated only when a terminal result is first recorded. `progress()` now reads metadata plus two progress counter keys.
 - Updated regression coverage for same-id TTL preservation, compact progress reads, duplicate delivery counts, and invalid progress counter 422s.
 - Full local gate passed after the third PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fourth Copilot review fix
+
+- Fourth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `dbc32a8`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Removed post-increment progress counter `get()`/`put()` refreshes that could overwrite a newer concurrent increment with a stale value. Progress counters now rely on atomic cache `increment()` after the initial counter key is added.
+- Updated the initial PR #42 implementation progress entry to show the current full-gate count after review fix rounds, matching the PR description and latest local gate.
+- Full local gate passed after the fourth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.

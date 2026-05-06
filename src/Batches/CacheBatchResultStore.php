@@ -283,9 +283,6 @@ final class CacheBatchResultStore implements BatchResultStore
 
         $this->cache->add($counterKey, 0, $ttlSeconds);
         $this->cache->increment($counterKey);
-
-        $this->cache->put($this->progressSuccessKey($batchId), $this->counterValue($batchId, $this->progressSuccessKey($batchId), 'success'), $ttlSeconds);
-        $this->cache->put($this->progressFailureKey($batchId), $this->counterValue($batchId, $this->progressFailureKey($batchId), 'failure'), $ttlSeconds);
     }
 
     private function counterValue(string $batchId, string $key, string $label): int
