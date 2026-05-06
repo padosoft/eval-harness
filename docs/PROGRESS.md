@@ -2624,3 +2624,9 @@
 - Switched `BatchLiveController::progress()` to read compact counters via `progressCounters()` after metadata has already been validated, avoiding a second metadata read and the stale-200 race where metadata disappears between reads.
 - Added `CacheBatchResultStoreTest::test_result_write_rolls_back_when_progress_metadata_refresh_fails`.
 - Full local gate passed after the ninth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (757 tests, 2099 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 merged
+
+- PR #42 (`task/report-api-completeness-v9-batch-live`) reached a clean Copilot round on head `d148ac8` (`generated no new comments`) after a remove/re-add reviewer retry.
+- CI was green across PHP 8.3 / 8.4 / 8.5 x Laravel 12 / 13.
+- Merged PR #42 into macro branch `task/report-api-completeness-v9` via merge commit `da04076`.
