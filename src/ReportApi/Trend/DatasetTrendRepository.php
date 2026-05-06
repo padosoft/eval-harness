@@ -53,7 +53,7 @@ final class DatasetTrendRepository
             }
         }
 
-        usort($points, static fn (array $left, array $right): int => $left['started_at'] <=> $right['started_at']);
+        usort($points, self::comparePointAscending(...));
 
         return $points;
     }
@@ -65,8 +65,8 @@ final class DatasetTrendRepository
     {
         try {
             $contents = $disk->get($path);
-        } catch (Throwable) {
-            return null;
+        } catch (Throwable $e) {
+            throw new ReportArtifactUnavailableException('Dataset trend report could not be read.', previous: $e);
         }
 
         if (! is_string($contents)) {
@@ -126,16 +126,24 @@ final class DatasetTrendRepository
         }
 
         $oldestIndex = 0;
-        $oldestStartedAt = $points[0]['started_at'];
         foreach ($points as $index => $existing) {
-            if ($existing['started_at'] < $oldestStartedAt) {
+            if (self::comparePointAscending($existing, $points[$oldestIndex]) < 0) {
                 $oldestIndex = $index;
-                $oldestStartedAt = $existing['started_at'];
             }
         }
 
-        if ($point['started_at'] > $oldestStartedAt) {
+        if (self::comparePointAscending($point, $points[$oldestIndex]) > 0) {
             $points[$oldestIndex] = $point;
         }
+    }
+
+    /**
+     * @param  array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}  $left
+     * @param  array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}  $right
+     */
+    private static function comparePointAscending(array $left, array $right): int
+    {
+        return ($left['started_at'] <=> $right['started_at'])
+            ?: ($left['path'] <=> $right['path']);
     }
 }

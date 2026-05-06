@@ -2673,3 +2673,11 @@
 - Replaced repeated overflow sorting with a bounded newest-N buffer and one final chronological sort.
 - Renamed the traversal test to match its assertion and added explicit `.` route coverage.
 - Full local gate passed after the fourth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (765 tests, 2127 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fifth Copilot review fix
+
+- Fifth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a1ccd91`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Promoted trend file read failures to `ReportArtifactUnavailableException` so transient storage failures surface as 503 instead of silently returning incomplete trend data.
+- Added deterministic path tie-breaking for bounded trend points with identical `started_at` values.
+- URL-encoded the `..` traversal route regression test so the controller validation is exercised consistently across HTTP normalizers.
+- Full local gate passed after the fifth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2136 assertions)`, PHPStan no errors, Pint passed.

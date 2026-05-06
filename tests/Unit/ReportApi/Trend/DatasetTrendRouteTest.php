@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\ReportApi\Trend;
 
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
+use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
+use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
 use Padosoft\EvalHarness\Tests\TestCase;
+use RuntimeException;
 
 final class DatasetTrendRouteTest extends TestCase
 {
@@ -66,7 +72,7 @@ final class DatasetTrendRouteTest extends TestCase
     {
         Storage::fake('eval-api');
 
-        $this->getJson('/eval-harness/api/datasets/../trend')
+        $this->getJson('/eval-harness/api/datasets/%2E%2E/trend')
             ->assertNotFound();
     }
 
@@ -115,6 +121,50 @@ final class DatasetTrendRouteTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.count', 1)
             ->assertJsonPath('data.points.0.path', 'rag/good.json');
+    }
+
+    public function test_trend_read_failures_return_service_unavailable(): void
+    {
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('exists')
+            ->once()
+            ->with('eval-harness/reports/rag')
+            ->andReturn(true);
+        $disk->shouldReceive('files')
+            ->once()
+            ->with('eval-harness/reports/rag')
+            ->andReturn(['eval-harness/reports/rag/broken.json']);
+        $disk->shouldReceive('get')
+            ->once()
+            ->with('eval-harness/reports/rag/broken.json')
+            ->andThrow(new RuntimeException('storage unavailable'));
+
+        $factory = Mockery::mock(FilesystemFactory::class);
+        $factory->shouldReceive('disk')
+            ->once()
+            ->with('eval-api')
+            ->andReturn($disk);
+
+        $this->app->instance(FilesystemFactory::class, $factory);
+        $this->app->forgetInstance(ReportArtifactRepository::class);
+        $this->app->forgetInstance(DatasetTrendRepository::class);
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend')
+            ->assertServiceUnavailable();
+    }
+
+    public function test_limit_ties_are_deterministic_by_path(): void
+    {
+        Storage::fake('eval-api');
+        $this->putReport('rag', 'z.json', 10.0, 0.9);
+        $this->putReport('rag', 'a.json', 10.0, 0.7);
+        $this->putReport('rag', 'm.json', 10.0, 0.8);
+
+        $this->getJson('/eval-harness/api/datasets/rag/trend?limit=2')
+            ->assertOk()
+            ->assertJsonPath('data.count', 2)
+            ->assertJsonPath('data.points.0.path', 'rag/m.json')
+            ->assertJsonPath('data.points.1.path', 'rag/z.json');
     }
 
     private function putReport(string $dataset, string $filename, float $startedAt, float $macroF1): void
