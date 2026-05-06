@@ -81,7 +81,10 @@ final class ReportArtifactRepository
         return $contents;
     }
 
-    private function disk(): Filesystem
+    /**
+     * @internal Shared by read-only report API repositories; not a stable host-app extension point.
+     */
+    public function disk(): Filesystem
     {
         $diskName = $this->config->get('eval-harness.reports.disk', 'local');
         $diskName = is_string($diskName) && trim($diskName) !== '' ? trim($diskName) : 'local';
@@ -89,7 +92,10 @@ final class ReportArtifactRepository
         return $this->filesystems->disk($diskName);
     }
 
-    private function prefix(): string
+    /**
+     * @internal Shared by read-only report API repositories; not a stable host-app extension point.
+     */
+    public function prefix(): string
     {
         $prefix = $this->config->get('eval-harness.reports.path_prefix', 'eval-harness/reports');
         if (! is_string($prefix)) {
@@ -161,7 +167,10 @@ final class ReportArtifactRepository
         }
     }
 
-    private function relativePath(string $path, string $prefix): ?string
+    /**
+     * @internal Shared by read-only report API repositories; not a stable host-app extension point.
+     */
+    public function relativePath(string $path, string $prefix): ?string
     {
         $normalized = trim(str_replace('\\', '/', $path), '/');
         if ($prefix === '') {

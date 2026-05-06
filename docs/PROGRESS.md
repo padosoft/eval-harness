@@ -2630,3 +2630,69 @@
 - PR #42 (`task/report-api-completeness-v9-batch-live`) reached a clean Copilot round on head `d148ac8` (`generated no new comments`) after a remove/re-add reviewer retry.
 - CI was green across PHP 8.3 / 8.4 / 8.5 x Laravel 12 / 13.
 - Merged PR #42 into macro branch `task/report-api-completeness-v9` via merge commit `da04076`.
+
+## 2026-05-06 UTC — Macro 9 / PR 9.4 dataset trend implementation
+
+- Started PR 9.4 on branch `task/report-api-completeness-v9-dataset-trend`.
+- Implemented read-only dataset trend discovery at `GET /datasets/{name}/trend?limit=N`:
+  - Scans `{reports.disk}/{path_prefix}/{dataset_name}/*.json`.
+  - Skips malformed reports and reports whose `dataset` does not match the route name.
+  - Sorts points chronologically by `started_at` and caps server-side limit at 100.
+  - Returns empty `points` for empty datasets instead of 404.
+  - Emits per-payload schema discriminator `SCHEMA_TREND`.
+- Full local gate passed for the 9.4 implementation: `composer validate --strict`, `vendor/bin/phpunit` => `OK (761 tests, 2117 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 first review fix
+
+- First review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a8a8d5c`) returned 3 actionable comments.
+- Added `schema_version` filtering so stale/incompatible report JSON files are skipped before trend point creation.
+- Preserved `cohorts` and `usage` summaries in each trend point so UI clients can plot cohort/cost/latency series without fetching every full report.
+- Treated missing dataset report directories as empty trend results while still mapping genuine listing failures to 503.
+- Full local gate passed after the first PR #43 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (762 tests, 2122 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 second Copilot review fix
+
+- Second Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `3204b26`) returned 1 new actionable comment plus one stale cohort/usage comment already addressed in the prior round.
+- Added dataset name traversal validation before storage access; `.` / `..` and path separators now return 404 instead of reaching Flysystem.
+- Added route coverage for traversal dataset names.
+- Full local gate passed after the second PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (763 tests, 2123 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 third Copilot review fix
+
+- Third Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `22ddcff`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Changed trend collection to keep only the newest `limit` points while iterating, avoiding an unbounded in-memory list before slicing.
+- Relaxed dataset name validation to reject only actual path segments/separators (`.` / `..` / slash / backslash), allowing non-traversal names like `foo..bar`.
+- Added route coverage for `foo..bar` dataset names.
+- Full local gate passed after the third PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (764 tests, 2126 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fourth Copilot review fix
+
+- Fourth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `52af258`) returned new actionable comments plus stale comments already addressed by prior rounds.
+- Reused `ReportArtifactRepository` for report disk/prefix/relative-path resolution so trend storage semantics cannot drift from the rest of the report API.
+- Passed the resolved filesystem and prefix through trend point reads instead of resolving config/disk for every file.
+- Replaced repeated overflow sorting with a bounded newest-N buffer and one final chronological sort.
+- Renamed the traversal test to match its assertion and added explicit `.` route coverage.
+- Full local gate passed after the fourth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (765 tests, 2127 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fifth Copilot review fix
+
+- Fifth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a1ccd91`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Promoted trend file read failures to `ReportArtifactUnavailableException` so transient storage failures surface as 503 instead of silently returning incomplete trend data.
+- Added deterministic path tie-breaking for bounded trend points with identical `started_at` values.
+- URL-encoded the `..` traversal route regression test so the controller validation is exercised consistently across HTTP normalizers.
+- Full local gate passed after the fifth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2136 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 sixth Copilot review fix
+
+- Sixth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `bc57c5e`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Changed the dataset trend 503 response message from listing-specific to generic so both listing and per-file read failures report accurately.
+- Added regression coverage for the storage-read failure response message.
+- Full local gate passed after the sixth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 seventh Copilot review fix
+
+- Seventh Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `434edee`) returned 3 new actionable comments plus stale comments already addressed by prior rounds.
+- Marked reused `ReportArtifactRepository` storage helpers as `@internal` to avoid presenting them as stable host-app extension APIs.
+- Aligned the dataset trend resource payload annotation with its returned keys.
+- Documented the dataset trend endpoint in README feature and Report API sections, including the `limit` cap and schema discriminator.
+- Full local gate passed after the seventh PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.

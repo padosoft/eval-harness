@@ -180,6 +180,11 @@ surface small and the offline path fast.
   can show regression diffs side-by-side without fetching full reports.
   The prefix defaults to `eval-harness/api` and is configurable through
   `eval-harness.api.prefix`.
+- **Dataset trend endpoint** —
+  `GET /<configured-prefix>/datasets/{name}/trend?limit=N` scans stored JSON
+  reports for one dataset, skips malformed artifacts, caps `limit` at 100,
+  and returns chronological points with metrics, cohorts, usage, and the
+  `eval-harness.report-api.v1.trend` schema discriminator.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -432,6 +437,12 @@ Additional read-only contracts are now available for UI consumers:
 - `GET /admin/eval-harness/api/reports/{id}/histograms` for score distribution buckets.
 - `GET /admin/eval-harness/api/reports/{id}/rows.csv` for CSV sample rows.
 - `GET /admin/eval-harness/api/reports/{id}/download` for direct artifact download.
+- `GET /admin/eval-harness/api/reports/{id}/diff/{otherId}` for signed report deltas.
+- `GET /admin/eval-harness/api/adversarial/manifests` and
+  `GET /admin/eval-harness/api/adversarial/manifests/{name}` for adversarial run manifest discovery.
+- `GET /admin/eval-harness/api/batches/live` and
+  `GET /admin/eval-harness/api/batches/{id}/progress` for live lazy-parallel batch monitoring.
+- `GET /admin/eval-harness/api/datasets/{name}/trend?limit=N` for chronological dataset trend points.
 - JSON examples and contract notes are documented in [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
