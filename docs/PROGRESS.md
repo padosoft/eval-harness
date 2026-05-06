@@ -2757,3 +2757,11 @@
 - Made progress-counter TTL refresh exception-safe: if a lock-protected refresh fails after incrementing a counter, `incrementProgressCounter()` rolls back the counter before surfacing the cache failure.
 - Added regression coverage that a failed metadata refresh leaves progress counters at zero after the result key rollback.
 - Full local gate passed after the sixth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2157 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 seventh Copilot review fix
+
+- Seventh review on PR #44 (`task/report-api-completeness-v9`, head `fadf2bc`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Added `RuntimeOptions::normalizePositiveInt()` for non-duration positive integer config values.
+- Switched `eval-harness.api.trend.max_files_scanned` from `TimeoutNormalizer` to `RuntimeOptions::normalizePositiveInt()`.
+- Added unit coverage for positive integer normalization.
+- Full local gate passed after the seventh macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (776 tests, 2162 assertions)`, PHPStan no errors, Pint passed.

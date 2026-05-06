@@ -131,6 +131,13 @@ final class RuntimeOptions
         return $safeDefault;
     }
 
+    public static function normalizePositiveInt(mixed $value, int $default): int
+    {
+        $normalized = self::normalizeNonNegativeInt($value, $default >= 1 ? $default : 1);
+
+        return $normalized >= 1 ? $normalized : ($default >= 1 ? $default : 1);
+    }
+
     private static function floorToNonNegativeInt(float $value, int $safeDefault): int
     {
         if (is_nan($value) || is_infinite($value) || $value < 0.0 || $value > (float) PHP_INT_MAX) {
