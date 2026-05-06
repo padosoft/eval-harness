@@ -351,8 +351,10 @@ Guardrails:
 
 - All five new routes inherit the existing `eval-harness.api.enabled`
   gate (disabled by default).
-- Diff and trend endpoints inherit traversal protection from
-  `ReportArtifactId::decode()`.
+- Diff/report artifact endpoints inherit traversal protection from
+  `ReportArtifactId::decode()`; the dataset trend endpoint rejects
+  `.` / `..` and path separators in its `{name}` route segment before
+  touching storage.
 - Adversarial manifest discovery is opt-in via the new config block;
   the existing CLI flag keeps working with arbitrary filesystem paths.
 - Batch live registry is cache-backed (no new persistence

@@ -2727,3 +2727,9 @@
 - Corrected `docs/UI_PACKAGE_SPEC.md` to state that legacy v1 Report API endpoints expose `schema_version` only, while Macro 9 / v1.2 endpoints also expose per-payload `schema` discriminators.
 - Updated the roadmap test-plan text to match the implemented live registry opt-out contract: 200 with an empty live list.
 - Full local gate passed after the second macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (771 tests, 2150 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 third Copilot review fix
+
+- Third review on PR #44 (`task/report-api-completeness-v9`, head `aa454f3`) returned 1 actionable docs comment.
+- Reworded roadmap guardrails to distinguish `ReportArtifactId::decode()` protection for report/diff endpoints from the explicit dataset-name segment validation used by the trend endpoint.
+- Full local gate passed after the third macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (771 tests, 2150 assertions)`, PHPStan no errors, Pint passed.
