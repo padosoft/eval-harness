@@ -156,6 +156,23 @@ final class CacheBatchResultStoreTest extends TestCase
         $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('numeric-string-progress'));
     }
 
+    public function test_terminal_result_status_must_be_known_before_progress_counter_updates(): void
+    {
+        $store = $this->store();
+        $store->start('unknown-terminal-status', 1, 60);
+        $method = new \ReflectionMethod($store, 'recordTerminalResult');
+        $method->setAccessible(true);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("terminal result status 'skipped' is invalid");
+
+        $method->invoke($store, 'unknown-terminal-status', 0, [
+            'status' => 'skipped',
+            'sample_id' => 's1',
+            'error' => 'not run',
+        ], 60);
+    }
+
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
     {
         $cache = new GetRecordingCacheRepository($this->cache->getStore());

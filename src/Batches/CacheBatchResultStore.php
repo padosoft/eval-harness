@@ -235,12 +235,18 @@ final class CacheBatchResultStore implements BatchResultStore
     }
 
     /**
-     * @param  array{status: 'success', sample_id: string, actual_output: string}|array{status: 'failure', sample_id: string, error: string}  $payload
+     * @param  array{status: string, sample_id: string, actual_output?: string, error?: string}  $payload
      */
     private function recordTerminalResult(string $batchId, int $index, array $payload, int $ttlSeconds): void
     {
         $this->assertNonNegativeIndex($index);
         $this->assertPositiveTtl($ttlSeconds);
+        if ($payload['status'] !== 'success' && $payload['status'] !== 'failure') {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch terminal result status '%s' is invalid.",
+                $payload['status'],
+            ));
+        }
 
         if ($this->status($batchId) !== self::STATUS_ACTIVE) {
             return;
@@ -277,6 +283,13 @@ final class CacheBatchResultStore implements BatchResultStore
 
     private function incrementProgressCounter(string $batchId, string $status, int $ttlSeconds): void
     {
+        if ($status !== 'success' && $status !== 'failure') {
+            throw new EvalRunException(sprintf(
+                "Stored lazy parallel batch terminal result status '%s' is invalid.",
+                $status,
+            ));
+        }
+
         $counterKey = $status === 'success'
             ? $this->progressSuccessKey($batchId)
             : $this->progressFailureKey($batchId);

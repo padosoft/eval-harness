@@ -2552,7 +2552,7 @@
   - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
 - Full local gate passed for the 9.3 implementation (current after review fix rounds):
   - `composer validate --strict` => valid.
-  - `vendor/bin/phpunit` => `OK (755 tests, 2094 assertions)`.
+  - `vendor/bin/phpunit` => `OK (756 tests, 2096 assertions)`.
   - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
   - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
   - `vendor/bin/pint --test` => passed.
@@ -2609,3 +2609,10 @@
 - Allowed progress counters read from cache to be non-negative digit-only strings as well as integers, covering Redis-style scalar returns after `increment()` while still rejecting negatives, decimals, and non-numeric values.
 - Added `CacheBatchResultStoreTest::test_progress_accepts_numeric_string_counters_from_cache_backends`.
 - Full local gate passed after the seventh PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (755 tests, 2094 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 eighth Copilot review fix
+
+- Eighth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `2df3791`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Added explicit terminal-result status validation before cache writes and before progress counter updates, so unexpected statuses cannot be silently counted as failures.
+- Added `CacheBatchResultStoreTest::test_terminal_result_status_must_be_known_before_progress_counter_updates`.
+- Full local gate passed after the eighth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (756 tests, 2096 assertions)`, PHPStan no errors, Pint passed.
