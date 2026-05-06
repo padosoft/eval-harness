@@ -2702,3 +2702,11 @@
 - PR #43 (`task/report-api-completeness-v9-dataset-trend`) received a current-head Copilot review on `a985ba3` with `generated no new comments` and all six GitHub Actions matrix jobs green.
 - Merged PR #43 into macro branch `task/report-api-completeness-v9` with merge commit `7c1c7ec`.
 - Macro Task 9 API slices now include report diff, adversarial manifest discovery, live batch registry/progress, and dataset trend endpoints.
+
+## 2026-05-06 UTC — Macro 9 / companion UI package spec
+
+- Added `docs/UI_PACKAGE_SPEC.md` for the future optional `padosoft/eval-harness-ui` package, covering mission, architecture, auth integration, seven screens with ASCII wireframes, endpoint/schema mapping, caching, accessibility/i18n, roadmap, and open questions.
+- Updated README with a `Companion UI package` TOC entry and section linking to the spec.
+- Confirmed the README banner image is present at `resources/banner.png` and already rendered immediately after badges and before the TOC.
+- Expanded README feature documentation for live batch registry/progress and the full v1.2 Report API endpoint set.
+- Full local gate passed after the companion UI spec/docs slice: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.

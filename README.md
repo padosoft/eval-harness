@@ -21,15 +21,16 @@
 5. [Installation](#installation)
 6. [Quick start](#quick-start)
 7. [Usage examples](#usage-examples)
-8. [Contract stability and migration](#contract-stability-and-migration)
-9. [Configuration](#configuration)
-10. [Architecture](#architecture)
-11. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
-12. [Testing](#testing)
-13. [Roadmap](#roadmap)
-14. [Contributing](#contributing)
-15. [Security](#security)
-16. [License](#license)
+8. [Companion UI package](#companion-ui-package)
+9. [Contract stability and migration](#contract-stability-and-migration)
+10. [Configuration](#configuration)
+11. [Architecture](#architecture)
+12. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
+13. [Testing](#testing)
+14. [Roadmap](#roadmap)
+15. [Contributing](#contributing)
+16. [Security](#security)
+17. [License](#license)
 
 ---
 
@@ -163,6 +164,12 @@ surface small and the offline path fast.
   `BatchTerminalProgressReporter` sub-contract for explicit
   `success` / `failure` / `empty` terminal status with partial-wins
   tolerance on the failure path.
+- **Live batch registry endpoints** —
+  `GET /<configured-prefix>/batches/live` and
+  `GET /<configured-prefix>/batches/{id}/progress` expose active
+  lazy-parallel batch ids and compact progress counters through cache-backed
+  read-only API contracts. The live registry is enabled by default and can
+  be disabled with `eval-harness.batches.live_registry.enabled`.
 - **Adversarial manifest discovery endpoints** —
   `GET /eval-harness/api/adversarial/manifests` and
   `GET /eval-harness/api/adversarial/manifests/{name}` enumerate
@@ -797,6 +804,16 @@ The examples above use stable API schema identifiers documented in
 [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
+
+## Companion UI package
+
+This package stays headless. The v1.2 Report API is designed as the backend
+contract for a future optional `padosoft/eval-harness-ui` Composer package.
+
+The UI package spec is documented in
+[`docs/UI_PACKAGE_SPEC.md`](docs/UI_PACKAGE_SPEC.md). It covers the intended
+read-only admin screens: Dashboard, Reports list, Report detail, Compare,
+Trend, Adversarial manifests, and Live batches.
 
 ## Contract stability and migration
 
