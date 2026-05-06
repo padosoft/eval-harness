@@ -14,7 +14,7 @@ final class DatasetTrendResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var array{dataset: string, limit: int, points: list<array<string, mixed>>} $payload */
+        /** @var array{dataset: string, limit: int, count?: int, points: list<array<string, mixed>>} $payload */
         $payload = $this->resource;
 
         return [

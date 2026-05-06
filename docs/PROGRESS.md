@@ -2688,3 +2688,11 @@
 - Changed the dataset trend 503 response message from listing-specific to generic so both listing and per-file read failures report accurately.
 - Added regression coverage for the storage-read failure response message.
 - Full local gate passed after the sixth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 seventh Copilot review fix
+
+- Seventh Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `434edee`) returned 3 new actionable comments plus stale comments already addressed by prior rounds.
+- Marked reused `ReportArtifactRepository` storage helpers as `@internal` to avoid presenting them as stable host-app extension APIs.
+- Aligned the dataset trend resource payload annotation with its returned keys.
+- Documented the dataset trend endpoint in README feature and Report API sections, including the `limit` cap and schema discriminator.
+- Full local gate passed after the seventh PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
