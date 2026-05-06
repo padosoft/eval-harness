@@ -2656,3 +2656,11 @@
 - Added dataset name traversal validation before storage access; `.` / `..` / names containing `..` now return 404 instead of reaching Flysystem.
 - Added route coverage for traversal dataset names.
 - Full local gate passed after the second PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (763 tests, 2123 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 third Copilot review fix
+
+- Third Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `22ddcff`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Changed trend collection to keep only the newest `limit` points while iterating, avoiding an unbounded in-memory list before slicing.
+- Relaxed dataset name validation to reject only actual path segments/separators (`.` / `..` / slash / backslash), allowing non-traversal names like `foo..bar`.
+- Added route coverage for `foo..bar` dataset names.
+- Full local gate passed after the third PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (764 tests, 2126 assertions)`, PHPStan no errors, Pint passed.

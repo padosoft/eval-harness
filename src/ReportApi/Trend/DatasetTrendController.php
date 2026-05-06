@@ -15,7 +15,7 @@ final class DatasetTrendController
 {
     public function show(Request $request, DatasetTrendRepository $trends, string $name): JsonResponse
     {
-        if ($name === '.' || $name === '..' || str_contains($name, '..')) {
+        if ($name === '.' || $name === '..' || str_contains($name, '/') || str_contains($name, '\\')) {
             throw new NotFoundHttpException("Dataset '{$name}' trend was not found.");
         }
 

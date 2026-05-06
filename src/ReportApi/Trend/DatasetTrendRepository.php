@@ -52,12 +52,16 @@ final class DatasetTrendRepository
             $point = $this->pointFor($path, $datasetName);
             if ($point !== null) {
                 $points[] = $point;
+                if (count($points) > $limit) {
+                    usort($points, static fn (array $left, array $right): int => $left['started_at'] <=> $right['started_at']);
+                    array_shift($points);
+                }
             }
         }
 
         usort($points, static fn (array $left, array $right): int => $left['started_at'] <=> $right['started_at']);
 
-        return array_slice($points, -$limit);
+        return $points;
     }
 
     /**

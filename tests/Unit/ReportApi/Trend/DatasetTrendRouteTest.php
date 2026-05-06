@@ -70,6 +70,16 @@ final class DatasetTrendRouteTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_double_dot_inside_dataset_segment_is_allowed(): void
+    {
+        Storage::fake('eval-api');
+
+        $this->getJson('/eval-harness/api/datasets/foo..bar/trend')
+            ->assertOk()
+            ->assertJsonPath('data.dataset', 'foo..bar')
+            ->assertJsonPath('data.points', []);
+    }
+
     public function test_malformed_reports_are_skipped(): void
     {
         Storage::fake('eval-api');
