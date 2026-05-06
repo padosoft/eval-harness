@@ -199,6 +199,23 @@ final class CacheBatchResultStoreTest extends TestCase
         ], $store->successfulResults('rollback-progress', 1));
     }
 
+    public function test_result_write_preserves_original_failure_when_counter_rollback_decrement_fails(): void
+    {
+        $cache = new ThrowingMetaRefreshCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('rollback-decrement-failure', 1, 60);
+        $cache->throwOnMetaRefresh = true;
+        $cache->throwOnDecrement = true;
+
+        try {
+            $store->recordSuccess('rollback-decrement-failure', 0, 's1', 'first output', 120);
+            $this->fail('Expected metadata refresh failure.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('meta refresh down', $e->getMessage());
+        }
+    }
+
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
     {
         $cache = new GetRecordingCacheRepository($this->cache->getStore());
@@ -407,6 +424,8 @@ final class ThrowingMetaRefreshCacheRepository extends PutRecordingCacheReposito
 {
     public bool $throwOnMetaRefresh = false;
 
+    public bool $throwOnDecrement = false;
+
     public function put($key, $value, $ttl = null): bool
     {
         if (
@@ -420,6 +439,15 @@ final class ThrowingMetaRefreshCacheRepository extends PutRecordingCacheReposito
         }
 
         return parent::put($key, $value, $ttl);
+    }
+
+    public function decrement($key, $value = 1): int|bool
+    {
+        if ($this->throwOnDecrement) {
+            throw new \RuntimeException('decrement down');
+        }
+
+        return parent::decrement($key, $value);
     }
 }
 

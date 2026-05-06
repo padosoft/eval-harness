@@ -2772,3 +2772,10 @@
 - Made live batch registry registration best-effort in both `run()` and `dispatch()` so observability cache failures cannot abort otherwise valid batch execution.
 - Added regression coverage that `registerLiveBatchSafely()` swallows registry cache failures.
 - Full local gate passed after the eighth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (777 tests, 2164 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 ninth Copilot review fix
+
+- Ninth Copilot review on PR #44 (`task/report-api-completeness-v9`, head `2fe6fc9`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Wrapped the outer `recordTerminalResult()` counter rollback decrement in best-effort `try/catch` so rollback failures cannot mask the original cache failure.
+- Added regression coverage that a decrement failure during rollback preserves the original metadata refresh exception.
+- Full local gate passed after the ninth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.

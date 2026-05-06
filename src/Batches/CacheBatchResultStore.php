@@ -294,7 +294,11 @@ final class CacheBatchResultStore implements BatchResultStore
             } catch (\Throwable $e) {
                 $this->cache->forget($resultKey);
                 if ($counterIncremented) {
-                    $this->decrementProgressCounter($batchId, $payload['status']);
+                    try {
+                        $this->decrementProgressCounter($batchId, $payload['status']);
+                    } catch (\Throwable) {
+                        // Preserve the original cache failure; rollback is best-effort.
+                    }
                 }
 
                 throw $e;
