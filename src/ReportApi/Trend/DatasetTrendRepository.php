@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\ReportApi\Trend;
 
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Filesystem\FilesystemAdapter;
+use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactUnavailableException;
 use Padosoft\EvalHarness\Reports\ReportSchema;
 use Throwable;
@@ -15,8 +14,7 @@ use Throwable;
 final class DatasetTrendRepository
 {
     public function __construct(
-        private readonly FilesystemFactory $filesystems,
-        private readonly ConfigRepository $config,
+        private readonly ReportArtifactRepository $reports,
     ) {}
 
     /**
@@ -25,10 +23,10 @@ final class DatasetTrendRepository
     public function trend(string $datasetName, int $limit): array
     {
         $limit = max(1, min(100, $limit));
-        $prefix = $this->prefix();
+        $prefix = $this->reports->prefix();
         $basePath = $prefix === '' ? $datasetName : $prefix.'/'.$datasetName;
         $points = [];
-        $disk = $this->disk();
+        $disk = $this->reports->disk();
 
         try {
             if ($disk instanceof FilesystemAdapter) {
@@ -49,13 +47,9 @@ final class DatasetTrendRepository
                 continue;
             }
 
-            $point = $this->pointFor($path, $datasetName);
+            $point = $this->pointFor($disk, $prefix, $path, $datasetName);
             if ($point !== null) {
-                $points[] = $point;
-                if (count($points) > $limit) {
-                    usort($points, static fn (array $left, array $right): int => $left['started_at'] <=> $right['started_at']);
-                    array_shift($points);
-                }
+                $this->keepNewestPoint($points, $point, $limit);
             }
         }
 
@@ -67,10 +61,10 @@ final class DatasetTrendRepository
     /**
      * @return array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}|null
      */
-    private function pointFor(string $path, string $datasetName): ?array
+    private function pointFor(Filesystem $disk, string $prefix, string $path, string $datasetName): ?array
     {
         try {
-            $contents = $this->disk()->get($path);
+            $contents = $disk->get($path);
         } catch (Throwable) {
             return null;
         }
@@ -107,7 +101,7 @@ final class DatasetTrendRepository
         $usage = $payload['usage'] ?? [];
 
         return [
-            'path' => $this->relativePath($path),
+            'path' => $this->reports->relativePath($path, $prefix) ?? trim(str_replace('\\', '/', $path), '/'),
             'started_at' => (float) $startedAt,
             'finished_at' => is_int($finishedAt) || is_float($finishedAt) ? (float) $finishedAt : null,
             'macro_f1' => is_int($macroF1) || is_float($macroF1) ? (float) $macroF1 : null,
@@ -119,31 +113,29 @@ final class DatasetTrendRepository
         ];
     }
 
-    private function disk(): Filesystem
+    /**
+     * @param  list<array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}>  $points
+     * @param  array{path: string, started_at: float, finished_at: float|null, macro_f1: float|null, total_samples: int|null, total_failures: int|null, metrics: array<string, mixed>, cohorts: list<mixed>, usage: array<string, mixed>}  $point
+     */
+    private function keepNewestPoint(array &$points, array $point, int $limit): void
     {
-        $diskName = $this->config->get('eval-harness.reports.disk', 'local');
-        $diskName = is_string($diskName) && trim($diskName) !== '' ? trim($diskName) : 'local';
+        if (count($points) < $limit) {
+            $points[] = $point;
 
-        return $this->filesystems->disk($diskName);
-    }
-
-    private function prefix(): string
-    {
-        $prefix = $this->config->get('eval-harness.reports.path_prefix', 'eval-harness/reports');
-        if (! is_string($prefix)) {
-            return 'eval-harness/reports';
+            return;
         }
 
-        return trim(trim(str_replace('\\', '/', $prefix)), '/');
-    }
+        $oldestIndex = 0;
+        $oldestStartedAt = $points[0]['started_at'];
+        foreach ($points as $index => $existing) {
+            if ($existing['started_at'] < $oldestStartedAt) {
+                $oldestIndex = $index;
+                $oldestStartedAt = $existing['started_at'];
+            }
+        }
 
-    private function relativePath(string $path): string
-    {
-        $prefix = $this->prefix();
-        $normalized = trim(str_replace('\\', '/', $path), '/');
-
-        return $prefix === '' || ! str_starts_with($normalized, $prefix.'/')
-            ? $normalized
-            : substr($normalized, strlen($prefix) + 1);
+        if ($point['started_at'] > $oldestStartedAt) {
+            $points[$oldestIndex] = $point;
+        }
     }
 }

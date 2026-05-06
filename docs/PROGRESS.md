@@ -2653,7 +2653,7 @@
 ## 2026-05-06 UTC — Macro 9 / PR #43 second Copilot review fix
 
 - Second Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `3204b26`) returned 1 new actionable comment plus one stale cohort/usage comment already addressed in the prior round.
-- Added dataset name traversal validation before storage access; `.` / `..` / names containing `..` now return 404 instead of reaching Flysystem.
+- Added dataset name traversal validation before storage access; `.` / `..` and path separators now return 404 instead of reaching Flysystem.
 - Added route coverage for traversal dataset names.
 - Full local gate passed after the second PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (763 tests, 2123 assertions)`, PHPStan no errors, Pint passed.
 
@@ -2664,3 +2664,12 @@
 - Relaxed dataset name validation to reject only actual path segments/separators (`.` / `..` / slash / backslash), allowing non-traversal names like `foo..bar`.
 - Added route coverage for `foo..bar` dataset names.
 - Full local gate passed after the third PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (764 tests, 2126 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fourth Copilot review fix
+
+- Fourth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `52af258`) returned new actionable comments plus stale comments already addressed by prior rounds.
+- Reused `ReportArtifactRepository` for report disk/prefix/relative-path resolution so trend storage semantics cannot drift from the rest of the report API.
+- Passed the resolved filesystem and prefix through trend point reads instead of resolving config/disk for every file.
+- Replaced repeated overflow sorting with a bounded newest-N buffer and one final chronological sort.
+- Renamed the traversal test to match its assertion and added explicit `.` route coverage.
+- Full local gate passed after the fourth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (765 tests, 2127 assertions)`, PHPStan no errors, Pint passed.
