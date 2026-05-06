@@ -2793,3 +2793,8 @@
 - Local pre-merge/macro gate passed on PR #44 head: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.
 - Local post-merge gate passed on `main` after PR #44 merge: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.
 - Release URL: https://github.com/padosoft/eval-harness/releases/tag/v1.2.0
+
+## 2026-05-06 UTC — README admin panel link
+
+- Updated README Table of Contents and replaced the companion UI placeholder with the live web admin panel section linking to `padosoft/eval-harness-admin`.
+- Added the dashboard screenshot reference for `resources/screenshoots/eval-harness-admin-Dashboard.png`.

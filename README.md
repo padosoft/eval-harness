@@ -21,7 +21,7 @@
 5. [Installation](#installation)
 6. [Quick start](#quick-start)
 7. [Usage examples](#usage-examples)
-8. [Companion UI package](#companion-ui-package)
+8. [Web admin panel UI](#web-admin-panel-ui)
 9. [Contract stability and migration](#contract-stability-and-migration)
 10. [Configuration](#configuration)
 11. [Architecture](#architecture)
@@ -810,10 +810,15 @@ The examples above use stable API schema identifiers documented in
 
 ---
 
-## Companion UI package
+## Web admin panel UI
 
-This package stays headless. The v1.2 Report API is designed as the backend
-contract for a future optional `padosoft/eval-harness-ui` Composer package.
+This package stays headless, but it already has a polished companion web admin
+panel at [`padosoft/eval-harness-admin`](https://github.com/padosoft/eval-harness-admin).
+Use that repository when you want a ready-made dashboard for browsing stored
+reports, comparing regressions, inspecting adversarial manifests, and following
+live batch progress through this package's read-only API contracts.
+
+![eval-harness admin dashboard](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/screenshoots/eval-harness-admin-Dashboard.png)
 
 The UI package spec is documented in
 [`docs/UI_PACKAGE_SPEC.md`](docs/UI_PACKAGE_SPEC.md). It covers the intended
