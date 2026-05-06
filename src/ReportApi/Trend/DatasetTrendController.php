@@ -24,7 +24,7 @@ final class DatasetTrendController
         try {
             $points = $trends->trend($name, $limit);
         } catch (ReportArtifactUnavailableException $e) {
-            throw new ServiceUnavailableHttpException(null, 'Dataset trend listing could not be read.', $e);
+            throw new ServiceUnavailableHttpException(null, 'Dataset trend could not be read.', $e);
         }
 
         return new JsonResponse([

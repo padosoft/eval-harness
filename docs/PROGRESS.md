@@ -2681,3 +2681,10 @@
 - Added deterministic path tie-breaking for bounded trend points with identical `started_at` values.
 - URL-encoded the `..` traversal route regression test so the controller validation is exercised consistently across HTTP normalizers.
 - Full local gate passed after the fifth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2136 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 sixth Copilot review fix
+
+- Sixth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `bc57c5e`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Changed the dataset trend 503 response message from listing-specific to generic so both listing and per-file read failures report accurately.
+- Added regression coverage for the storage-read failure response message.
+- Full local gate passed after the sixth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.

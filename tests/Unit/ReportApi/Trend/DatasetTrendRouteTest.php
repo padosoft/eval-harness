@@ -150,7 +150,8 @@ final class DatasetTrendRouteTest extends TestCase
         $this->app->forgetInstance(DatasetTrendRepository::class);
 
         $this->getJson('/eval-harness/api/datasets/rag/trend')
-            ->assertServiceUnavailable();
+            ->assertServiceUnavailable()
+            ->assertJsonPath('message', 'Dataset trend could not be read.');
     }
 
     public function test_limit_ties_are_deterministic_by_path(): void
