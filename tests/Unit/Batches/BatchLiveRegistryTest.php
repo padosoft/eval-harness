@@ -68,6 +68,24 @@ final class BatchLiveRegistryTest extends TestCase
         $this->assertSame(['still-live'], array_keys($registry->live()));
     }
 
+    public function test_live_read_prunes_entries_with_malformed_result_metadata(): void
+    {
+        $this->store->start('still-live', 1, 60);
+        $this->cache->put('eval-harness:batch-results:malformed-meta:meta', [
+            'sample_count' => 'not-an-int',
+            'status' => 'active',
+            'ttl_seconds' => 60,
+        ], 60);
+        $this->cache->put(self::LIVE_KEY, [
+            'malformed-meta' => time() + 60,
+            'still-live' => time() + 60,
+        ], 60);
+
+        $registry = new BatchLiveRegistry($this->cache, $this->store);
+
+        $this->assertSame(['still-live'], array_keys($registry->live()));
+    }
+
     public function test_disabled_registry_is_noop(): void
     {
         $this->store->start('disabled', 1, 60);

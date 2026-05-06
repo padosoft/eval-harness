@@ -193,7 +193,9 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 $cache->store($cacheStore !== '' ? $cacheStore : null),
             );
         });
-        $this->app->alias(CacheBatchResultStore::class, BatchResultStore::class);
+        $this->app->singletonIf(BatchResultStore::class, static function (Container $app): BatchResultStore {
+            return $app->make(CacheBatchResultStore::class);
+        });
 
         $this->app->singleton(BatchLiveRegistry::class, static function (Container $app): BatchLiveRegistry {
             /** @var CacheFactory $cache */

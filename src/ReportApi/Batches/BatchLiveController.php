@@ -8,8 +8,10 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Padosoft\EvalHarness\Batches\BatchLiveRegistry;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class BatchLiveController
 {
@@ -24,12 +26,21 @@ final class BatchLiveController
 
     public function progress(Request $request, CacheBatchResultStore $resultStore, string $id): JsonResponse
     {
-        $metadata = $resultStore->metadata($id);
+        try {
+            $metadata = $resultStore->metadata($id);
+        } catch (EvalRunException $e) {
+            throw new UnprocessableEntityHttpException($e->getMessage(), previous: $e);
+        }
+
         if ($metadata === null) {
             throw new NotFoundHttpException(sprintf("Batch '%s' progress metadata was not found.", $id));
         }
 
-        $progress = $resultStore->progress($id);
+        try {
+            $progress = $resultStore->progress($id);
+        } catch (EvalRunException $e) {
+            throw new UnprocessableEntityHttpException($e->getMessage(), previous: $e);
+        }
 
         return new JsonResponse([
             'schema_version' => ReportApiSchema::VERSION,

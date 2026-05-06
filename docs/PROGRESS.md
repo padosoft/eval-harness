@@ -2563,3 +2563,12 @@
 - Addressed the terminal progress bug by making `progress()` count retained terminal result payloads directly, preserving success/failure validation while working for `active`, `finished`, and `aborted` metadata states.
 - Added `CacheBatchResultStoreTest::test_progress_reports_failures_after_batch_abort` to pin the failure count after `abort()`.
 - Full local gate passed after the first PR #42 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (748 tests, 2083 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 second Copilot review fix
+
+- Second Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `f7ef9d7`) returned 3 actionable comments.
+- Hardened `BatchLiveRegistry::live()` self-healing so malformed result metadata is treated like missing metadata and pruned instead of bubbling a 500 from `/batches/live`.
+- Mapped invalid batch progress metadata/result payloads to HTTP 422 in `BatchLiveController`, while preserving 404 for genuinely missing metadata.
+- Reworked service-provider bindings so `BatchResultStore::class` remains the primary overridable contract via `singletonIf()`, while `CacheBatchResultStore::class` remains explicitly resolvable for cache-backed Report API progress endpoints.
+- Added regression coverage for malformed live metadata pruning, invalid progress payload 422s, and consumer override of `BatchResultStore`.
+- Full local gate passed after the second PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (752 tests, 2089 assertions)`, PHPStan no errors, Pint passed.

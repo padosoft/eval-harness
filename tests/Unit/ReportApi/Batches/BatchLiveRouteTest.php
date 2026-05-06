@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\ReportApi\Batches;
 
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Padosoft\EvalHarness\Batches\BatchLiveRegistry;
 use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\ReportApi\ReportApiSchema;
@@ -53,5 +54,35 @@ final class BatchLiveRouteTest extends TestCase
     {
         $this->getJson('/eval-harness/api/batches/missing/progress')
             ->assertNotFound();
+    }
+
+    public function test_batch_progress_returns_unprocessable_when_metadata_is_invalid(): void
+    {
+        /** @var CacheFactory $cacheFactory */
+        $cacheFactory = $this->app->make(CacheFactory::class);
+        $cacheFactory->store('array')->put('eval-harness:batch-results:invalid-progress:meta', [
+            'sample_count' => 'not-an-int',
+            'status' => 'active',
+            'ttl_seconds' => 60,
+        ], 60);
+
+        $this->getJson('/eval-harness/api/batches/invalid-progress/progress')
+            ->assertUnprocessable();
+    }
+
+    public function test_batch_progress_returns_unprocessable_when_result_payload_is_invalid(): void
+    {
+        /** @var CacheFactory $cacheFactory */
+        $cacheFactory = $this->app->make(CacheFactory::class);
+        $cache = $cacheFactory->store('array');
+        $store = new CacheBatchResultStore($cache);
+        $store->start('invalid-progress-result', 1, 60);
+        $cache->put('eval-harness:batch-results:invalid-progress-result:result:0', [
+            'status' => 'failure',
+            'sample_id' => 's1',
+        ], 60);
+
+        $this->getJson('/eval-harness/api/batches/invalid-progress-result/progress')
+            ->assertUnprocessable();
     }
 }

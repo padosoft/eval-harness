@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Batches;
 
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Throwable;
 
 final class BatchLiveRegistry
 {
@@ -117,7 +118,7 @@ final class BatchLiveRegistry
     {
         $now = time();
         foreach ($live as $batchId => $expiresAt) {
-            if ($expiresAt < $now || $this->resultStore->sampleCount($batchId) === null) {
+            if ($expiresAt < $now || ! $this->hasResultMetadata($batchId)) {
                 unset($live[$batchId]);
             }
         }
@@ -125,6 +126,15 @@ final class BatchLiveRegistry
         ksort($live);
 
         return $live;
+    }
+
+    private function hasResultMetadata(string $batchId): bool
+    {
+        try {
+            return $this->resultStore->sampleCount($batchId) !== null;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     /**
