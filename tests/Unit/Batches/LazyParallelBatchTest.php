@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Tests\Unit\Batches;
 
 use Illuminate\Contracts\Bus\Dispatcher;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
+use Padosoft\EvalHarness\Batches\BatchLiveRegistry;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
@@ -17,6 +20,8 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Jobs\EvaluateSampleJob;
 use Padosoft\EvalHarness\Tests\TestCase;
+use ReflectionMethod;
+use RuntimeException;
 
 final class LazyParallelBatchTest extends TestCase
 {
@@ -37,6 +42,100 @@ final class LazyParallelBatchTest extends TestCase
         );
 
         $this->assertSame(['first output', 'second output'], $outputs);
+    }
+
+    public function test_run_deregisters_live_batch_after_sync_queue_completion(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+        $this->app['config']->set('eval-harness.batches.lazy_parallel.cache_store', 'array');
+
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchLiveRegistry $registry */
+        $registry = $this->app->make(BatchLiveRegistry::class);
+        $samples = $this->samples();
+
+        $batch->run(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 2),
+        );
+
+        $this->assertSame([], $registry->live());
+    }
+
+    public function test_run_deregisters_live_batch_after_worker_failure(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+        $this->app['config']->set('eval-harness.batches.lazy_parallel.cache_store', 'array');
+
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchLiveRegistry $registry */
+        $registry = $this->app->make(BatchLiveRegistry::class);
+        $samples = $this->samples();
+
+        try {
+            $batch->run(
+                samples: $samples,
+                sampleInvocations: $this->sampleInvocations($samples),
+                runner: new LazyParallelFailingRunner,
+                options: BatchOptions::lazyParallel(concurrency: 2),
+            );
+
+            $this->fail('Expected failed sync batch.');
+        } catch (EvalRunException $e) {
+            $this->assertStringContainsString("Lazy parallel batch job for sample 's1' failed", $e->getMessage());
+        }
+
+        $this->assertSame([], $registry->live());
+    }
+
+    public function test_live_batch_deregister_cleanup_does_not_throw(): void
+    {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->andThrow(new RuntimeException('cache unavailable'));
+
+        $resultStore = Mockery::mock(BatchResultStore::class);
+        $registry = new BatchLiveRegistry($cache, $resultStore);
+        $batch = new LazyParallelBatch(
+            dispatcher: Mockery::mock(Dispatcher::class),
+            resultStore: $resultStore,
+            liveRegistry: $registry,
+        );
+
+        $method = new ReflectionMethod(LazyParallelBatch::class, 'deregisterLiveBatchSafely');
+        $method->setAccessible(true);
+        $method->invoke($batch, 'batch-live');
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function test_live_batch_register_cleanup_does_not_throw(): void
+    {
+        $cache = Mockery::mock(CacheRepository::class);
+        $cache->shouldReceive('get')
+            ->once()
+            ->andThrow(new RuntimeException('cache unavailable'));
+
+        $resultStore = Mockery::mock(BatchResultStore::class);
+        $registry = new BatchLiveRegistry($cache, $resultStore);
+        $batch = new LazyParallelBatch(
+            dispatcher: Mockery::mock(Dispatcher::class),
+            resultStore: $resultStore,
+            liveRegistry: $registry,
+        );
+
+        $method = new ReflectionMethod(LazyParallelBatch::class, 'registerLiveBatchSafely');
+        $method->setAccessible(true);
+        $method->invoke($batch, 'batch-live', 60);
+
+        $this->addToAssertionCount(1);
     }
 
     public function test_dispatch_pushes_jobs_to_configured_queue_without_running_queue_fake(): void
@@ -72,6 +171,30 @@ final class LazyParallelBatchTest extends TestCase
                 && $job->timeout === 45
                 && $job->resultTtlSeconds === 45;
         });
+    }
+
+    public function test_dispatch_keeps_live_batch_until_collect_outputs_finishes_it(): void
+    {
+        $this->app['config']->set('queue.default', 'sync');
+        $this->app['config']->set('cache.default', 'array');
+        $this->app['config']->set('eval-harness.batches.lazy_parallel.cache_store', 'array');
+
+        /** @var LazyParallelBatch $batch */
+        $batch = $this->app->make(LazyParallelBatch::class);
+        /** @var BatchLiveRegistry $registry */
+        $registry = $this->app->make(BatchLiveRegistry::class);
+        $samples = $this->samples();
+
+        $batchId = $batch->dispatch(
+            samples: $samples,
+            sampleInvocations: $this->sampleInvocations($samples),
+            runner: new LazyParallelAnswerRunner,
+            options: BatchOptions::lazyParallel(concurrency: 2),
+        );
+
+        $this->assertSame([$batchId], array_keys($registry->live()));
+        $this->assertSame(['first output', 'second output'], $batch->collectOutputs($batchId, $samples));
+        $this->assertSame([], $registry->live());
     }
 
     public function test_dispatch_ttl_scales_with_concurrency_keyed_drain_time(): void
@@ -1194,7 +1317,7 @@ final class LazyParallelBatchTest extends TestCase
             resultTtlSeconds: 10,
         );
 
-        $reflection = new \ReflectionMethod(LazyParallelBatch::class, 'rateLimitWindow');
+        $reflection = new ReflectionMethod(LazyParallelBatch::class, 'rateLimitWindow');
         $reflection->setAccessible(true);
 
         $explicitWindow = $reflection->invoke(
@@ -1957,7 +2080,7 @@ final class LazyParallelFailingRunner implements SampleRunner
 {
     public function run(SampleInvocation $sample): string
     {
-        throw new \RuntimeException('runner exploded');
+        throw new RuntimeException('runner exploded');
     }
 }
 
@@ -1969,7 +2092,7 @@ final class PartialFailureSampleRunner implements SampleRunner
     public function run(SampleInvocation $sample): string
     {
         if (str_starts_with($sample->id, 'fail')) {
-            throw new \RuntimeException('runner exploded');
+            throw new RuntimeException('runner exploded');
         }
 
         return (string) $sample->input['answer'];
@@ -2141,7 +2264,7 @@ final class ThrowingDispatcher implements Dispatcher
             $this->store->events[] = 'dispatch:'.$command->sampleId;
         }
 
-        throw new \RuntimeException('queue unavailable');
+        throw new RuntimeException('queue unavailable');
     }
 
     public function dispatchSync($command, $handler = null): mixed
@@ -2209,7 +2332,7 @@ final class FailureBeforeLaterDispatchThrowsDispatcher implements Dispatcher
             return null;
         }
 
-        throw new \RuntimeException('queue unavailable');
+        throw new RuntimeException('queue unavailable');
     }
 
     public function dispatchSync($command, $handler = null): mixed
@@ -2305,7 +2428,7 @@ final class AlwaysThrowingDispatcher implements Dispatcher
 {
     public function dispatch($command): mixed
     {
-        throw new \RuntimeException('queue unavailable');
+        throw new RuntimeException('queue unavailable');
     }
 
     public function dispatchSync($command, $handler = null): mixed
@@ -2683,7 +2806,7 @@ final class ThrowingStartBatchResultStore implements BatchResultStore
 {
     public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
-        throw new \RuntimeException('redis down');
+        throw new RuntimeException('redis down');
     }
 
     public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
@@ -2751,7 +2874,7 @@ final class ThrowingAbortBatchResultStore implements BatchResultStore
 
     public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
     {
-        throw new \RuntimeException('cleanup down');
+        throw new RuntimeException('cleanup down');
     }
 
     public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
@@ -2793,7 +2916,7 @@ final class ThrowingBatchProgressReporter implements BatchProgressReporter
 {
     public function reportCheckpoint(string $batchId, int $samplesCompleted, int $totalSamples): void
     {
-        throw new \RuntimeException('telemetry sink unavailable');
+        throw new RuntimeException('telemetry sink unavailable');
     }
 }
 
@@ -2835,6 +2958,6 @@ final class ThrowingTerminalProgressReporter implements BatchTerminalProgressRep
 
     public function reportTerminal(string $batchId, int $samplesCompleted, int $totalSamples, string $status): void
     {
-        throw new \RuntimeException('telemetry sink unavailable');
+        throw new RuntimeException('telemetry sink unavailable');
     }
 }

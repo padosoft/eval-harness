@@ -107,6 +107,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Adversarial run manifests (HTTP discovery)
+    |--------------------------------------------------------------------------
+    |
+    | The CLI `eval-harness:adversarial --adversarial-manifest=<path>` keeps
+    | accepting arbitrary filesystem paths. This config block is purely
+    | additive: it lets the read-only Report API enumerate adversarial run
+    | manifests via /<configured-prefix>/adversarial/manifests (Macro 9+).
+    |
+    | When `disk` is null, the manifest discovery endpoints respond
+    | 404 + "discovery_not_configured" so a companion UI degrades
+    | gracefully. Operators who want HTTP discovery should set the disk
+    | (and optionally the path prefix) to point at the directory their
+    | scheduled adversarial runs write to.
+    |
+    */
+
+    'adversarial' => [
+        'manifests' => [
+            'disk' => env('EVAL_HARNESS_ADVERSARIAL_MANIFEST_DISK'),
+            'path_prefix' => env(
+                'EVAL_HARNESS_ADVERSARIAL_MANIFEST_PATH',
+                'eval-harness/adversarial/manifests',
+            ),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Read-only report API
     |--------------------------------------------------------------------------
     |
@@ -126,6 +154,12 @@ return [
                 static fn (string $middleware): string => trim($middleware),
                 explode(',', (string) env('EVAL_HARNESS_API_MIDDLEWARE')),
             ))),
+        'trend' => [
+            'max_files_scanned' => RuntimeOptions::normalizePositiveInt(
+                env('EVAL_HARNESS_API_TREND_MAX_FILES_SCANNED'),
+                5000,
+            ),
+        ],
     ],
 
     /*
@@ -150,6 +184,13 @@ return [
             'wait_timeout_seconds' => TimeoutNormalizer::normalize(
                 env('EVAL_HARNESS_BATCH_WAIT_TIMEOUT'),
                 60,
+            ),
+        ],
+
+        'live_registry' => [
+            'enabled' => RuntimeOptions::normalizeBoolean(
+                env('EVAL_HARNESS_BATCH_LIVE_REGISTRY_ENABLED'),
+                true,
             ),
         ],
 

@@ -13,6 +13,7 @@ use Padosoft\EvalHarness\Batches\BatchProfileResolver;
 use Padosoft\EvalHarness\Batches\BatchProgressReporter;
 use Padosoft\EvalHarness\Batches\BatchResultStore;
 use Padosoft\EvalHarness\Batches\BatchTerminalProgressReporter;
+use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
@@ -77,6 +78,7 @@ final class ServiceProviderTest extends TestCase
     public function test_batch_result_store_is_bound(): void
     {
         $this->assertInstanceOf(BatchResultStore::class, $this->app->make(BatchResultStore::class));
+        $this->assertInstanceOf(CacheBatchResultStore::class, $this->app->make(CacheBatchResultStore::class));
     }
 
     public function test_adversarial_run_manifest_store_is_bound(): void
@@ -404,6 +406,66 @@ final class ServiceProviderTest extends TestCase
         $this->app->make(BatchResultStore::class);
 
         $this->assertSame(['eval-results'], $recordingFactory->requestedStores);
+    }
+
+    public function test_batch_result_store_binding_can_be_overridden_by_consumers(): void
+    {
+        $custom = new InMemoryServiceProviderBatchResultStore;
+        $this->app->instance(BatchResultStore::class, $custom);
+
+        $provider = new EvalHarnessServiceProvider($this->app);
+        $provider->register();
+
+        $this->assertSame($custom, $this->app->make(BatchResultStore::class));
+        $this->assertInstanceOf(CacheBatchResultStore::class, $this->app->make(CacheBatchResultStore::class));
+    }
+}
+
+final class InMemoryServiceProviderBatchResultStore implements BatchResultStore
+{
+    public function start(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function sampleCount(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function ttlSeconds(string $batchId): ?int
+    {
+        return null;
+    }
+
+    public function finish(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function abort(string $batchId, int $sampleCount, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordSuccess(string $batchId, int $index, string $sampleId, string $actualOutput, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function recordFailure(string $batchId, int $index, string $sampleId, string $error, int $ttlSeconds): void
+    {
+        //
+    }
+
+    public function successfulResults(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
+    }
+
+    public function failures(string $batchId, int $sampleCount, ?array $indexes = null): array
+    {
+        return [];
     }
 }
 

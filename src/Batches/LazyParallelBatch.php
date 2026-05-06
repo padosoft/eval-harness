@@ -65,6 +65,7 @@ final class LazyParallelBatch
         private readonly int $resultTtlSeconds = self::DEFAULT_RESULT_TTL_SECONDS,
         private readonly int $defaultWaitTimeoutSeconds = self::DEFAULT_WAIT_TIMEOUT_SECONDS,
         private readonly BatchProgressReporter $progressReporter = new NullBatchProgressReporter,
+        private readonly ?BatchLiveRegistry $liveRegistry = null,
     ) {
         if ($resultTtlSeconds < 1) {
             throw new EvalRunException('Batch result TTL must be greater than or equal to 1 second.');
@@ -109,6 +110,7 @@ final class LazyParallelBatch
             // no FAILURE) even though a batch id was already
             // allocated and the run is unmistakably broken.
             $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
+            $this->registerLiveBatchSafely($batchId, $resultTtlSeconds);
 
             foreach (array_chunk($samples, $options->effectiveChunkSize(), preserve_keys: true) as $sampleWindow) {
                 // The chunk deadline covers BOTH dispatch (which can
@@ -311,6 +313,8 @@ final class LazyParallelBatch
             }
 
             throw $e;
+        } finally {
+            $this->deregisterLiveBatchSafely($batchId);
         }
     }
 
@@ -385,7 +389,9 @@ final class LazyParallelBatch
         // BatchOptions::lazyParallel(resultTtlSeconds: ...).
         $resultTtlSeconds = $this->resultTtlSecondsForDispatch($options, $sampleCount);
         $this->startResults($batchId, $sampleCount, $resultTtlSeconds);
+        $this->registerLiveBatchSafely($batchId, $resultTtlSeconds);
 
+        $dispatched = false;
         // Note: rate-limit throttling deliberately does NOT apply on the
         // external dispatch-only path. Callers use dispatch() to enqueue
         // now and collect later (the documented fire-and-return flow on
@@ -413,6 +419,7 @@ final class LazyParallelBatch
                     rateLimiter: null,
                 );
             }
+            $dispatched = true;
         } catch (Throwable $e) {
             try {
                 $this->throwStoredFailureOrDispatchException(
@@ -425,6 +432,10 @@ final class LazyParallelBatch
                 $this->abortResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
 
                 throw $primary;
+            }
+        } finally {
+            if (! $dispatched) {
+                $this->deregisterLiveBatchSafely($batchId);
             }
         }
 
@@ -463,6 +474,7 @@ final class LazyParallelBatch
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
             $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
+            $this->deregisterLiveBatchSafely($batchId);
 
             return array_values($outputsByIndex);
         }
@@ -472,6 +484,7 @@ final class LazyParallelBatch
         if ($outputsByIndex !== null) {
             ksort($outputsByIndex);
             $this->finishResultsSafely($batchId, $sampleCount, $resultTtlSeconds);
+            $this->deregisterLiveBatchSafely($batchId);
 
             return array_values($outputsByIndex);
         }
@@ -1313,6 +1326,24 @@ final class LazyParallelBatch
     private function abortResultsSafely(string $batchId, int $sampleCount, int $resultTtlSeconds): void
     {
         $this->cleanupResultsSafely('abort', $batchId, $sampleCount, $resultTtlSeconds);
+    }
+
+    private function deregisterLiveBatchSafely(string $batchId): void
+    {
+        try {
+            $this->liveRegistry?->deregister($batchId);
+        } catch (Throwable) {
+            // Live registry cleanup is best-effort and must not mask the primary batch outcome.
+        }
+    }
+
+    private function registerLiveBatchSafely(string $batchId, int $resultTtlSeconds): void
+    {
+        try {
+            $this->liveRegistry?->register($batchId, $resultTtlSeconds);
+        } catch (Throwable) {
+            // Live registry is observability-only; cache issues must not break batch execution.
+        }
     }
 
     /**

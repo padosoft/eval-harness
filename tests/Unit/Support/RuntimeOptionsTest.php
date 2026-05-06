@@ -52,6 +52,15 @@ final class RuntimeOptionsTest extends TestCase
         $this->assertSame(0, RuntimeOptions::normalizeNonNegativeInt('abc', -1));
     }
 
+    public function test_positive_int_values_are_normalized(): void
+    {
+        $this->assertSame(12, RuntimeOptions::normalizePositiveInt('12', 5));
+        $this->assertSame(12, RuntimeOptions::normalizePositiveInt(12.9, 5));
+        $this->assertSame(5, RuntimeOptions::normalizePositiveInt(0, 5));
+        $this->assertSame(5, RuntimeOptions::normalizePositiveInt('0', 5));
+        $this->assertSame(1, RuntimeOptions::normalizePositiveInt('abc', -1));
+    }
+
     public function test_runtime_values_are_read_from_config(): void
     {
         $config = new Repository([

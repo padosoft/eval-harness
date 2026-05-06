@@ -99,6 +99,7 @@ final class CacheBatchResultStoreTest extends TestCase
             0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
         ], $store->successfulResults('duplicate-delivery', 1));
         $this->assertSame([], $store->failures('duplicate-delivery', 1));
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('duplicate-delivery'));
     }
 
     public function test_finished_batches_keep_existing_successes_readable_until_ttl_expiry(): void
@@ -113,6 +114,106 @@ final class CacheBatchResultStoreTest extends TestCase
             0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
         ], $store->successfulResults('closed-batch', 1));
         $this->assertSame([], $store->failures('closed-batch', 1));
+    }
+
+    public function test_progress_reports_failures_after_batch_abort(): void
+    {
+        $store = $this->store();
+        $store->start('aborted-progress', 2, 60);
+        $store->recordFailure('aborted-progress', 0, 's1', 'runner exploded', 60);
+
+        $store->abort('aborted-progress', 2, 60);
+
+        $this->assertSame(['successes' => 0, 'failures' => 1], $store->progress('aborted-progress'));
+    }
+
+    public function test_progress_reads_metadata_and_compact_counters_only(): void
+    {
+        $cache = new GetRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('compact-progress', 2, 60);
+        $store->recordSuccess('compact-progress', 0, 's1', 'first output', 60);
+        $store->recordFailure('compact-progress', 1, 's2', 'runner exploded', 60);
+
+        $cache->getKeys = [];
+
+        $this->assertSame(['successes' => 1, 'failures' => 1], $store->progress('compact-progress'));
+        $this->assertSame([
+            $this->metaKey('compact-progress'),
+            $this->progressSuccessKey('compact-progress'),
+            $this->progressFailureKey('compact-progress'),
+        ], $cache->getKeys);
+    }
+
+    public function test_progress_accepts_numeric_string_counters_from_cache_backends(): void
+    {
+        $store = $this->store();
+        $store->start('numeric-string-progress', 2, 60);
+        $this->cache->put($this->progressSuccessKey('numeric-string-progress'), '1', 60);
+        $this->cache->put($this->progressFailureKey('numeric-string-progress'), '0', 60);
+
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('numeric-string-progress'));
+    }
+
+    public function test_terminal_result_status_must_be_known_before_progress_counter_updates(): void
+    {
+        $store = $this->store();
+        $store->start('unknown-terminal-status', 1, 60);
+        $method = new \ReflectionMethod($store, 'recordTerminalResult');
+        $method->setAccessible(true);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage("terminal result status 'skipped' is invalid");
+
+        $method->invoke($store, 'unknown-terminal-status', 0, [
+            'status' => 'skipped',
+            'sample_id' => 's1',
+            'error' => 'not run',
+        ], 60);
+    }
+
+    public function test_result_write_rolls_back_when_progress_metadata_refresh_fails(): void
+    {
+        $cache = new ThrowingMetaRefreshCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('rollback-progress', 1, 60);
+        $cache->throwOnMetaRefresh = true;
+
+        try {
+            $store->recordSuccess('rollback-progress', 0, 's1', 'first output', 120);
+            $this->fail('Expected metadata refresh failure.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('meta refresh down', $e->getMessage());
+        }
+
+        $this->assertSame(['successes' => 0, 'failures' => 0], $store->progress('rollback-progress'));
+
+        $cache->throwOnMetaRefresh = false;
+        $store->recordSuccess('rollback-progress', 0, 's1', 'first output', 120);
+
+        $this->assertSame(['successes' => 1, 'failures' => 0], $store->progress('rollback-progress'));
+        $this->assertSame([
+            0 => ['sample_id' => 's1', 'actual_output' => 'first output'],
+        ], $store->successfulResults('rollback-progress', 1));
+    }
+
+    public function test_result_write_preserves_original_failure_when_counter_rollback_decrement_fails(): void
+    {
+        $cache = new ThrowingMetaRefreshCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('rollback-decrement-failure', 1, 60);
+        $cache->throwOnMetaRefresh = true;
+        $cache->throwOnDecrement = true;
+
+        try {
+            $store->recordSuccess('rollback-decrement-failure', 0, 's1', 'first output', 120);
+            $this->fail('Expected metadata refresh failure.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('meta refresh down', $e->getMessage());
+        }
     }
 
     public function test_finish_marks_batch_closed_without_rescanning_sample_results(): void
@@ -218,6 +319,26 @@ final class CacheBatchResultStoreTest extends TestCase
         ], $metaPuts);
     }
 
+    public function test_no_lock_progress_fallback_does_not_extend_metadata_when_existing_counter_ttl_cannot_refresh(): void
+    {
+        $cache = new ThrowingLockPutRecordingCacheRepository($this->cache->getStore());
+        $store = new CacheBatchResultStore($cache);
+
+        $store->start('no-lock-refresh', 2, 60);
+        $store->recordSuccess('no-lock-refresh', 0, 's1', 'first output', 60);
+        $cache->putRecords = [];
+
+        $store->recordSuccess('no-lock-refresh', 1, 's2', 'second output', 120);
+
+        $metaPuts = array_values(array_filter(
+            $cache->putRecords,
+            fn (array $record): bool => $record['key'] === $this->metaKey('no-lock-refresh'),
+        ));
+
+        $this->assertSame([], $metaPuts);
+        $this->assertSame(['successes' => 2, 'failures' => 0], $store->progress('no-lock-refresh'));
+    }
+
     private function store(): CacheBatchResultStore
     {
         return new CacheBatchResultStore($this->cache);
@@ -226,6 +347,16 @@ final class CacheBatchResultStoreTest extends TestCase
     private function resultKey(string $batchId, int $index): string
     {
         return sprintf('eval-harness:batch-results:%s:result:%d', $batchId, $index);
+    }
+
+    private function progressSuccessKey(string $batchId): string
+    {
+        return sprintf('eval-harness:batch-results:%s:progress:successes', $batchId);
+    }
+
+    private function progressFailureKey(string $batchId): string
+    {
+        return sprintf('eval-harness:batch-results:%s:progress:failures', $batchId);
     }
 
     private function metaKey(string $batchId): string
@@ -263,7 +394,7 @@ final class GetRecordingCacheRepository extends IlluminateCacheRepository
     }
 }
 
-final class PutRecordingCacheRepository extends IlluminateCacheRepository
+class PutRecordingCacheRepository extends IlluminateCacheRepository
 {
     /** @var list<array{key: mixed, value: mixed, ttl: mixed}> */
     public array $putRecords = [];
@@ -273,5 +404,57 @@ final class PutRecordingCacheRepository extends IlluminateCacheRepository
         $this->putRecords[] = ['key' => $key, 'value' => $value, 'ttl' => $ttl];
 
         return parent::put($key, $value, $ttl);
+    }
+
+    public function lock($name, $seconds = 0, $owner = null): BlockingCallbackLock
+    {
+        return new BlockingCallbackLock;
+    }
+}
+
+final class ThrowingLockPutRecordingCacheRepository extends PutRecordingCacheRepository
+{
+    public function lock($name, $seconds = 0, $owner = null): never
+    {
+        throw new \RuntimeException('lock unavailable');
+    }
+}
+
+final class ThrowingMetaRefreshCacheRepository extends PutRecordingCacheRepository
+{
+    public bool $throwOnMetaRefresh = false;
+
+    public bool $throwOnDecrement = false;
+
+    public function put($key, $value, $ttl = null): bool
+    {
+        if (
+            $this->throwOnMetaRefresh
+            && is_string($key)
+            && str_ends_with($key, ':meta')
+            && is_array($value)
+            && ($value['ttl_seconds'] ?? null) === 120
+        ) {
+            throw new \RuntimeException('meta refresh down');
+        }
+
+        return parent::put($key, $value, $ttl);
+    }
+
+    public function decrement($key, $value = 1): int|bool
+    {
+        if ($this->throwOnDecrement) {
+            throw new \RuntimeException('decrement down');
+        }
+
+        return parent::decrement($key, $value);
+    }
+}
+
+final class BlockingCallbackLock
+{
+    public function block($seconds, ?callable $callback = null): mixed
+    {
+        return $callback === null ? true : $callback();
     }
 }

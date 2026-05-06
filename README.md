@@ -21,15 +21,16 @@
 5. [Installation](#installation)
 6. [Quick start](#quick-start)
 7. [Usage examples](#usage-examples)
-8. [Contract stability and migration](#contract-stability-and-migration)
-9. [Configuration](#configuration)
-10. [Architecture](#architecture)
-11. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
-12. [Testing](#testing)
-13. [Roadmap](#roadmap)
-14. [Contributing](#contributing)
-15. [Security](#security)
-16. [License](#license)
+8. [Companion UI package](#companion-ui-package)
+9. [Contract stability and migration](#contract-stability-and-migration)
+10. [Configuration](#configuration)
+11. [Architecture](#architecture)
+12. [AI vibe-coding pack included](#ai-vibe-coding-pack-included)
+13. [Testing](#testing)
+14. [Roadmap](#roadmap)
+15. [Contributing](#contributing)
+16. [Security](#security)
+17. [License](#license)
 
 ---
 
@@ -163,6 +164,36 @@ surface small and the offline path fast.
   `BatchTerminalProgressReporter` sub-contract for explicit
   `success` / `failure` / `empty` terminal status with partial-wins
   tolerance on the failure path.
+- **Live batch registry endpoints** —
+  `GET /<configured-prefix>/batches/live` and
+  `GET /<configured-prefix>/batches/{id}/progress` expose active
+  lazy-parallel batch ids and compact progress counters through cache-backed
+  read-only API contracts. The live registry is enabled by default and can
+  be disabled with `eval-harness.batches.live_registry.enabled`.
+- **Adversarial manifest discovery endpoints** —
+  `GET /<configured-prefix>/adversarial/manifests` and
+  `GET /<configured-prefix>/adversarial/manifests/{name}` enumerate
+  adversarial run manifests written to a configured disk so a
+  companion UI can browse compliance history without scraping the
+  filesystem. Opt-in via
+  `eval-harness.adversarial.manifests.{disk,path_prefix}`; the CLI
+  `--adversarial-manifest=<arbitrary-path>` flag is preserved for
+  existing operators.
+- **Report diff endpoint** —
+  `GET /<configured-prefix>/reports/{id}/diff/{otherId}` computes signed
+  deltas (macro_f1, per-metric mean/pass_rate, per-cohort status with
+  `added` / `removed` / `regressed` / `improved` / `stable`, total_samples
+  / total_failures, adversarial categories when present) so a companion UI
+  can show regression diffs side-by-side without fetching full reports.
+  The prefix defaults to `eval-harness/api` and is configurable through
+  `eval-harness.api.prefix`.
+- **Dataset trend endpoint** —
+  `GET /<configured-prefix>/datasets/{name}/trend?limit=N` scans stored JSON
+  reports for one dataset, skips malformed artifacts, caps `limit` at 100,
+  caps scanned JSON files through
+  `eval-harness.api.trend.max_files_scanned`, and returns chronological
+  points with metrics, cohorts, usage, and the
+  `eval-harness.report-api.v1.trend` schema discriminator.
 - **Provider-agnostic** — works with OpenAI, OpenRouter, Regolo,
   Mistral, any OpenAI-compatible chat-completions endpoint.
 - **No DB migrations required** — datasets are YAML, results are
@@ -403,6 +434,9 @@ behind your host app's existing admin middleware.
     'enabled' => true,
     'prefix' => 'admin/eval-harness/api',
     'middleware' => ['web', 'auth'],
+    'trend' => [
+        'max_files_scanned' => 5000,
+    ],
 ],
 ```
 
@@ -415,6 +449,12 @@ Additional read-only contracts are now available for UI consumers:
 - `GET /admin/eval-harness/api/reports/{id}/histograms` for score distribution buckets.
 - `GET /admin/eval-harness/api/reports/{id}/rows.csv` for CSV sample rows.
 - `GET /admin/eval-harness/api/reports/{id}/download` for direct artifact download.
+- `GET /admin/eval-harness/api/reports/{id}/diff/{otherId}` for signed report deltas.
+- `GET /admin/eval-harness/api/adversarial/manifests` and
+  `GET /admin/eval-harness/api/adversarial/manifests/{name}` for adversarial run manifest discovery.
+- `GET /admin/eval-harness/api/batches/live` and
+  `GET /admin/eval-harness/api/batches/{id}/progress` for live lazy-parallel batch monitoring.
+- `GET /admin/eval-harness/api/datasets/{name}/trend?limit=N` for chronological dataset trend points.
 - JSON examples and contract notes are documented in [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
@@ -769,6 +809,16 @@ The examples above use stable API schema identifiers documented in
 [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
+
+## Companion UI package
+
+This package stays headless. The v1.2 Report API is designed as the backend
+contract for a future optional `padosoft/eval-harness-ui` Composer package.
+
+The UI package spec is documented in
+[`docs/UI_PACKAGE_SPEC.md`](docs/UI_PACKAGE_SPEC.md). It covers the intended
+read-only admin screens: Dashboard, Reports list, Report detail, Compare,
+Trend, Adversarial manifests, and Live batches.
 
 ## Contract stability and migration
 

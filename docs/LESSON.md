@@ -306,6 +306,8 @@
 - List endpoints should be resilient to malformed artifacts already present on disk. Catch path-validation exceptions while building the collection response and skip bad entries instead of failing the entire listing, and surface storage listing failures as 5xx instead of a generic 500.
 - API routes that expose report internals should not overload the list endpoint with N+1 metadata lookups; provide dedicated manifest views (`cohorts`, `histograms`, `rows.csv`) and a dedicated download endpoint instead.
 - Keep artifact row export deterministic by using report-level metric names as column headers and emitting one row per sample/metric, including metric errors from `failures` when a score is absent.
+- API payloads should not require UI clients to key rows by human-facing labels. Cohort names can collide with synthetic labels such as `__untagged__`, so diff/list resources need stable machine keys or explicit discriminator booleans in addition to display tags.
+- README endpoint bullets should use `/<configured-prefix>/...` or explicitly mention `eval-harness.api.prefix` when routes live under the package API prefix. Hard-coding `/eval-harness/api/...` in feature bullets conflicts with host-app examples that mount the API behind `admin/eval-harness/api`.
 
 ## 2026-05-04
 

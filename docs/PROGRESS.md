@@ -2451,3 +2451,331 @@
   - Macro 7 shipped v1.0 (tag `1.0`, 2026-05-04).
   - Macro 8 shipped v1.1.0 (tag `v1.1.0`, 2026-05-05) as the v1.x enterprise operations and scalability add-on without breaking any v1 contract.
   - Final main quality gates: PHPUnit `OK (699 tests, 1956 assertions)`, PHPStan `[OK] No errors`, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 second Copilot review fix
+
+- Second Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `113bc41`) returned 2 actionable comments: `show()` mapped malformed/invalid manifest payloads to 404 instead of 422, and README documented the show endpoint with an ambiguous short path.
+- Addressed the manifest status contract by introducing `InvalidManifestPayloadException` for existing-but-invalid JSON/schema payloads. `ManifestController::show()` now maps that exception to 422 while preserving 404 for missing manifests and invalid names. `ManifestRepository::summaries()` still skips invalid manifest files during listing, preserving the discovery endpoint's best-effort behavior.
+- Added `ManifestRouteTest::test_show_returns_unprocessable_entity_for_malformed_manifest_payload` to pin malformed manifest show requests as 422. The existing malformed-listing test remains green and proves list discovery still skips broken files.
+- Updated the README bullet to spell out `GET /eval-harness/api/adversarial/manifests/{name}` fully.
+- Full local gate passed after the second PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (708 tests, 1980 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 third Copilot review fix
+
+- Third Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `67835f2`) returned 2 new actionable comments plus two stale comments already addressed in the prior round.
+- Addressed invalid disk handling by wrapping manifest disk resolution in `ReportArtifactUnavailableException`, so bad `eval-harness.adversarial.manifests.disk` config maps to the controller's 503 path instead of leaking Laravel's `InvalidArgumentException` as a generic 500. Pinned with `test_invalid_manifest_disk_returns_service_unavailable`.
+- Reworked the request-pass-through regression test so it is meaningful: `ManifestController` now delegates resource rendering through an injectable `ManifestResourceFactory`, and the test swaps that factory to assert it receives the actual route `Request`. This catches a future regression to the global `request()` helper without adding test-only fields to the public JSON payload.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 fourth Copilot review fix
+
+- Fourth Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `92e1b33`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Addressed the test double portability issue by replacing by-reference promoted-property syntax with an explicit property and reference assignment inside the constructor.
+- Corrected `ManifestResource`'s docblock from "Envelope shape" to "Data payload shape" because the controller builds the outer Report API envelope.
+- Full local gate passed after the fourth PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (709 tests, 1983 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 second Copilot review fix
+
+- Second Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `b107ce9`) returned 1 new actionable comment: the first-round collision fix preserved two distinct rows internally but still emitted duplicate human-facing `tag: "__untagged__"` values, which lets UI clients that key by `tag` overwrite one row.
+- Addressed the comment by adding additive cohort diff fields:
+  - `key` is the stable client-facing discriminator (`tag:<literal-tag>` for real tags, `untagged` for the synthetic bucket).
+  - `is_untagged` exposes the synthetic-bucket flag directly.
+  - `tag` remains the backwards-compatible display label, so existing clients keep working while new clients can key safely.
+- Pinned the contract in `ReportDiffComputerTest::test_literal_double_underscore_untagged_tag_does_not_collide_with_synthetic_untagged_bucket`, asserting both duplicate display tags and distinct `key` / `is_untagged` values are present.
+- Full local gate passed after the second PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (724 tests, 2026 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 third Copilot review fix
+
+- Third Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `bf07914`) returned 2 new actionable documentation comments plus one stale metrics-type comment already fixed by the previous `metricsBlock()` regression coverage.
+- Addressed the docs comments by changing the README diff endpoint bullet from a hard-coded default prefix to `GET /<configured-prefix>/reports/{id}/diff/{otherId}` and explicitly documenting that `eval-harness.api.prefix` controls the mount point.
+- Added LESSON.md entries for the reusable discoveries: API resources need stable machine keys/discriminators in addition to display labels, and README endpoint bullets under configurable route prefixes should not hard-code only the default prefix.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 fourth Copilot review fix
+
+- Fourth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `e9b9542`) returned 1 new actionable comment plus two stale comments already addressed by prior rounds.
+- Addressed the schema mismatch diagnostic: non-string `schema_version` values now report their actual type/value (`int(123)`, JSON-encoded array/object where possible) instead of collapsing every mistyped value to `null`.
+- Added `ReportDiffComputerTest::test_mistyped_schema_version_message_includes_actual_type` to pin the operator-facing diagnostic.
+- Full local gate passed after the fourth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 fifth Copilot review fix
+
+- Fifth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `2ff2291`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Updated `ReportDiffComputer` class documentation to describe the real union-style diff contract: valid metric/cohort/category keys from either side are included, absent sides are treated as empty, and malformed nested fields are skipped or zeroed.
+- Extracted shared JSON report decoding into `ReportJsonDecoder` and used it from both `ReportArtifactController` and `ReportDiffController`, preventing malformed/object validation behavior from drifting between report show and report diff endpoints. Kept `ReportArtifactController` backwards-compatible for direct unit construction by defaulting the decoder when none is injected.
+- Full local gate passed after the fifth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (725 tests, 2028 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 sixth Copilot review fix
+
+- Sixth Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `cd5bc17`) returned 1 new actionable test-coverage comment plus stale comments from prior rounds.
+- Added `ReportJsonDecoderTest` covering both shared 422 paths: malformed JSON and non-object JSON. This pins the behavior used by both report show and report diff endpoints.
+- Full local gate passed after the sixth PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (727 tests, 2032 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 seventh Copilot review fix
+
+- Seventh Copilot review on PR #40 (`task/report-api-completeness-v9-diff`, head `9e4a7d7`) returned 2 new actionable comments plus stale comments from prior rounds.
+- Addressed the code comment by making `ReportArtifactController::$jsonDecoder` non-nullable and assigning `ReportJsonDecoder` in the constructor when no decoder is injected. The property type now matches the class invariant.
+- Reconciled the PR #40 description with the current branch: updated test counts, checked local gate/Copilot status, documented the shared decoder, and updated the sample diff payload to include cohort `key` / `is_untagged`.
+- Full local gate passed after the seventh PR #40 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (727 tests, 2032 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #40 merged and PR #41 conflict refresh
+
+- PR #40 (`task/report-api-completeness-v9-diff`) reached a clean Copilot round on head `31d5432` (`generated no new comments`) and CI was green across PHP 8.3 / 8.4 / 8.5 × Laravel 12 / 13.
+- Merged PR #40 into macro branch `task/report-api-completeness-v9` via merge commit `82275de8ee6183205880345a38c10b0731bb76fe`.
+- PR #41 became conflicting after PR #40 landed because both touched README feature bullets, PROGRESS entries, API routes, and `ReportApiSchema`. Refreshed PR #41 by merging `origin/task/report-api-completeness-v9` into `task/report-api-completeness-v9-adversarial-manifests` and resolving conflicts by keeping both endpoint families:
+  - `/reports/{id}/diff/{otherId}` plus `/adversarial/manifests` / `/adversarial/manifests/{name}` routes.
+  - `SCHEMA_DIFF`, `SCHEMA_ADVERSARIAL_MANIFESTS`, and `SCHEMA_ADVERSARIAL_MANIFEST` constants.
+  - README bullets and PROGRESS history from both sub-PRs.
+- Full local gate passed after refreshing PR #41 on top of PR #40: `composer validate --strict`, `vendor/bin/phpunit` => `OK (737 tests, 2059 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 sixth Copilot review fix
+
+- Sixth Copilot review on PR #41 (`task/report-api-completeness-v9-adversarial-manifests`, head `4cdb923`) returned 1 actionable comment on an order-dependent manifest index assertion plus stale comments from prior rounds.
+- Updated `ManifestRouteTest::test_index_returns_summaries_with_per_endpoint_discriminator` to look up the `agents-safety` row by manifest name before asserting `latest_macro_f1`, instead of assuming it stays at `data[0]`.
+- Full local gate passed after the sixth PR #41 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (737 tests, 2059 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 Copilot review stall
+
+- After pushing the sixth-round fix (`350932c`), CI was green and PR #41 was mergeable, but Copilot did not publish a review on the current head.
+- Retried the remote review loop without code changes:
+  - `gh pr edit 41 --add-reviewer copilot-pull-request-reviewer`
+  - GraphQL `requestReviewsByLogin` with `botLogins[]=copilot-pull-request-reviewer[bot]` and `union=true`
+  - remove/re-add reviewer through `gh pr edit`
+- GitHub continued to show Copilot as a requested reviewer, but `gh api repos/padosoft/eval-harness/pulls/41/reviews` never returned a review for `350932c`. The latest real current-head actionable comment (`4cdb923`) was fixed and locally gated; older comments returned by the comments API are stale against current code.
+
+## 2026-05-05 UTC — Macro 9 / PR #41 merged and PR 9.3 batch live registry implementation
+
+- Merged PR #41 (`task/report-api-completeness-v9-adversarial-manifests`) into macro branch `task/report-api-completeness-v9` via merge commit `67a295efa034058a3ffd4754a8440ce02b619ff0`.
+- Started PR 9.3 on branch `task/report-api-completeness-v9-batch-live`.
+- Implemented cache-backed live batch discovery:
+  - Added `BatchLiveRegistry` using the single cache key `eval-harness:batches:live`, best-effort `Cache::lock()` atomic read-modify-write when the cache repository exposes locks, and self-healing pruning for expired rows or batch ids whose result metadata no longer exists.
+  - Added the opt-out config flag `eval-harness.batches.live_registry.enabled`, defaulting to `true`.
+  - Wired `LazyParallelBatch::run()` and `dispatch()` to register/deregister live ids, with `dispatch()` keeping the id live until `collectOutputs()` finishes it.
+  - Added read-only Report API endpoints `GET /batches/live` and `GET /batches/{id}/progress` with per-payload schema discriminators `SCHEMA_BATCHES_LIVE` and `SCHEMA_BATCH_PROGRESS`.
+- Full local gate passed for the 9.3 implementation (current after review fix rounds):
+  - `composer validate --strict` => valid.
+  - `vendor/bin/phpunit` => `OK (757 tests, 2099 assertions)`.
+  - `vendor/bin/phpunit tests/Unit/Batches/BatchLiveRegistryTest.php tests/Unit/ReportApi/Batches/BatchLiveRouteTest.php tests/Unit/Batches/LazyParallelBatchTest.php` => `OK (66 tests, 125 assertions)`.
+  - `vendor/bin/phpstan analyse --memory-limit=512M` => no errors.
+  - `vendor/bin/pint --test` => passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 first review fix
+
+- First automated review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `314a892`) returned 1 actionable comment: aborted batches retained failure result entries, but `CacheBatchResultStore::progress()` counted failures through `failures()`, which intentionally returns an empty array once metadata status is no longer `active`.
+- Addressed the terminal progress bug by making `progress()` count retained terminal result payloads directly, preserving success/failure validation while working for `active`, `finished`, and `aborted` metadata states.
+- Added `CacheBatchResultStoreTest::test_progress_reports_failures_after_batch_abort` to pin the failure count after `abort()`.
+- Full local gate passed after the first PR #42 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (748 tests, 2083 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 second Copilot review fix
+
+- Second Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `f7ef9d7`) returned 3 actionable comments.
+- Hardened `BatchLiveRegistry::live()` self-healing so malformed result metadata is treated like missing metadata and pruned instead of bubbling a 500 from `/batches/live`.
+- Mapped invalid batch progress metadata/result payloads to HTTP 422 in `BatchLiveController`, while preserving 404 for genuinely missing metadata.
+- Reworked service-provider bindings so `BatchResultStore::class` remains the primary overridable contract via `singletonIf()`, while `CacheBatchResultStore::class` remains explicitly resolvable for cache-backed Report API progress endpoints.
+- Added regression coverage for malformed live metadata pruning, invalid progress payload 422s, and consumer override of `BatchResultStore`.
+- Full local gate passed after the second PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (752 tests, 2089 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 third Copilot review fix
+
+- Third Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `e1fad53`) returned new actionable comments plus duplicates already addressed by the second-round patch.
+- Kept live registry entries monotonic for repeated registration of the same batch id: a later shorter TTL no longer shortens an existing longer `expires_at`.
+- Wrapped lock acquisition/blocking in `BatchLiveRegistry` so unsupported lock stores or lock contention fall back to the unlocked best-effort mutation path instead of breaking live discovery.
+- Replaced progress endpoint O(sample_count) scans with compact cache counters updated only when a terminal result is first recorded. `progress()` now reads metadata plus two progress counter keys.
+- Updated regression coverage for same-id TTL preservation, compact progress reads, duplicate delivery counts, and invalid progress counter 422s.
+- Full local gate passed after the third PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fourth Copilot review fix
+
+- Fourth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `dbc32a8`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Removed post-increment progress counter `get()`/`put()` refreshes that could overwrite a newer concurrent increment with a stale value. Progress counters now rely on atomic cache `increment()` after the initial counter key is added.
+- Updated the initial PR #42 implementation progress entry to show the current full-gate count after review fix rounds, matching the PR description and latest local gate.
+- Full local gate passed after the fourth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (753 tests, 2092 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 fifth Copilot review fix
+
+- Fifth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `d22b5a9`) returned 2 new actionable comments plus stale duplicate comments already addressed by prior rounds.
+- Changed `BatchLiveController::progress()` to resolve the active `BatchResultStore` contract. If a host app overrides it with a non-cache-backed store, the progress endpoint now returns a clear 503 instead of silently reading from the package default cache store and returning misleading data.
+- Added 503 mapping for non-validation backend failures in live/progress controller reads, while preserving 422 for `EvalRunException` invalid payloads and 404 for missing batch metadata.
+- Added route coverage for non-cache-backed active batch stores.
+- Full local gate passed after the fifth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 sixth Copilot review fix
+
+- Sixth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `52c2278`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Made progress counter TTL refresh lock-protected when the cache store supports locks: the counter increment and TTL extension now happen under a per-batch progress lock, avoiding stale read/write clobbering while keeping a fallback atomic increment path when locks are unavailable.
+- Full local gate passed after the sixth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (754 tests, 2093 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 seventh Copilot review fix
+
+- Seventh Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `9a85dfe`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Allowed progress counters read from cache to be non-negative digit-only strings as well as integers, covering Redis-style scalar returns after `increment()` while still rejecting negatives, decimals, and non-numeric values.
+- Added `CacheBatchResultStoreTest::test_progress_accepts_numeric_string_counters_from_cache_backends`.
+- Full local gate passed after the seventh PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (755 tests, 2094 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 eighth Copilot review fix
+
+- Eighth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `2df3791`) returned 1 new actionable comment plus stale duplicate comments already addressed by prior rounds.
+- Added explicit terminal-result status validation before cache writes and before progress counter updates, so unexpected statuses cannot be silently counted as failures.
+- Added `CacheBatchResultStoreTest::test_terminal_result_status_must_be_known_before_progress_counter_updates`.
+- Full local gate passed after the eighth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (756 tests, 2096 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 ninth Copilot review fix
+
+- Ninth Copilot review on PR #42 (`task/report-api-completeness-v9-batch-live`, head `b0c02f9`) returned 2 new actionable comments plus stale duplicate comments already addressed by prior rounds.
+- Added exception-safe rollback around post-add progress/metadata updates: if counter update or metadata refresh fails after the result key is added, the result key is removed and any incremented progress counter is decremented so retry can recover.
+- Switched `BatchLiveController::progress()` to read compact counters via `progressCounters()` after metadata has already been validated, avoiding a second metadata read and the stale-200 race where metadata disappears between reads.
+- Added `CacheBatchResultStoreTest::test_result_write_rolls_back_when_progress_metadata_refresh_fails`.
+- Full local gate passed after the ninth PR #42 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (757 tests, 2099 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #42 merged
+
+- PR #42 (`task/report-api-completeness-v9-batch-live`) reached a clean Copilot round on head `d148ac8` (`generated no new comments`) after a remove/re-add reviewer retry.
+- CI was green across PHP 8.3 / 8.4 / 8.5 x Laravel 12 / 13.
+- Merged PR #42 into macro branch `task/report-api-completeness-v9` via merge commit `da04076`.
+
+## 2026-05-06 UTC — Macro 9 / PR 9.4 dataset trend implementation
+
+- Started PR 9.4 on branch `task/report-api-completeness-v9-dataset-trend`.
+- Implemented read-only dataset trend discovery at `GET /datasets/{name}/trend?limit=N`:
+  - Scans `{reports.disk}/{path_prefix}/{dataset_name}/*.json`.
+  - Skips malformed reports and reports whose `dataset` does not match the route name.
+  - Sorts points chronologically by `started_at` and caps server-side limit at 100.
+  - Returns empty `points` for empty datasets instead of 404.
+  - Emits per-payload schema discriminator `SCHEMA_TREND`.
+- Full local gate passed for the 9.4 implementation: `composer validate --strict`, `vendor/bin/phpunit` => `OK (761 tests, 2117 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 first review fix
+
+- First review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a8a8d5c`) returned 3 actionable comments.
+- Added `schema_version` filtering so stale/incompatible report JSON files are skipped before trend point creation.
+- Preserved `cohorts` and `usage` summaries in each trend point so UI clients can plot cohort/cost/latency series without fetching every full report.
+- Treated missing dataset report directories as empty trend results while still mapping genuine listing failures to 503.
+- Full local gate passed after the first PR #43 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (762 tests, 2122 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 second Copilot review fix
+
+- Second Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `3204b26`) returned 1 new actionable comment plus one stale cohort/usage comment already addressed in the prior round.
+- Added dataset name traversal validation before storage access; `.` / `..` and path separators now return 404 instead of reaching Flysystem.
+- Added route coverage for traversal dataset names.
+- Full local gate passed after the second PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (763 tests, 2123 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 third Copilot review fix
+
+- Third Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `22ddcff`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Changed trend collection to keep only the newest `limit` points while iterating, avoiding an unbounded in-memory list before slicing.
+- Relaxed dataset name validation to reject only actual path segments/separators (`.` / `..` / slash / backslash), allowing non-traversal names like `foo..bar`.
+- Added route coverage for `foo..bar` dataset names.
+- Full local gate passed after the third PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (764 tests, 2126 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fourth Copilot review fix
+
+- Fourth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `52af258`) returned new actionable comments plus stale comments already addressed by prior rounds.
+- Reused `ReportArtifactRepository` for report disk/prefix/relative-path resolution so trend storage semantics cannot drift from the rest of the report API.
+- Passed the resolved filesystem and prefix through trend point reads instead of resolving config/disk for every file.
+- Replaced repeated overflow sorting with a bounded newest-N buffer and one final chronological sort.
+- Renamed the traversal test to match its assertion and added explicit `.` route coverage.
+- Full local gate passed after the fourth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (765 tests, 2127 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 fifth Copilot review fix
+
+- Fifth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `a1ccd91`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Promoted trend file read failures to `ReportArtifactUnavailableException` so transient storage failures surface as 503 instead of silently returning incomplete trend data.
+- Added deterministic path tie-breaking for bounded trend points with identical `started_at` values.
+- URL-encoded the `..` traversal route regression test so the controller validation is exercised consistently across HTTP normalizers.
+- Full local gate passed after the fifth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2136 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 sixth Copilot review fix
+
+- Sixth Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `bc57c5e`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Changed the dataset trend 503 response message from listing-specific to generic so both listing and per-file read failures report accurately.
+- Added regression coverage for the storage-read failure response message.
+- Full local gate passed after the sixth PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 seventh Copilot review fix
+
+- Seventh Copilot review on PR #43 (`task/report-api-completeness-v9-dataset-trend`, head `434edee`) returned 3 new actionable comments plus stale comments already addressed by prior rounds.
+- Marked reused `ReportArtifactRepository` storage helpers as `@internal` to avoid presenting them as stable host-app extension APIs.
+- Aligned the dataset trend resource payload annotation with its returned keys.
+- Documented the dataset trend endpoint in README feature and Report API sections, including the `limit` cap and schema discriminator.
+- Full local gate passed after the seventh PR #43 Copilot review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / PR #43 merged
+
+- PR #43 (`task/report-api-completeness-v9-dataset-trend`) received a current-head Copilot review on `a985ba3` with `generated no new comments` and all six GitHub Actions matrix jobs green.
+- Merged PR #43 into macro branch `task/report-api-completeness-v9` with merge commit `7c1c7ec`.
+- Macro Task 9 API slices now include report diff, adversarial manifest discovery, live batch registry/progress, and dataset trend endpoints.
+
+## 2026-05-06 UTC — Macro 9 / companion UI package spec
+
+- Added `docs/UI_PACKAGE_SPEC.md` for the future optional `padosoft/eval-harness-ui` package, covering mission, architecture, auth integration, seven screens with ASCII wireframes, endpoint/schema mapping, caching, accessibility/i18n, roadmap, and open questions.
+- Updated README with a `Companion UI package` TOC entry and section linking to the spec.
+- Confirmed the README banner image is present at `resources/banner.png` and already rendered immediately after badges and before the TOC.
+- Expanded README feature documentation for live batch registry/progress and the full v1.2 Report API endpoint set.
+- Full local gate passed after the companion UI spec/docs slice: `composer validate --strict`, `vendor/bin/phpunit` => `OK (767 tests, 2137 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 first review fix
+
+- Opened macro PR #44 (`task/report-api-completeness-v9` -> `main`) after merging PRs #40, #41, #42, and #43; all six GitHub Actions matrix jobs passed on head `ad8d6b8`.
+- First review on PR #44 returned 1 actionable comment: dataset trend discovery assumed reports lived under `{prefix}/{dataset}` even though documented `--out` paths can place JSON reports anywhere under the report prefix.
+- Changed dataset trend discovery to scan all JSON artifacts under the configured report prefix and filter decoded reports by their `dataset` field.
+- Added regression coverage for arbitrary report paths, missing dataset with other reports present, and missing report prefix returning empty trend points.
+- Full local gate passed after the first macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (770 tests, 2148 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 second Copilot review fix
+
+- Second review on PR #44 (`task/report-api-completeness-v9`, head `fb355ff`) returned 4 actionable comments.
+- Made live batch registry deregistration best-effort in `LazyParallelBatch` so cache cleanup failures cannot mask successful run/dispatch/collect outcomes.
+- Updated README adversarial manifest endpoint examples to use the configurable API prefix.
+- Corrected `docs/UI_PACKAGE_SPEC.md` to state that legacy v1 Report API endpoints expose `schema_version` only, while Macro 9 / v1.2 endpoints also expose per-payload `schema` discriminators.
+- Updated the roadmap test-plan text to match the implemented live registry opt-out contract: 200 with an empty live list.
+- Full local gate passed after the second macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (771 tests, 2150 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 third Copilot review fix
+
+- Third review on PR #44 (`task/report-api-completeness-v9`, head `aa454f3`) returned 1 actionable docs comment.
+- Reworded roadmap guardrails to distinguish `ReportArtifactId::decode()` protection for report/diff endpoints from the explicit dataset-name segment validation used by the trend endpoint.
+- Full local gate passed after the third macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (771 tests, 2150 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 fourth Copilot review fix
+
+- Fourth review on PR #44 (`task/report-api-completeness-v9`, head `8f9e930`) returned 2 actionable comments.
+- Adjusted `CacheBatchResultStore` progress-counter fallback so, when cache locks are unavailable and existing counter TTLs cannot be safely refreshed, metadata TTL is not extended beyond the existing counter TTL window.
+- Added regression coverage for the no-lock existing-counter fallback path.
+- Added `eval-harness.api.trend.max_files_scanned` (default 5000) and made dataset trend scans fail fast with 503 when the configured JSON artifact scan cap is exceeded.
+- Documented the trend scan cap in README and `docs/UI_PACKAGE_SPEC.md`.
+- Full local gate passed after the fourth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (773 tests, 2154 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 fifth Copilot review fix
+
+- Fifth review on PR #44 (`task/report-api-completeness-v9`, head `79d67e1`) returned 2 new actionable comments plus stale comments already addressed in the fourth round.
+- Wrapped report disk resolution in `ReportArtifactRepository::disk()` and rethrow as `ReportArtifactUnavailableException`, so invalid report disks map to 503 instead of 500.
+- Added regression coverage for invalid report disk resolution on the report index and dataset trend route.
+- Reworded the adversarial manifest config comment to use `/<configured-prefix>/...` instead of a hard-coded default API prefix.
+- Full local gate passed after the fifth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2156 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 sixth Copilot review fix
+
+- Sixth review on PR #44 (`task/report-api-completeness-v9`, head `62dbcb6`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Made progress-counter TTL refresh exception-safe: if a lock-protected refresh fails after incrementing a counter, `incrementProgressCounter()` rolls back the counter before surfacing the cache failure.
+- Added regression coverage that a failed metadata refresh leaves progress counters at zero after the result key rollback.
+- Full local gate passed after the sixth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (775 tests, 2157 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 seventh Copilot review fix
+
+- Seventh review on PR #44 (`task/report-api-completeness-v9`, head `fadf2bc`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Added `RuntimeOptions::normalizePositiveInt()` for non-duration positive integer config values.
+- Switched `eval-harness.api.trend.max_files_scanned` from `TimeoutNormalizer` to `RuntimeOptions::normalizePositiveInt()`.
+- Added unit coverage for positive integer normalization.
+- Full local gate passed after the seventh macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (776 tests, 2162 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 eighth Copilot review fix
+
+- Eighth Copilot review on PR #44 (`task/report-api-completeness-v9`, head `6055390`) returned 2 new actionable comments plus stale comments already addressed by prior rounds.
+- Made live batch registry registration best-effort in both `run()` and `dispatch()` so observability cache failures cannot abort otherwise valid batch execution.
+- Added regression coverage that `registerLiveBatchSafely()` swallows registry cache failures.
+- Full local gate passed after the eighth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (777 tests, 2164 assertions)`, PHPStan no errors, Pint passed.
+
+## 2026-05-06 UTC — Macro 9 / macro PR #44 ninth Copilot review fix
+
+- Ninth Copilot review on PR #44 (`task/report-api-completeness-v9`, head `2fe6fc9`) returned 1 new actionable comment plus stale comments already addressed by prior rounds.
+- Wrapped the outer `recordTerminalResult()` counter rollback decrement in best-effort `try/catch` so rollback failures cannot mask the original cache failure.
+- Added regression coverage that a decrement failure during rollback preserves the original metadata refresh exception.
+- Full local gate passed after the ninth macro PR #44 review fix round: `composer validate --strict`, `vendor/bin/phpunit` => `OK (778 tests, 2165 assertions)`, PHPStan no errors, Pint passed.

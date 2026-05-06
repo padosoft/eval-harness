@@ -7,7 +7,6 @@ namespace Padosoft\EvalHarness\ReportApi;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use JsonException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
@@ -15,6 +14,14 @@ use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 
 final class ReportArtifactController
 {
+    private ReportJsonDecoder $jsonDecoder;
+
+    public function __construct(
+        ?ReportJsonDecoder $jsonDecoder = null,
+    ) {
+        $this->jsonDecoder = $jsonDecoder ?? new ReportJsonDecoder;
+    }
+
     public function index(Request $request, ReportArtifactRepository $reports): JsonResponse
     {
         try {
@@ -52,7 +59,7 @@ final class ReportArtifactController
             'schema_version' => ReportApiSchema::VERSION,
             'data' => [
                 'artifact' => (new ReportArtifactResource($artifact))->toArray($request),
-                'report' => $artifact->format === 'json' ? $this->decodeJsonReport($contents) : null,
+                'report' => $artifact->format === 'json' ? $this->jsonDecoder->decodeObject($contents) : null,
                 'content' => $artifact->format === 'markdown' ? $contents : null,
             ],
         ]);
@@ -198,29 +205,10 @@ final class ReportArtifactController
     /**
      * @return array<string, mixed>
      */
-    private function decodeJsonReport(string $contents): array
-    {
-        try {
-            $decoded = json_decode($contents, true, flags: JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw new UnprocessableEntityHttpException('Report JSON artifact is malformed.', $e);
-        }
-
-        if (! is_array($decoded) || array_is_list($decoded)) {
-            throw new UnprocessableEntityHttpException('Report JSON artifact must decode to an object.');
-        }
-
-        /** @var array<string, mixed> $decoded */
-        return $decoded;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
     private function decodeJsonArtifactReport(ReportArtifactRepository $reports, ReportArtifact $artifact): array
     {
         try {
-            return $this->decodeJsonReport($reports->contents($artifact));
+            return $this->jsonDecoder->decodeObject($reports->contents($artifact));
         } catch (ReportArtifactUnavailableException $e) {
             throw new ServiceUnavailableHttpException(null, 'Report artifact contents could not be read.', $e);
         }

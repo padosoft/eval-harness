@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactController;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactId;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
+use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendController;
+use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
 use Padosoft\EvalHarness\Tests\TestCase;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
@@ -52,6 +54,39 @@ final class ReportArtifactFailureTest extends TestCase
 
         try {
             $controller->index($this->app->make(Request::class), $repository);
+            $this->fail('Expected a ServiceUnavailableHttpException.');
+        } catch (ServiceUnavailableHttpException $e) {
+            $this->assertSame(503, $e->getStatusCode());
+        }
+    }
+
+    public function test_index_returns_service_unavailable_when_report_disk_cannot_be_resolved(): void
+    {
+        $repository = new ReportArtifactRepository(
+            new ThrowingFilesystemFactory,
+            $this->app['config'],
+        );
+        $controller = new ReportArtifactController;
+
+        try {
+            $controller->index($this->app->make(Request::class), $repository);
+            $this->fail('Expected a ServiceUnavailableHttpException.');
+        } catch (ServiceUnavailableHttpException $e) {
+            $this->assertSame(503, $e->getStatusCode());
+        }
+    }
+
+    public function test_trend_returns_service_unavailable_when_report_disk_cannot_be_resolved(): void
+    {
+        $repository = new ReportArtifactRepository(
+            new ThrowingFilesystemFactory,
+            $this->app['config'],
+        );
+        $trends = new DatasetTrendRepository($repository, $this->app['config']);
+        $controller = new DatasetTrendController;
+
+        try {
+            $controller->show($this->app->make(Request::class), $trends, 'rag');
             $this->fail('Expected a ServiceUnavailableHttpException.');
         } catch (ServiceUnavailableHttpException $e) {
             $this->assertSame(503, $e->getStatusCode());
@@ -117,6 +152,17 @@ final class FakeFilesystemFactory implements FilesystemFactory
     public function disk($name = null): Filesystem
     {
         return $this->disk;
+    }
+}
+
+/**
+ * @internal
+ */
+final class ThrowingFilesystemFactory implements FilesystemFactory
+{
+    public function disk($name = null): Filesystem
+    {
+        throw new RuntimeException('Disk resolution failure');
     }
 }
 
