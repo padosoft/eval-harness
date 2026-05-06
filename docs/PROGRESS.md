@@ -2630,3 +2630,14 @@
 - PR #42 (`task/report-api-completeness-v9-batch-live`) reached a clean Copilot round on head `d148ac8` (`generated no new comments`) after a remove/re-add reviewer retry.
 - CI was green across PHP 8.3 / 8.4 / 8.5 x Laravel 12 / 13.
 - Merged PR #42 into macro branch `task/report-api-completeness-v9` via merge commit `da04076`.
+
+## 2026-05-06 UTC — Macro 9 / PR 9.4 dataset trend implementation
+
+- Started PR 9.4 on branch `task/report-api-completeness-v9-dataset-trend`.
+- Implemented read-only dataset trend discovery at `GET /datasets/{name}/trend?limit=N`:
+  - Scans `{reports.disk}/{path_prefix}/{dataset_name}/*.json`.
+  - Skips malformed reports and reports whose `dataset` does not match the route name.
+  - Sorts points chronologically by `started_at` and caps server-side limit at 100.
+  - Returns empty `points` for empty datasets instead of 404.
+  - Emits per-payload schema discriminator `SCHEMA_TREND`.
+- Full local gate passed for the 9.4 implementation: `composer validate --strict`, `vendor/bin/phpunit` => `OK (761 tests, 2117 assertions)`, PHPStan no errors, Pint passed.

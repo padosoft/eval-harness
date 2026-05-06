@@ -33,6 +33,7 @@ use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
+use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
 use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
@@ -95,6 +96,12 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
         $this->app->singleton(ReportArtifactRepository::class, static function (Container $app): ReportArtifactRepository {
             return new ReportArtifactRepository(
+                filesystems: $app->make(\Illuminate\Contracts\Filesystem\Factory::class),
+                config: $app->make(ConfigRepository::class),
+            );
+        });
+        $this->app->singleton(DatasetTrendRepository::class, static function (Container $app): DatasetTrendRepository {
+            return new DatasetTrendRepository(
                 filesystems: $app->make(\Illuminate\Contracts\Filesystem\Factory::class),
                 config: $app->make(ConfigRepository::class),
             );

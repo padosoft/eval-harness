@@ -7,6 +7,7 @@ use Padosoft\EvalHarness\ReportApi\Adversarial\ManifestController;
 use Padosoft\EvalHarness\ReportApi\Batches\BatchLiveController;
 use Padosoft\EvalHarness\ReportApi\Diff\ReportDiffController;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactController;
+use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendController;
 
 return static function (Registrar $router, string $prefix, array $middleware): void {
     $router->group([
@@ -44,5 +45,8 @@ return static function (Registrar $router, string $prefix, array $middleware): v
         $router->get('/batches/{id}/progress', [BatchLiveController::class, 'progress'])
             ->where('id', '[A-Za-z0-9._:-]+')
             ->name('batches.progress');
+        $router->get('/datasets/{name}/trend', [DatasetTrendController::class, 'show'])
+            ->where('name', '[A-Za-z0-9._:-]+')
+            ->name('datasets.trend');
     });
 };
