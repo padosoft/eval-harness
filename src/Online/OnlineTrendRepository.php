@@ -23,9 +23,13 @@ final class OnlineTrendRepository
         // turn the SUM into 1/0). Use distinct alias names and read the
         // raw aggregate rows via the base query (plain stdClass), since
         // these rows are projections, not hydrated models.
+        //
+        // SUM over a boolean is not portable (PostgreSQL rejects
+        // SUM(boolean)); sum a CASE expression so the aggregate works on
+        // PostgreSQL as well as MySQL/SQLite.
         $rows = OnlineScore::forDataset($dataset)
             ->toBase()
-            ->selectRaw('DATE(judged_at) as day_bucket, count(*) as total_count, sum(passed) as passed_count')
+            ->selectRaw('DATE(judged_at) as day_bucket, count(*) as total_count, sum(case when passed then 1 else 0 end) as passed_count')
             ->groupBy('day_bucket')
             ->orderByDesc('day_bucket')
             ->limit($limit)

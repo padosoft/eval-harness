@@ -137,10 +137,11 @@ s2,"[\"hard\"]",exact-match,,timeout,""
 - `schema`: `eval-harness.report-api.v1.online-trend`.
 - `limit` is clamped to `[1, 365]` (default `30`); `{dataset}` rejects
   `.`, `..`, `/`, and `\` with `404`.
-- Aggregates `eval_harness_online_scores` rows into per-day
-  (UTC date) pass-rate points, ascending by date. `threshold` echoes
-  `eval-harness.online.alert.threshold` so a dashboard can draw the
-  alert band.
+- Aggregates `eval_harness_online_scores` rows into pass-rate points
+  grouped by the calendar date of `judged_at` (in whatever timezone the
+  host app stored it — the package does not force UTC), ascending by
+  date. `threshold` echoes `eval-harness.online.alert.threshold` so a
+  dashboard can draw the alert band.
 
 ```json
 {

@@ -52,6 +52,8 @@ final class OnlineSamplingDecision
             return ($this->randomizer)();
         }
 
-        return mt_rand() / mt_getrandmax();
+        // Divide by (max + 1) so the draw stays in [0, 1): a draw of
+        // exactly 1.0 would otherwise leak a sample through at rate 0.
+        return mt_rand() / (mt_getrandmax() + 1.0);
     }
 }

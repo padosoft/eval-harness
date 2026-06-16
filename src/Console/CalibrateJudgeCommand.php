@@ -75,7 +75,14 @@ final class CalibrateJudgeCommand extends Command
             return self::FAILURE;
         }
 
-        return $this->finalize($report, $config);
+        // When the machine-readable JSON is emitted to stdout (no --out),
+        // suppress the human diagnostic lines so the advertised JSON
+        // payload stays parseable; the same signals are already encoded
+        // in the JSON (agreement_rate, self_preference_violation, ...).
+        $out = $this->option('out');
+        $jsonToStdout = (bool) $this->option('json') && ! (is_string($out) && $out !== '');
+
+        return $this->finalize($report, $config, $jsonToStdout);
     }
 
     private function renderPayload(JudgeCalibrationReport $report): ?string
@@ -125,13 +132,13 @@ final class CalibrateJudgeCommand extends Command
         return implode("\n", $lines);
     }
 
-    private function finalize(JudgeCalibrationReport $report, ConfigRepository $config): int
+    private function finalize(JudgeCalibrationReport $report, ConfigRepository $config, bool $suppressDiagnostics): int
     {
         $lengthBiasWarn = RuntimeOptions::normalizeUnitInterval(
             $config->get('eval-harness.calibration.length_bias_warn'),
             0.4,
         );
-        if ($report->lengthBiasWarned($lengthBiasWarn)) {
+        if (! $suppressDiagnostics && $report->lengthBiasWarned($lengthBiasWarn)) {
             $this->warn(sprintf(
                 'Length-bias warning: judge score correlates with answer length (rank correlation %.4f >= %.4f).',
                 $report->lengthBiasCorrelation(),
@@ -140,18 +147,22 @@ final class CalibrateJudgeCommand extends Command
         }
 
         if ($report->selfPreferenceViolation()) {
-            $this->error('Self-preference violation: the judge model equals the model under test.');
+            if (! $suppressDiagnostics) {
+                $this->error('Self-preference violation: the judge model equals the model under test.');
+            }
 
             return self::FAILURE;
         }
 
         $minAgreement = $this->resolveMinAgreement($config);
         if (! $report->meetsThreshold($minAgreement)) {
-            $this->error(sprintf(
-                'Verdict agreement %.4f is below the required minimum %.4f.',
-                $report->agreementRate(),
-                $minAgreement,
-            ));
+            if (! $suppressDiagnostics) {
+                $this->error(sprintf(
+                    'Verdict agreement %.4f is below the required minimum %.4f.',
+                    $report->agreementRate(),
+                    $minAgreement,
+                ));
+            }
 
             return self::FAILURE;
         }

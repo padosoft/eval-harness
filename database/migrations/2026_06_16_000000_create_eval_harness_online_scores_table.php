@@ -12,15 +12,19 @@ return new class extends Migration
     {
         Schema::create('eval_harness_online_scores', function (Blueprint $table): void {
             $table->bigIncrements('id');
-            $table->string('dataset')->index();
+            $table->string('dataset');
             $table->string('sample_id');
             $table->string('metric');
             $table->decimal('score', 5, 4);
             $table->boolean('passed');
             $table->string('judge_model')->nullable();
             $table->json('details')->nullable();
-            $table->timestamp('judged_at')->index();
+            $table->timestamp('judged_at');
             $table->timestamps();
+            // Single composite index covers every hot query
+            // (forDataset()->orderByDesc('judged_at') and the grouped
+            // trend aggregate); standalone dataset/judged_at indexes
+            // would be redundant write amplification.
             $table->index(['dataset', 'judged_at']);
         });
     }
