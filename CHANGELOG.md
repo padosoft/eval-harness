@@ -5,6 +5,43 @@ All notable changes to `padosoft/eval-harness` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-16
+
+Additive, backward-compatible feature set. All v1 contracts are preserved.
+
+### Added
+
+- Retrieval-ranking metric family (domain-agnostic, ids/texts in,
+  `[0,1]` out):
+  - `retrieval-hit-at-k`, `retrieval-recall-at-k`, `retrieval-mrr`,
+    `retrieval-ndcg-at-k` (binary or graded gains), and
+    `answer-containment-at-k`.
+  - Shared `Metrics\Retrieval\RankedRetrieval` parser/value object and
+    `AbstractRetrievalRankingMetric` base.
+  - `metrics.retrieval.default_k` config (`EVAL_HARNESS_RETRIEVAL_DEFAULT_K`)
+    with per-sample `metadata.k` override.
+- `ordinal-distance` metric — partial credit for ordered labels
+  (exact 1.0 / off-by-one 0.5 / further 0.0), per-sample
+  `metadata.ordinal_scale` override.
+- Judge calibration:
+  - `eval-harness:calibrate-judge` Artisan command (verdict agreement
+    rate, confusion matrix, length-bias signal, self-preference guard;
+    Markdown/JSON output; CI gating).
+  - `Calibration\HumanLabel`, `CalibrationCaseLoader`,
+    `JudgeCalibrator`, `JudgeCalibrationReport`.
+  - `calibration.*` config block.
+- Online / production monitoring (off by default):
+  - `Online\OnlineMonitor::capture()`, `OnlineSamplingDecision`,
+    queueable `JudgeLiveSampleJob`, `OnlineScore` Eloquent model, and
+    the package's first migration (`eval_harness_online_scores`).
+  - `OnlineTrendRepository`, `OnlineDriftAlert`, and the
+    `Online\Events\OnlinePassRateDropped` drift event.
+  - Read-only API endpoint `GET /{prefix}/online/{dataset}/trend`
+    (`eval-harness.report-api.v1.online-trend`) and the
+    `eval-harness-migrations` publish tag.
+  - `online.*` config block.
+- `RuntimeOptions::normalizeUnitInterval()` helper (clamp to `[0,1]`).
+
 ## [Unreleased]
 
 ### Added — W6 scaffold + initial core engine

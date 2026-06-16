@@ -2798,3 +2798,14 @@
 
 - Updated README Table of Contents and replaced the companion UI placeholder with the live web admin panel section linking to `padosoft/eval-harness-admin`.
 - Added the dashboard screenshot reference for `resources/screenshoots/eval-harness-admin-Dashboard.png`.
+
+## 2026-06-16 — v1.3.0 enhancements (retrieval metrics, judge calibration, online monitoring)
+
+- Implemented the `2026-06-16-eval-harness-enhancements` plan as a single combined v1.3.0 release train on `feat/eval-harness-v1.3.0-enhancements` (shared files — `MetricResolver`, `config/eval-harness.php`, provider, README — made per-improvement branches impractical; the plan explicitly sanctions folding all improvements into v1.3.0).
+- Improvement 3 — `OrdinalDistanceMetric` (`ordinal-distance`): partial credit for ordered labels; alias registered (resolves only when an instance/binding supplies the scale).
+- Improvement 4 — retrieval-ranking family: `RankedRetrieval` parser + `AbstractRetrievalRankingMetric` base + `retrieval-hit-at-k` / `recall-at-k` / `mrr` / `ndcg-at-k` / `answer-containment-at-k`; `metrics.retrieval.default_k` config; `RetrievalAliasResolutionTest` proves zero-binding container resolution.
+- Improvement 2 — judge calibration: `HumanLabel`, `CalibrationCaseLoader`, `JudgeCalibrator`, `JudgeCalibrationReport`, and `eval-harness:calibrate-judge`. Added `RuntimeOptions::normalizeUnitInterval()`.
+- Improvement 1 — online monitoring: first package migration (`eval_harness_online_scores`), `OnlineScore` model, `OnlineSamplingDecision`, `JudgeLiveSampleJob`, `OnlineMonitor`, `OnlineTrendRepository`, `OnlineDriftAlert` + `OnlinePassRateDropped`, read-only `online/{dataset}/trend` endpoint, `eval-harness-migrations` publish tag, `online.*` config.
+- Local gate green: `composer validate --strict` valid; `vendor/bin/phpunit` => `OK (863 tests, 2335 assertions)` Unit + `(3 tests, 783 assertions)` Architecture (4 PHP 8.5 framework-internal deprecations, pre-existing); PHPStan no errors; Pint passed.
+- Docs updated: README (all sections), `REPORT_API_CONTRACT.md` (online trend), `CHANGELOG.md` (v1.3.0), LESSON.md.
+- REMOTE NEXT STEP: push branch, open combined PR into `main`, run the Copilot/CI loop, then tag `v1.3.0`. Admin companion (`eval-harness-admin`) needs the Online Monitoring screen consuming the new endpoint (separate repo/PR).
