@@ -92,23 +92,26 @@ The richest ranking metric: it rewards placing **highly relevant** documents
 **high** in the list, with a logarithmic positional discount. It supports
 **graded** gains, so "very relevant" beats "somewhat relevant".
 
-Discounted Cumulative Gain at $k$, with gain $g_i$ for the document at rank $i$:
+Discounted Cumulative Gain at $k$ uses the gain $g_i$ for the document at rank
+$i$ directly (this package uses **linear** gains, not the exponential
+$2^{g_i}-1$ variant), with the standard logarithmic discount:
 
 $$
-\text{DCG@}k = \sum_{i=1}^{k} \frac{2^{g_i} - 1}{\log_2(i + 1)}
+\text{DCG@}k = \sum_{i=1}^{k} \frac{g_i}{\log_2(i + 1)}
 $$
 
 Normalize by the **ideal** DCG (the same gains sorted into their best possible
-order) to get a $[0, 1]$ score comparable across queries:
+order, truncated to $k$) to get a $[0, 1]$ score comparable across queries:
 
 $$
 \text{nDCG@}k = \frac{\text{DCG@}k}{\text{IDCG@}k}
 $$
 
-With binary relevance, $g_i \in \{0, 1\}$ and the numerator reduces to
-$\frac{1}{\log_2(i+1)}$ for each relevant hit. The $\log_2$ discount encodes the
-intuition that the gap between rank 1 and rank 2 matters far more than the gap
-between rank 19 and rank 20.
+With binary relevance, $g_i \in \{0, 1\}$ and each relevant hit contributes
+$\frac{1}{\log_2(i+1)}$; with a graded gains map, $g_i$ is the supplied gain. The
+$\log_2$ discount encodes the intuition that the gap between rank 1 and rank 2
+matters far more than the gap between rank 19 and rank 20. When IDCG@k is 0 (no
+relevant gain reachable within $k$) the score is `0.0`.
 
 ### answer-containment@k
 
@@ -133,10 +136,10 @@ retriever returning `[doc-7, doc-3, doc-1, doc-9, doc-2]`:
 | `hit@5` | `1.0` | `doc-3` is in the top-5 |
 | `recall@5` | `1.0` | both relevant ids are in the top-5 |
 | `retrieval-mrr` | `0.5` | first relevant (`doc-3`) is at rank 2 → $1/2$ |
-| `nDCG@5` (binary) | `≈ 0.70` | hits at ranks 2 and 4, discounted vs the ideal ranks 1 and 2 |
+| `nDCG@5` (binary) | `≈ 0.65` | hits at ranks 2 and 4 ($\frac{1}{\log_2 3}+\frac{1}{\log_2 5}\approx1.06$) over the ideal ranks 1 and 2 ($1+\frac{1}{\log_2 3}\approx1.63$) |
 
 The same retriever is *complete* (recall 1.0) but *poorly ordered* (MRR 0.5,
-nDCG 0.70) — exactly the diagnostic split these metrics are designed to surface.
+nDCG ≈ 0.65) — exactly the diagnostic split these metrics are designed to surface.
 
 ## Registering them
 

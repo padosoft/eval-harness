@@ -10,20 +10,23 @@ in milliseconds and never cost an API call.
 
 ## exact-match
 
-Surface-form equality after normalization. The score is binary:
+**Strict, case-sensitive, byte-for-byte** string equality — `===`, with **no**
+normalization. Whitespace, case, and punctuation are all significant:
 
 $$
-\text{exact-match}(e, a) = \begin{cases} 1.0 & \text{if } \mathrm{norm}(a) = \mathrm{norm}(e) \\ 0.0 & \text{otherwise} \end{cases}
+\text{exact-match}(e, a) = \begin{cases} 1.0 & \text{if } a = e \text{ (exact bytes)} \\ 0.0 & \text{otherwise} \end{cases}
 $$
 
-where $\mathrm{norm}$ trims and case-folds. Use it when the expected output is a
-single canonical fact — an id, a date, a country, a yes/no — where any deviation
-is wrong.
+(The sample's `expected_output` must be a string, or the metric raises a
+`MetricException`.) Use it when the expected output is a single canonical token —
+an id, a date, a country, a yes/no — where any deviation is wrong.
 
 <Warning>
-  Exact-match is unforgiving by design. "Paris." scores `0.0` against "Paris" if
-  your normalization does not strip the period. Reserve it for genuinely
-  canonical answers; pair it with a tolerant metric for prose.
+  Exact-match does **not** trim or case-fold. `"Paris."`, `"paris"`, and
+  `"Paris "` (trailing space) all score `0.0` against `"Paris"`. If you need
+  tolerance for case/whitespace/punctuation, normalize in your SUT before
+  returning, use `contains`/`regex`, or reach for a semantic metric — do not
+  expect exact-match to absorb it.
 </Warning>
 
 ## contains

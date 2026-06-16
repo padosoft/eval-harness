@@ -44,12 +44,24 @@ sentiment buckets, priority levels — anywhere "close" deserves more than zero.
 
 Scores whether an answer actually **cites its evidence**. It has two modes.
 
-**Marker mode (baseline).** The `expected_output` declares the citation markers
-that should appear (e.g. `[1]`, `[source:refunds]`); the score is `1.0` when all
-declared markers are present in the actual output, else `0.0`.
+**Marker mode (baseline).** `metadata.citations` (a string or a list of strings)
+declares the citation markers that should appear (e.g. `[1]`, `[source:refunds]`).
+The score is the **fraction** of required markers present in the actual output —
+`matched / required` — so two of three expected markers scores `0.667`, not a flat
+pass/fail:
+
+```yaml
+samples:
+  - id: cited-answer
+    input: { question: "What is the refund window?" }
+    expected_output: "Refunds are available within 30 days."
+    metadata:
+      citations: ["[policy:refunds]"]   # markers live in metadata, not expected_output
+```
 
 **Evidence mode (strict).** `metadata.citation_evidence` declares spans that each
-require **both** a citation marker **and** the quoted evidence text:
+require **both** a citation marker **and** the quoted evidence text (and the score
+is the fraction of spans fully matched):
 
 ```yaml
 metadata:
