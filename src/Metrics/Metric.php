@@ -21,6 +21,12 @@ use Padosoft\EvalHarness\Datasets\DatasetSample;
  *     the configured embedding client.
  *   - {@see LlmAsJudgeMetric} — strict-JSON LLM grading.
  *   - {@see RefusalQualityMetric} — strict-JSON refusal behavior grading.
+ *   - {@see OrdinalDistanceMetric} — distance-aware scoring for ordered labels.
+ *   - {@see RetrievalHitAtKMetric} — hit@k over retrieved ids.
+ *   - {@see RetrievalRecallAtKMetric} — recall@k over retrieved ids.
+ *   - {@see RetrievalMrrMetric} — mean reciprocal rank over retrieved ids.
+ *   - {@see RetrievalNdcgAtKMetric} — nDCG@k (binary or graded gains).
+ *   - {@see AnswerContainmentAtKMetric} — answer span containment in top-k texts.
  *
  * Adding a new metric:
  *   1. Implement this interface.

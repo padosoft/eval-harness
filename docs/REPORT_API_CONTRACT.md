@@ -131,6 +131,36 @@ s2,"[\"hard\"]",exact-match,,timeout,""
 - `GET /<prefix>/reports/{id}/download`
 - Returns the original artifact bytes as an attachment (`.json` or `.md`).
 
+### Online monitoring trend
+
+- `GET /<prefix>/online/{dataset}/trend?limit=N`
+- `schema`: `eval-harness.report-api.v1.online-trend`.
+- `limit` is clamped to `[1, 365]` (default `30`); `{dataset}` rejects
+  `.`, `..`, `/`, and `\` with `404`.
+- Aggregates `eval_harness_online_scores` rows into pass-rate points
+  grouped by the calendar date of `judged_at` (in whatever timezone the
+  host app stored it — the package does not force UTC), ascending by
+  date. `threshold` echoes `eval-harness.online.alert.threshold` so a
+  dashboard can draw the alert band.
+
+```json
+{
+  "schema_version": "eval-harness.report-api.v1",
+  "schema": "eval-harness.report-api.v1.online-trend",
+  "data": {
+    "dataset": "rag.faq",
+    "limit": 30,
+    "count": 3,
+    "threshold": 0.8,
+    "points": [
+      { "date": "2026-06-12", "pass_rate": 0.91, "total": 40, "passed": 36 },
+      { "date": "2026-06-13", "pass_rate": 0.86, "total": 42, "passed": 36 },
+      { "date": "2026-06-14", "pass_rate": 0.72, "total": 39, "passed": 28 }
+    ]
+  }
+}
+```
+
 ## Error behavior
 
 - Missing/invalid `id` -> `404`.

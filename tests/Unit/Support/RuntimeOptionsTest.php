@@ -61,6 +61,38 @@ final class RuntimeOptionsTest extends TestCase
         $this->assertSame(1, RuntimeOptions::normalizePositiveInt('abc', -1));
     }
 
+    public function test_unit_interval_values_are_normalized(): void
+    {
+        $this->assertSame(0.5, RuntimeOptions::normalizeUnitInterval(0.5, 0.0));
+        $this->assertSame(0.25, RuntimeOptions::normalizeUnitInterval('0.25', 0.0));
+        $this->assertSame(0.0, RuntimeOptions::normalizeUnitInterval(0, 0.7));
+        $this->assertSame(1.0, RuntimeOptions::normalizeUnitInterval(1, 0.0));
+    }
+
+    public function test_unit_interval_clamps_out_of_range_values(): void
+    {
+        $this->assertSame(1.0, RuntimeOptions::normalizeUnitInterval(1.5, 0.5));
+        $this->assertSame(0.0, RuntimeOptions::normalizeUnitInterval(-0.2, 0.5));
+        $this->assertSame(1.0, RuntimeOptions::normalizeUnitInterval('2', 0.5));
+    }
+
+    public function test_invalid_unit_interval_values_fall_back_to_default(): void
+    {
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval(null, 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval('', 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval('abc', 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval(true, 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval(INF, 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval(NAN, 0.7));
+        $this->assertSame(0.7, RuntimeOptions::normalizeUnitInterval(['0.5'], 0.7));
+    }
+
+    public function test_unit_interval_default_is_clamped(): void
+    {
+        $this->assertSame(1.0, RuntimeOptions::normalizeUnitInterval(null, 5.0));
+        $this->assertSame(0.0, RuntimeOptions::normalizeUnitInterval(null, -1.0));
+    }
+
     public function test_runtime_values_are_read_from_config(): void
     {
         $config = new Repository([

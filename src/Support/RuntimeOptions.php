@@ -138,6 +138,60 @@ final class RuntimeOptions
         return $normalized >= 1 ? $normalized : ($default >= 1 ? $default : 1);
     }
 
+    /**
+     * Normalize a value to a float in the unit interval [0.0, 1.0].
+     *
+     * Used for fractions such as sampling rates, agreement floors, and
+     * pass thresholds. Non-numeric / null values fall back to the
+     * provided default; numeric values out of range are clamped into
+     * [0.0, 1.0] so a typo'd env value can never produce a silently
+     * invalid probability.
+     */
+    public static function normalizeUnitInterval(mixed $value, float $default): float
+    {
+        $safeDefault = self::clampUnitInterval($default);
+
+        if (is_bool($value) || $value === null) {
+            return $safeDefault;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            $float = (float) $value;
+
+            return self::isUsableFloat($float) ? self::clampUnitInterval($float) : $safeDefault;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return $safeDefault;
+            }
+
+            $float = filter_var($trimmed, FILTER_VALIDATE_FLOAT);
+            if (is_float($float) && self::isUsableFloat($float)) {
+                return self::clampUnitInterval($float);
+            }
+
+            return $safeDefault;
+        }
+
+        return $safeDefault;
+    }
+
+    private static function isUsableFloat(float $value): bool
+    {
+        return ! is_nan($value) && ! is_infinite($value);
+    }
+
+    private static function clampUnitInterval(float $value): float
+    {
+        if (! self::isUsableFloat($value)) {
+            return 0.0;
+        }
+
+        return max(0.0, min(1.0, $value));
+    }
+
     private static function floorToNonNegativeInt(float $value, int $safeDefault): int
     {
         if (is_nan($value) || is_infinite($value) || $value < 0.0 || $value > (float) PHP_INT_MAX) {

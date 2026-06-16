@@ -8,6 +8,7 @@ use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher as EventDispatcher;
 use Illuminate\Contracts\Routing\Registrar;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Support\ServiceProvider;
@@ -23,7 +24,10 @@ use Padosoft\EvalHarness\Batches\CacheBatchResultStore;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\NullBatchProgressReporter;
 use Padosoft\EvalHarness\Batches\SerialBatch;
+use Padosoft\EvalHarness\Calibration\CalibrationCaseLoader;
+use Padosoft\EvalHarness\Calibration\JudgeCalibrator;
 use Padosoft\EvalHarness\Console\AdversarialCommand;
+use Padosoft\EvalHarness\Console\CalibrateJudgeCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
@@ -31,6 +35,10 @@ use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Online\OnlineDriftAlert;
+use Padosoft\EvalHarness\Online\OnlineMonitor;
+use Padosoft\EvalHarness\Online\OnlineSamplingDecision;
+use Padosoft\EvalHarness\Online\OnlineTrendRepository;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactRepository;
 use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
@@ -86,6 +94,17 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new YamlDatasetLoader;
         });
 
+        $this->app->singleton(CalibrationCaseLoader::class, static function (): CalibrationCaseLoader {
+            return new CalibrationCaseLoader;
+        });
+
+        $this->app->singleton(JudgeCalibrator::class, static function (Container $app): JudgeCalibrator {
+            return new JudgeCalibrator(
+                judge: $app->make(JudgeClient::class),
+                config: $app->make(ConfigRepository::class),
+            );
+        });
+
         $this->app->singleton(SavedOutputsLoader::class, static function (): SavedOutputsLoader {
             return new SavedOutputsLoader;
         });
@@ -104,6 +123,29 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new DatasetTrendRepository(
                 reports: $app->make(ReportArtifactRepository::class),
                 config: $app->make(ConfigRepository::class),
+            );
+        });
+
+        $this->app->singleton(OnlineSamplingDecision::class, static function (Container $app): OnlineSamplingDecision {
+            return new OnlineSamplingDecision($app->make(ConfigRepository::class));
+        });
+
+        $this->app->singleton(OnlineMonitor::class, static function (Container $app): OnlineMonitor {
+            return new OnlineMonitor(
+                sampling: $app->make(OnlineSamplingDecision::class),
+                bus: $app->make(Dispatcher::class),
+                config: $app->make(ConfigRepository::class),
+            );
+        });
+
+        $this->app->singleton(OnlineTrendRepository::class, static function (): OnlineTrendRepository {
+            return new OnlineTrendRepository;
+        });
+
+        $this->app->singleton(OnlineDriftAlert::class, static function (Container $app): OnlineDriftAlert {
+            return new OnlineDriftAlert(
+                config: $app->make(ConfigRepository::class),
+                events: $app->make(EventDispatcher::class),
             );
         });
 
@@ -267,12 +309,20 @@ class EvalHarnessServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Loaded outside the runningInConsole guard so package migrations
+        // are available to host apps and to RefreshDatabase in tests.
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
         if ($this->app->runningInConsole()) {
-            $this->commands([EvalCommand::class, AdversarialCommand::class]);
+            $this->commands([EvalCommand::class, AdversarialCommand::class, CalibrateJudgeCommand::class]);
 
             $this->publishes([
                 __DIR__.'/../config/eval-harness.php' => $this->configPath('eval-harness.php'),
             ], 'eval-harness-config');
+
+            $this->publishes([
+                __DIR__.'/../database/migrations' => $this->app->databasePath('migrations'),
+            ], 'eval-harness-migrations');
         }
 
         $this->registerReportApiRoutes();

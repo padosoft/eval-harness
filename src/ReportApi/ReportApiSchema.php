@@ -32,4 +32,6 @@ final class ReportApiSchema
     public const SCHEMA_BATCH_PROGRESS = 'eval-harness.report-api.v1.batch-progress';
 
     public const SCHEMA_TREND = 'eval-harness.report-api.v1.trend';
+
+    public const SCHEMA_ONLINE_TREND = 'eval-harness.report-api.v1.online-trend';
 }

@@ -1,6 +1,6 @@
 # padosoft/eval-harness
 
-> Laravel-native evaluation framework for RAG / LLM applications. Golden datasets in YAML, seven built-in metrics, standalone output assertions, Markdown + JSON reports, and an Artisan CI gate. Stop shipping silent regressions in your AI pipeline.
+> Laravel-native evaluation framework for RAG / LLM applications. Golden datasets in YAML, fifteen built-in metrics (including retrieval-ranking and ordinal scoring), judge calibration against human labels, production online monitoring with drift alerts, standalone output assertions, Markdown + JSON reports, and an Artisan CI gate. Stop shipping silent regressions in your AI pipeline.
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/padosoft/eval-harness.svg?style=flat-square)](https://packagist.org/packages/padosoft/eval-harness)
 [![Tests](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml)
@@ -101,11 +101,32 @@ surface small and the offline path fast.
 
 ## Features
 
-- **Nine metrics out of the box** — `exact-match`, `contains`,
+- **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,
-  `refusal-quality` — and a clean `Metric`
-  interface for adding more.
+  `refusal-quality`, `ordinal-distance`, and the retrieval-ranking
+  family (`retrieval-hit-at-k`, `retrieval-recall-at-k`,
+  `retrieval-mrr`, `retrieval-ndcg-at-k`, `answer-containment-at-k`) —
+  and a clean `Metric` interface for adding more.
+- **Retrieval-ranking metrics** — domain-agnostic hit@k, recall@k,
+  MRR, nDCG@k (binary or graded gains), and top-k answer containment
+  over a ranked id/text list your retriever emits. A single tested
+  source of truth for RAG ranking math (`metrics.retrieval.default_k`
+  config + per-sample `metadata.k` override).
+- **Ordinal / distance scoring** — `ordinal-distance` gives partial
+  credit for ordered labels (e.g. low < medium < high < urgent):
+  exact = 1.0, off-by-one = 0.5, further = 0.0.
+- **Judge calibration** — `php artisan eval-harness:calibrate-judge`
+  validates the LLM judge against human-labelled cases, reporting
+  verdict agreement rate, a confusion matrix, a length-bias signal,
+  and a self-preference guard (fails when the judge model equals the
+  model under test). Gate CI on judge trustworthiness, not vibes.
+- **Online / production monitoring** — `OnlineMonitor::capture()`
+  samples a configurable fraction of live AI traffic, judges it on a
+  queue, stores scores historically, charts pass-rate-over-time, and
+  fires an `OnlinePassRateDropped` event when recent quality dips
+  below threshold. Off by default; Horizon-ready; exposed read-only at
+  `GET /{prefix}/online/{dataset}/trend` for a companion dashboard.
 - **Strict-schema YAML loader** — versioned dataset contracts and
   actionable validation errors for malformed samples.
 - **Deterministic LLM-as-judge** — temperature 0, seed 42,
@@ -455,6 +476,8 @@ Additional read-only contracts are now available for UI consumers:
 - `GET /admin/eval-harness/api/batches/live` and
   `GET /admin/eval-harness/api/batches/{id}/progress` for live lazy-parallel batch monitoring.
 - `GET /admin/eval-harness/api/datasets/{name}/trend?limit=N` for chronological dataset trend points.
+- `GET /admin/eval-harness/api/online/{dataset}/trend?limit=N` for production online-monitoring
+  pass-rate-over-time points plus the configured alert `threshold` (drives the dashboard alert band).
 - JSON examples and contract notes are documented in [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
 ---
@@ -808,6 +831,136 @@ curl -sS \
 The examples above use stable API schema identifiers documented in
 [`docs/REPORT_API_CONTRACT.md`](docs/REPORT_API_CONTRACT.md).
 
+### Retrieval-ranking metrics (RAG hit@k / recall@k / MRR / nDCG@k)
+
+The retrieval-ranking family scores how well your retriever ranks the
+right documents. The math is domain-agnostic: it consumes a ranked list
+of opaque ids (and, for containment, texts) plus the relevant ground
+truth, and returns a number in `[0, 1]`. Running the retriever stays in
+your app; the package owns the (easy-to-get-wrong) ranking math.
+
+Your system-under-test emits `actualOutput` as JSON — an ordered list,
+rank 1 first:
+
+```json
+{"retrieved": [{"id": "doc-7", "text": "..."}, {"id": "doc-3", "text": "..."}]}
+```
+
+A bare array (`["doc-7", "doc-3"]`) is also accepted. The sample's
+`expected_output` is the relevant ground truth:
+
+```yaml
+samples:
+  - id: q-1
+    input: { question: "What is our refund window?" }
+    expected_output: ["doc-3", "doc-9"]        # relevant ids (binary relevance)
+    metadata: { k: 5 }                          # optional per-sample cutoff
+  - id: q-2
+    input: { question: "..." }
+    expected_output: { "doc-3": 3, "doc-9": 1 } # graded gains (nDCG uses them)
+```
+
+| alias | what it scores |
+| --- | --- |
+| `retrieval-hit-at-k` | `1.0` if any relevant id is in the top-k, else `0.0` |
+| `retrieval-recall-at-k` | fraction of relevant ids found in the top-k |
+| `retrieval-mrr` | reciprocal rank of the first relevant id (cutoff-independent) |
+| `retrieval-ndcg-at-k` | nDCG@k with binary or graded gains |
+| `answer-containment-at-k` | `1.0` if the expected answer span appears in any top-k retrieved text |
+
+`k` resolves as per-sample `metadata.k` → constructor `k` → config
+`eval-harness.metrics.retrieval.default_k` (default `5`). Aliases resolve
+through the container with zero extra binding:
+
+```php
+$engine->dataset('rag.retrieval')->withMetrics([
+    'retrieval-recall-at-k',
+    'retrieval-ndcg-at-k',
+    'answer-containment-at-k',
+]);
+```
+
+### Calibrating the judge against human labels
+
+Before you trust an LLM judge to gate CI, prove it agrees with humans.
+Provide a YAML file of human-labelled cases:
+
+```yaml
+schema_version: eval-harness.calibration.v1
+name: judge.calibration.fy2026
+cases:
+  - id: c1
+    input: { question: "What is the capital of France?" }
+    expected: "Paris"
+    actual: "The capital of France is Paris."
+    human_verdict: pass
+  - id: c2
+    input: { question: "What is the capital of France?" }
+    expected: "Paris"
+    actual: "It is Berlin."
+    human_verdict: fail
+```
+
+```bash
+php artisan eval-harness:calibrate-judge eval/calibration/judge-cases.v1.yaml \
+  --min-agreement=0.85 \
+  --model-under-test=my-rag-model \
+  --json --out=judge-calibration.json
+```
+
+The command judges each case, converts the raw judge score into a
+pass/fail verdict (`verdict_pass_threshold`), and reports the **verdict
+agreement rate** against the human ground truth (not raw-score
+correlation), a confusion matrix, a **length-bias** signal (Spearman
+rank correlation between answer length and judge score), and a
+**self-preference** guard. It exits non-zero when agreement falls below
+the floor **or** the judge model equals `--model-under-test`, and warns
+when length bias is suspected — so an untrustworthy judge fails the
+build instead of silently rubber-stamping regressions.
+
+### Online / production monitoring
+
+Sample live AI traffic, judge it on a queue, and chart pass-rate drift.
+Everything is off by default. Enable it and call `OnlineMonitor::capture()`
+from your production AI path:
+
+```php
+use Padosoft\EvalHarness\Online\OnlineMonitor;
+
+// In your production controller / service, after generating an answer:
+app(OnlineMonitor::class)->capture(
+    dataset: 'rag.faq',
+    sampleId: (string) $request->id,
+    input: ['question' => $question],
+    expected: $goldenAnswerOrReference,
+    actual: $modelAnswer,
+);
+```
+
+On a sampling hit the monitor dispatches a queued `JudgeLiveSampleJob`
+that judges the interaction with the configured metric and persists an
+`OnlineScore` row (the package ships its first migration for this). An
+`OnlineDriftAlert` re-checks the recent window and fires an
+`OnlinePassRateDropped` event when the pass rate dips below threshold —
+register a listener to route it to Slack / PagerDuty:
+
+```php
+use Illuminate\Support\Facades\Event;
+use Padosoft\EvalHarness\Online\Events\OnlinePassRateDropped;
+
+Event::listen(function (OnlinePassRateDropped $e): void {
+    // notify your on-call channel: $e->dataset, $e->passRate, $e->threshold
+});
+```
+
+```bash
+php artisan vendor:publish --tag=eval-harness-migrations
+php artisan migrate
+```
+
+The read-only `GET /{prefix}/online/{dataset}/trend` endpoint feeds the
+pass-rate chart in the companion admin panel.
+
 ---
 
 ## Web admin panel UI
@@ -815,8 +968,9 @@ The examples above use stable API schema identifiers documented in
 This package stays headless, but it already has a polished companion web admin
 panel at [`padosoft/eval-harness-admin`](https://github.com/padosoft/eval-harness-admin).
 Use that repository when you want a ready-made dashboard for browsing stored
-reports, comparing regressions, inspecting adversarial manifests, and following
-live batch progress through this package's read-only API contracts.
+reports, comparing regressions, inspecting adversarial manifests, following
+live batch progress, and watching production online-monitoring pass-rate
+trends through this package's read-only API contracts.
 
 ![eval-harness admin dashboard](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/screenshoots/eval-harness-admin-Dashboard.png)
 
@@ -873,6 +1027,40 @@ return [
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
+        // Retrieval-ranking metrics (hit@k / recall@k / MRR / nDCG@k /
+        // answer-containment@k). default_k is the cutoff; per-sample
+        // metadata.k overrides it.
+        'retrieval' => [
+            'default_k' => RuntimeOptions::normalizePositiveInt(env('EVAL_HARNESS_RETRIEVAL_DEFAULT_K'), 5),
+        ],
+
+    ],
+
+    // Judge calibration (eval-harness:calibrate-judge). Agreement is on
+    // verdicts, not raw scores; require_distinct_models is the
+    // self-preference guard.
+    'calibration' => [
+        'verdict_pass_threshold'  => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_CALIBRATION_PASS_THRESHOLD'), 0.5),
+        'min_agreement'           => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_CALIBRATION_MIN_AGREEMENT'), 0.8),
+        'length_bias_warn'        => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_CALIBRATION_LENGTH_BIAS_WARN'), 0.4),
+        'require_distinct_models' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_CALIBRATION_REQUIRE_DISTINCT_MODELS'), true),
+        'model_under_test'        => env('EVAL_HARNESS_CALIBRATION_MODEL_UNDER_TEST'),
+    ],
+
+    // Online / production monitoring. Off by default; the host app calls
+    // OnlineMonitor::capture() and a sampled fraction is judged on a queue.
+    'online' => [
+        'enabled'        => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_ONLINE_ENABLED'), false),
+        'sampling_rate'  => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_ONLINE_SAMPLING_RATE'), 0.0),
+        'metric'         => env('EVAL_HARNESS_ONLINE_METRIC', 'llm-as-judge'),
+        'pass_threshold' => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_ONLINE_PASS_THRESHOLD'), 0.7),
+        'queue'          => env('EVAL_HARNESS_ONLINE_QUEUE'),
+        'connection'     => env('EVAL_HARNESS_ONLINE_CONNECTION'),
+        'alert' => [
+            'threshold'   => RuntimeOptions::normalizeUnitInterval(env('EVAL_HARNESS_ONLINE_ALERT_THRESHOLD'), 0.8),
+            'window'      => RuntimeOptions::normalizePositiveInt(env('EVAL_HARNESS_ONLINE_ALERT_WINDOW'), 50),
+            'min_samples' => RuntimeOptions::normalizePositiveInt(env('EVAL_HARNESS_ONLINE_ALERT_MIN_SAMPLES'), 20),
+        ],
     ],
 
     'runtime' => [
@@ -1120,7 +1308,14 @@ wall-clock latency, keeping reports diff-friendly across repeated runs.
 2. An FQCN string (resolved through the container).
 3. A built-in alias: `exact-match`, `contains`, `regex`, `rouge-l`,
    `citation-groundedness`, `cosine-embedding`, `bertscore-like`,
-   `llm-as-judge`, `refusal-quality`.
+   `llm-as-judge`, `refusal-quality`, `ordinal-distance`,
+   `retrieval-hit-at-k`, `retrieval-recall-at-k`, `retrieval-mrr`,
+   `retrieval-ndcg-at-k`, `answer-containment-at-k`.
+
+   The retrieval aliases and `answer-containment-at-k` auto-wire from
+   the container with no extra binding. `ordinal-distance` needs an
+   ordered scale, so pass an instance (`new OrdinalDistanceMetric([...])`)
+   or bind one under the alias.
 
 Every resolved class is asserted to implement `Metric` so a typo'd
 FQCN fails with a clear error instead of producing a runtime
@@ -1194,7 +1389,28 @@ accidentally and never burns API credits.
 
 ## Roadmap
 
-### v1.1.0 — Enterprise operations and scalability add-on (current)
+### v1.3.0 — Retrieval metrics, judge calibration, online monitoring (current)
+
+Additive, backward-compatible feature set. **All v1 contracts are preserved.**
+
+- **Retrieval-ranking metric family** — `retrieval-hit-at-k`,
+  `retrieval-recall-at-k`, `retrieval-mrr`, `retrieval-ndcg-at-k`, and
+  `answer-containment-at-k` on a shared `RankedRetrieval` parser, with
+  `metrics.retrieval.default_k` config and per-sample `metadata.k`
+  override. A single tested source of truth for RAG ranking math.
+- **Ordinal / distance scoring** — `ordinal-distance` gives partial
+  credit for ordered labels (exact 1.0 / off-by-one 0.5 / further 0.0).
+- **Judge calibration** — `eval-harness:calibrate-judge` validates the
+  judge against human labels: verdict agreement rate, confusion matrix,
+  length-bias signal, and a self-preference guard, with CI gating.
+- **Online / production monitoring** — `OnlineMonitor::capture()`,
+  config-driven sampling, a queued `JudgeLiveSampleJob`, the first
+  package migration (`eval_harness_online_scores`), an
+  `OnlinePassRateDropped` drift event, and a read-only
+  `online/{dataset}/trend` API endpoint feeding the companion admin
+  panel's pass-rate chart.
+
+### v1.1.0 — Enterprise operations and scalability add-on
 
 Released 2026-05-05 ([release notes](https://github.com/padosoft/eval-harness/releases/tag/v1.1.0)).
 Builds on v1.0 with the v1.x enterprise operations and scalability

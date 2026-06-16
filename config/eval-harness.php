@@ -58,6 +58,96 @@ return [
             'prompt_template' => env('EVAL_HARNESS_JUDGE_PROMPT_TEMPLATE'),
         ],
 
+        // Retrieval-ranking metrics (hit@k / recall@k / MRR / nDCG@k /
+        // answer-containment@k). `default_k` is the cutoff used when a
+        // sample does not override it via metadata.k. The metrics operate
+        // purely on ids (and texts for containment); running the retriever
+        // is the host application's job.
+        'retrieval' => [
+            'default_k' => RuntimeOptions::normalizePositiveInt(
+                env('EVAL_HARNESS_RETRIEVAL_DEFAULT_K'),
+                5,
+            ),
+        ],
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Judge calibration
+    |--------------------------------------------------------------------------
+    |
+    | `eval-harness:calibrate-judge` validates the LLM judge against human
+    | labels. `verdict_pass_threshold` converts a judge raw score (0..1) into
+    | a pass/fail verdict; agreement is measured on verdicts, not raw scores.
+    | `min_agreement` is the floor the command gates on. `length_bias_warn`
+    | is the absolute rank-correlation above which a length-bias warning is
+    | emitted. `require_distinct_models` fails calibration when the judge
+    | model equals the model under test (self-preference guard).
+    |
+    */
+
+    'calibration' => [
+        'verdict_pass_threshold' => RuntimeOptions::normalizeUnitInterval(
+            env('EVAL_HARNESS_CALIBRATION_PASS_THRESHOLD'),
+            0.5,
+        ),
+        'min_agreement' => RuntimeOptions::normalizeUnitInterval(
+            env('EVAL_HARNESS_CALIBRATION_MIN_AGREEMENT'),
+            0.8,
+        ),
+        'length_bias_warn' => RuntimeOptions::normalizeUnitInterval(
+            env('EVAL_HARNESS_CALIBRATION_LENGTH_BIAS_WARN'),
+            0.4,
+        ),
+        'require_distinct_models' => RuntimeOptions::normalizeBoolean(
+            env('EVAL_HARNESS_CALIBRATION_REQUIRE_DISTINCT_MODELS'),
+            true,
+        ),
+        // Model under test, for the self-preference guard. Leave null to skip.
+        'model_under_test' => env('EVAL_HARNESS_CALIBRATION_MODEL_UNDER_TEST'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Online / production monitoring
+    |--------------------------------------------------------------------------
+    |
+    | Off by default. When enabled, the host app calls
+    | OnlineMonitor::capture() from its production AI path; a config-driven
+    | fraction of interactions is judged on a queue and stored historically.
+    | `pass_threshold` converts a judge score into pass/fail. `alert_*`
+    | controls drift detection over the most recent `alert.window` scores.
+    |
+    */
+
+    'online' => [
+        'enabled' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_ONLINE_ENABLED'), false),
+        'sampling_rate' => RuntimeOptions::normalizeUnitInterval(
+            env('EVAL_HARNESS_ONLINE_SAMPLING_RATE'),
+            0.0,
+        ),
+        'metric' => env('EVAL_HARNESS_ONLINE_METRIC', 'llm-as-judge'),
+        'pass_threshold' => RuntimeOptions::normalizeUnitInterval(
+            env('EVAL_HARNESS_ONLINE_PASS_THRESHOLD'),
+            0.7,
+        ),
+        'queue' => env('EVAL_HARNESS_ONLINE_QUEUE'),
+        'connection' => env('EVAL_HARNESS_ONLINE_CONNECTION'),
+        'alert' => [
+            'threshold' => RuntimeOptions::normalizeUnitInterval(
+                env('EVAL_HARNESS_ONLINE_ALERT_THRESHOLD'),
+                0.8,
+            ),
+            'window' => RuntimeOptions::normalizePositiveInt(
+                env('EVAL_HARNESS_ONLINE_ALERT_WINDOW'),
+                50,
+            ),
+            'min_samples' => RuntimeOptions::normalizePositiveInt(
+                env('EVAL_HARNESS_ONLINE_ALERT_MIN_SAMPLES'),
+                20,
+            ),
+        ],
     ],
 
     /*
