@@ -1,0 +1,142 @@
+---
+title: "Online / production monitoring"
+description: "Sample live AI traffic, judge it on a queue, persist scores, chart pass-rate drift, and fire an OnlinePassRateDropped event when quality dips — OnlineMonitor::capture(), the migration, the drift alert, and the trend endpoint."
+icon: "wave-pulse"
+---
+
+A golden dataset catches the regressions you anticipated. **Online monitoring**
+catches the ones you didn't — by sampling real production traffic, judging it,
+and alerting when live quality drifts down. It is **off by default**; you opt in
+explicitly and call one method from your production path.
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant App as Production path
+    participant OM as OnlineMonitor
+    participant Q as Queue
+    participant J as JudgeLiveSampleJob
+    participant DB as eval_harness_online_scores
+    participant A as OnlineDriftAlert
+    App->>OM: capture(dataset, sampleId, input, expected, actual)
+    OM->>OM: sampling_rate hit?
+    alt sampled
+        OM->>Q: dispatch JudgeLiveSampleJob
+        Q->>J: judge with configured metric
+        J->>DB: persist OnlineScore row
+        J->>A: re-check recent window
+        A-->>App: OnlinePassRateDropped event (if below threshold)
+    else not sampled
+        OM-->>App: no-op
+    end
+```
+
+## Enable it
+
+Online monitoring is the one feature that persists rows. Publish and run its
+migration, then enable it in config:
+
+```bash
+php artisan vendor:publish --tag=eval-harness-migrations
+php artisan migrate
+```
+
+```php
+// config/eval-harness.php
+'online' => [
+    'enabled'        => true,
+    'sampling_rate'  => 0.05,            // judge 5% of captured traffic
+    'metric'         => 'llm-as-judge',
+    'pass_threshold' => 0.7,
+    'queue'          => 'evals',
+    'alert' => [
+        'threshold'   => 0.8,            // alert if recent pass-rate < 0.8
+        'window'      => 50,             // over the last 50 judged samples
+        'min_samples' => 20,             // but only once 20+ exist
+    ],
+],
+```
+
+The migration creates `eval_harness_online_scores`, indexed for the
+pass-rate-over-time query.
+
+## Capture from your production path
+
+After your pipeline generates an answer, hand it to the monitor. On a sampling
+hit it dispatches the judge job; otherwise it is a cheap no-op:
+
+```php
+use Padosoft\EvalHarness\Online\OnlineMonitor;
+
+app(OnlineMonitor::class)->capture(
+    dataset: 'rag.faq',
+    sampleId: (string) $request->id,
+    input: ['question' => $question],
+    expected: $goldenAnswerOrReference,
+    actual: $modelAnswer,
+);
+```
+
+<Note>
+  `expected` is whatever reference you can supply at runtime — a known-good FAQ
+  answer, a retrieved canonical document, or a human-curated reference. When no
+  reference exists, lean on metrics that judge the answer on its own merits
+  (e.g. refusal/helpfulness rubrics) rather than against a gold string.
+</Note>
+
+## Drift alerts
+
+After each judged sample, `OnlineDriftAlert` re-checks the recent window. When
+the pass-rate over the last `window` samples drops below `alert.threshold` (and
+at least `min_samples` exist), it fires `OnlinePassRateDropped`. Register a
+listener to route it anywhere:
+
+```php
+use Illuminate\Support\Facades\Event;
+use Padosoft\EvalHarness\Online\Events\OnlinePassRateDropped;
+
+Event::listen(function (OnlinePassRateDropped $e): void {
+    // $e->dataset, $e->passRate, $e->threshold
+    // notify your on-call channel: Slack, PagerDuty, etc.
+});
+```
+
+The `min_samples` floor prevents a noisy alert storm before enough data exists to
+mean anything.
+
+## The trend endpoint
+
+With the [report API](/reference/report-api) enabled, a read-only endpoint feeds
+the pass-rate chart in the companion admin panel:
+
+```
+GET /{prefix}/online/{dataset}/trend?limit=N
+```
+
+It returns chronological pass-rate points plus the configured alert `threshold`
+(which drives the dashboard's alert band), aggregated by calendar date.
+
+## Cost control
+
+Two knobs keep monitoring affordable:
+
+- **`sampling_rate`** — judge a fraction of traffic, not all of it. 1–5% is
+  usually enough to spot drift on a busy endpoint.
+- **`queue` / `connection`** — judging happens on a queue (Horizon-ready), so it
+  never blocks the user request and can be rate-shaped independently.
+
+<Warning>
+  Online monitoring judges live traffic with a provider, so it incurs ongoing
+  cost proportional to `sampling_rate × volume`. Start at a low sampling rate and
+  raise it only if drift detection needs more signal.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Judge calibration" icon="ruler-combined" href="/guides/judge-calibration">
+    Calibrate the metric before you alert on it.
+  </Card>
+  <Card title="Horizon & queues" icon="server" href="/operations/horizon-and-queues">
+    Run the judge jobs on production workers.
+  </Card>
+</CardGroup>
