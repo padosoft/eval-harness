@@ -1,0 +1,27 @@
+schema_version: eval-harness.calibration.v1
+name: judge.calibration.fy2026
+cases:
+  - id: c1
+    input:
+      question: "What is the capital of France?"
+    expected: "Paris"
+    actual: "The capital of France is Paris."
+    human_verdict: pass
+  - id: c2
+    input:
+      question: "What is the capital of France?"
+    expected: "Paris"
+    actual: "It is Berlin."
+    human_verdict: fail
+  - id: c3
+    input:
+      question: "How many continents are there?"
+    expected: "Seven"
+    actual: "There are seven continents on Earth."
+    human_verdict: pass
+  - id: c4
+    input:
+      question: "What is the boiling point of water at sea level in Celsius?"
+    expected: "100"
+    actual: "Water boils at 50 degrees Celsius."
+    human_verdict: fail
