@@ -20,8 +20,11 @@ use Padosoft\EvalHarness\Exceptions\MetricException;
  *      dependencies (HTTP client, config) are auto-wired.
  *   3. Built-in alias string ('exact-match', 'contains', 'regex',
  *      'rouge-l', 'citation-groundedness', 'cosine-embedding',
- *      'bertscore-like', 'llm-as-judge', 'refusal-quality') — looked up against the static map below
- *      and then resolved through the container.
+ *      'bertscore-like', 'llm-as-judge', 'refusal-quality',
+ *      'ordinal-distance', 'retrieval-hit-at-k', 'retrieval-recall-at-k',
+ *      'retrieval-mrr', 'retrieval-ndcg-at-k', 'answer-containment-at-k') —
+ *      looked up against the static map below and then resolved through
+ *      the container.
  *   4. Container alias / abstract — any string the container can
  *      `make()` (e.g. an `$app->bind('my-metric', MyMetric::class)`
  *      registered by a downstream package). Bound entries are
@@ -53,6 +56,12 @@ final class MetricResolver
         'bertscore-like' => BertScoreLikeMetric::class,
         'llm-as-judge' => LlmAsJudgeMetric::class,
         'refusal-quality' => RefusalQualityMetric::class,
+        'ordinal-distance' => OrdinalDistanceMetric::class,
+        'retrieval-hit-at-k' => RetrievalHitAtKMetric::class,
+        'retrieval-recall-at-k' => RetrievalRecallAtKMetric::class,
+        'retrieval-mrr' => RetrievalMrrMetric::class,
+        'retrieval-ndcg-at-k' => RetrievalNdcgAtKMetric::class,
+        'answer-containment-at-k' => AnswerContainmentAtKMetric::class,
     ];
 
     public function __construct(private readonly Container $container) {}

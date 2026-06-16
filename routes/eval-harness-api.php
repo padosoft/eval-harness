@@ -6,6 +6,7 @@ use Illuminate\Contracts\Routing\Registrar;
 use Padosoft\EvalHarness\ReportApi\Adversarial\ManifestController;
 use Padosoft\EvalHarness\ReportApi\Batches\BatchLiveController;
 use Padosoft\EvalHarness\ReportApi\Diff\ReportDiffController;
+use Padosoft\EvalHarness\ReportApi\Online\OnlineTrendController;
 use Padosoft\EvalHarness\ReportApi\ReportArtifactController;
 use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendController;
 
@@ -48,5 +49,8 @@ return static function (Registrar $router, string $prefix, array $middleware): v
         $router->get('/datasets/{name}/trend', [DatasetTrendController::class, 'show'])
             ->where('name', '[A-Za-z0-9._:-]+')
             ->name('datasets.trend');
+        $router->get('/online/{dataset}/trend', [OnlineTrendController::class, 'show'])
+            ->where('dataset', '[A-Za-z0-9._:-]+')
+            ->name('online.trend');
     });
 };
