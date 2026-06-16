@@ -19,7 +19,7 @@ is $\ge 0.5$.
 | `cosine-embedding` | [semantic](/metrics/semantic-similarity) | cosine of sentence embeddings | string expected | embeddings | model, endpoint |
 | `bertscore-like` | [semantic](/metrics/semantic-similarity) | token-level greedy-match F1 | string expected | embeddings | model, endpoint |
 | `llm-as-judge` | [judge](/metrics/llm-as-judge) | graded `score` 0..1 from a rubric | string expected | chat | model, prompt_template |
-| `refusal-quality` | [judge](/metrics/llm-as-judge) | graded refusal-behavior `score` 0..1 | `metadata.refusal_expected` | chat | model, prompt_template |
+| `refusal-quality` | [judge](/metrics/llm-as-judge) | graded refusal-behavior `score` 0..1 | `metadata.refusal_expected` | chat | model (prompt is built-in) |
 | `ordinal-distance` | [ordinal](/metrics/ordinal-and-aggregation) | ordered-label proximity | string label + scale | none | ordered scale (required) |
 | `citation-groundedness` | [citation](/metrics/ordinal-and-aggregation) | fraction of required citation markers / evidence spans present | `metadata.citations` or `metadata.citation_evidence` | none | — |
 | `retrieval-hit-at-k` | [retrieval](/metrics/retrieval-ranking) | any relevant id in top-k | ranked ids + relevant set | none | `k` |

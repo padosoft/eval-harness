@@ -86,10 +86,17 @@ Both metrics depend only on the embedding vectors, so binding a deterministic
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 
 $this->app->bind(EmbeddingClient::class, fn () => new class implements EmbeddingClient {
-    public function embed(string $text): array
+    /**
+     * @param  list<string>  $texts
+     * @return list<list<float>>  one vector per input, in the same order
+     */
+    public function embedMany(array $texts): array
     {
-        // deterministic stub: hash-seeded pseudo-vector, or a fixture lookup
-        return MyFixtures::vectorFor($text);
+        // deterministic stub: hash-seeded pseudo-vectors, or fixture lookups
+        return array_map(
+            static fn (string $text): array => MyFixtures::vectorFor($text),
+            $texts,
+        );
     }
 });
 ```

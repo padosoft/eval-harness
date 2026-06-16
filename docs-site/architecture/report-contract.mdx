@@ -65,7 +65,7 @@ semantic changes require a major version bump. See
       "metrics": { "exact-match": { "mean": 0.95, "p50": 1.0, "p95": 1.0, "pass_rate": 0.95 } } },
     { "name": null, "label": "(untagged)", "is_untagged": true, "sample_count": 3, "metrics": { } }
   ],
-  "adversarial": null,
+  "adversarial": { "total_samples": 0, "categories": [], "compliance_frameworks": [] },
   "macro_f1": 0.8500,
   "samples": [
     { "id": "capital-france", "tags": ["geography", "easy"], "adversarial": null,
@@ -119,12 +119,14 @@ semantic changes require a major version bump. See
     Captured metric exceptions as `{ sample_id, metric, error }` — the same events
     counted by `total_failures` and reflected in the exit code.
   </Accordion>
-  <Accordion title="adversarial (null unless an adversarial run)">
-    `null` for a normal run. For the adversarial lane: a safe normalized block of
-    `total_samples`, `categories` (each `{ category, label, severity, sample_count,
-    compliance_frameworks, metrics }`), and `compliance_frameworks` counts (OWASP
-    LLM / NIST AI RMF / EU AI Act). Raw prompts and refusal-policy text are
-    excluded by design.
+  <Accordion title="adversarial (always present)">
+    Always an object, never `null`. A normal run carries
+    `{ total_samples: 0, categories: [], compliance_frameworks: [] }`. For the
+    adversarial lane it is a safe normalized block of `total_samples`, `categories`
+    (each `{ category, label, severity, sample_count, compliance_frameworks,
+    metrics }`), and `compliance_frameworks` counts (OWASP LLM / NIST AI RMF / EU
+    AI Act). Raw prompts and refusal-policy text are excluded by design.
+    (Per-sample, `samples[].adversarial` is `null` for non-adversarial samples.)
   </Accordion>
 </AccordionGroup>
 
