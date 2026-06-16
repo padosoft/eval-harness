@@ -146,19 +146,38 @@ authentication — enable it only behind your host app's admin middleware.
 
 ```php
 'api' => [
-    'enabled' => env('EVAL_HARNESS_API_ENABLED', false),
+    'enabled' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_API_ENABLED'), false),
     'prefix' => env('EVAL_HARNESS_API_PREFIX', 'eval-harness/api'),
-    'middleware' => env('EVAL_HARNESS_API_MIDDLEWARE', 'web,auth'),
+    // Default is an EMPTY middleware stack. Set EVAL_HARNESS_API_MIDDLEWARE to a
+    // comma-separated list (e.g. "web,auth") — it is parsed into an array.
+    'middleware' => env('EVAL_HARNESS_API_MIDDLEWARE') === null
+        ? []
+        : array_values(array_filter(array_map(
+            static fn (string $middleware): string => trim($middleware),
+            explode(',', (string) env('EVAL_HARNESS_API_MIDDLEWARE')),
+        ))),
     'trend' => [
-        'max_files_scanned' => env('EVAL_HARNESS_API_TREND_MAX_FILES', 5000),
+        'max_files_scanned' => RuntimeOptions::normalizePositiveInt(
+            env('EVAL_HARNESS_API_TREND_MAX_FILES_SCANNED'),
+            5000,
+        ),
     ],
 ],
 ```
 
+| key | env | default |
+| --- | --- | --- |
+| `enabled` | `EVAL_HARNESS_API_ENABLED` | `false` |
+| `prefix` | `EVAL_HARNESS_API_PREFIX` | `eval-harness/api` |
+| `middleware` | `EVAL_HARNESS_API_MIDDLEWARE` (comma-separated) | `[]` (empty) |
+| `trend.max_files_scanned` | `EVAL_HARNESS_API_TREND_MAX_FILES_SCANNED` | `5000` |
+
 <Warning>
-  The `api.middleware` stack **must** include authentication. This package does
-  not ship auth; exposing the report API without it leaks your evaluation
-  artifacts. See [Report API](/reference/report-api).
+  The middleware stack defaults to **empty** — there is no auth out of the box.
+  Enabling the API with only `EVAL_HARNESS_API_ENABLED=true` mounts the routes
+  **unauthenticated**. You **must** set `EVAL_HARNESS_API_MIDDLEWARE` (e.g.
+  `web,auth`) to a stack that authenticates, or exposing the report API leaks your
+  evaluation artifacts. See [Report API](/reference/report-api).
 </Warning>
 
 ## adversarial
@@ -169,11 +188,20 @@ Optional manifest-discovery disk for the adversarial API endpoints. The CLI
 ```php
 'adversarial' => [
     'manifests' => [
-        'disk' => env('EVAL_HARNESS_ADVERSARIAL_DISK'),
-        'path_prefix' => env('EVAL_HARNESS_ADVERSARIAL_PATH'),
+        'disk' => env('EVAL_HARNESS_ADVERSARIAL_MANIFEST_DISK'),
+        'path_prefix' => env('EVAL_HARNESS_ADVERSARIAL_MANIFEST_PATH', 'eval-harness/adversarial/manifests'),
     ],
 ],
 ```
+
+| key | env | default |
+| --- | --- | --- |
+| `manifests.disk` | `EVAL_HARNESS_ADVERSARIAL_MANIFEST_DISK` | `null` (discovery disabled) |
+| `manifests.path_prefix` | `EVAL_HARNESS_ADVERSARIAL_MANIFEST_PATH` | `eval-harness/adversarial/manifests` |
+
+When `manifests.disk` is `null`, the `/adversarial/manifests` endpoints respond
+gracefully with a `discovery_not_configured` status. Set the disk to the storage
+your scheduled adversarial runs write to in order to enable HTTP discovery.
 
 <CardGroup cols={2}>
   <Card title="Installation" icon="download" href="/installation">

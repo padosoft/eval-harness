@@ -62,7 +62,7 @@ jobs:
         run: |
           php artisan eval-harness:run rag.factuality.fy2026 \
             --registrar="App\\Console\\EvalRegistrar" \
-            --json --out=eval-report.json
+            --json --out=eval-report.json --raw-path
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,6 +72,16 @@ jobs:
 
 The `if: always()` on the upload step is deliberate — you want the report
 **especially** when the gate fails, so the diff is one click away in the PR.
+
+<Warning>
+  Note the **`--raw-path`** flag. A relative `--out` without it resolves against
+  the configured **reports disk** (`eval-harness/reports` by default), not the
+  GitHub Actions workspace — so `actions/upload-artifact` and a later `jq
+  eval-report.json` would not find the file. `--raw-path` makes `--out` a literal
+  workspace path (the parent directory must already exist; the workspace root
+  does). Alternatively, drop `--raw-path` and point the upload/read at the
+  configured storage path instead.
+</Warning>
 
 ## Keep the gate fast and cheap
 
@@ -103,7 +113,7 @@ a bar, read the JSON report's `macro_f1` and assert on it:
 ```bash
 php artisan eval-harness:run rag.factuality.fy2026 \
   --registrar="App\\Console\\EvalRegistrar" \
-  --json --out=eval-report.json
+  --json --out=eval-report.json --raw-path
 
 MACRO_F1=$(jq '.macro_f1' eval-report.json)
 echo "macro-F1 = $MACRO_F1"

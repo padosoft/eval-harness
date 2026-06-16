@@ -17,7 +17,9 @@ Every report payload carries two explicit version discriminators:
 - **`dataset_schema_version`** — the dataset contract the run scored against
   (`eval-harness.dataset.v1`).
 
-The report API responses add their own `eval-harness.api.v1` envelope version.
+The report API responses add their own `eval-harness.report-api.v1` envelope
+version (per-endpoint sub-schemas extend it, e.g.
+`eval-harness.report-api.v1.trend`).
 These let consumers branch on version and evolve safely.
 
 ## The stability rule

@@ -23,8 +23,9 @@ prerequisite matrix and provider configuration, see
     ```
 
     Auto-discovery wires the service provider — no `config/app.php` edits. The
-    package adds **zero migrations** to your schema (online monitoring ships an
-    opt-in migration you publish only if you use it).
+    package ships a **single** auto-loaded migration (`eval_harness_online_scores`)
+    for the optional online-monitoring feature, so your next `php artisan migrate`
+    creates that one table; nothing else touches your schema.
   </Step>
 
   <Step title="Curate a golden dataset">

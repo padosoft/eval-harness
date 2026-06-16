@@ -37,14 +37,17 @@ Do not unwind a non-obvious one without understanding what it holds up.
     **Consequence.** Consumers branch on `schema_version` and trust fields not to
     change meaning within a major. See [the report contract](/architecture/report-contract).
   </Accordion>
-  <Accordion title="No database migrations by default">
+  <Accordion title="Minimal schema footprint — one auto-loaded migration">
     **Problem.** A package that mutates the host schema on install is intrusive.
 
-    **Decision.** Datasets are YAML, results are JSON on a disk — zero migrations.
-    The single optional migration (`eval_harness_online_scores`) is published only
-    if you opt into online monitoring.
+    **Decision.** Datasets are YAML and results are JSON on a disk. The package
+    ships exactly **one** migration — `eval_harness_online_scores` for the
+    optional online-monitoring feature — auto-loaded by the service provider so it
+    is available to host apps and to `RefreshDatabase` in tests.
 
-    **Consequence.** `composer require` adds zero rows to your schema.
+    **Consequence.** `php artisan migrate` creates that single table; the feature
+    is off by default so it stays empty until you opt in, and no existing table is
+    touched.
   </Accordion>
 </AccordionGroup>
 

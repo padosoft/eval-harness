@@ -10,9 +10,11 @@ icon: "download"
 composer require padosoft/eval-harness
 ```
 
-The package is **auto-discovered** — no `config/app.php` edits required. It adds
-**zero migrations** to your schema by default; datasets are YAML and reports are
-JSON/Markdown on a configured disk.
+The package is **auto-discovered** — no `config/app.php` edits required. Datasets
+are YAML and reports are JSON/Markdown on a configured disk. The only schema
+change is a **single migration** for the optional online-monitoring feature,
+which the service provider auto-loads — see
+[below](#the-online-monitoring-migration).
 
 ## Compatibility matrix
 
@@ -39,19 +41,27 @@ calibration thresholds, online-monitoring settings, runtime guardrails, the
 reports disk, and batch defaults. See [Configuration](/configuration) for the
 full annotated file.
 
-## Optional: the online-monitoring migration
+## The online-monitoring migration
 
-Production online monitoring is the one feature that persists rows. It is
-**off by default**. Publish and run its migration only if you enable it:
+The package ships **one** migration — `eval_harness_online_scores` — for the
+optional online-monitoring feature. The service provider **auto-loads** it
+(outside the console guard, so it is also available to `RefreshDatabase` in
+tests), which means your next `php artisan migrate` creates this table:
 
 ```bash
-php artisan vendor:publish --tag=eval-harness-migrations
 php artisan migrate
 ```
 
-This creates the `eval_harness_online_scores` table that stores sampled,
-queue-judged live interactions for the pass-rate-over-time trend. See
+The feature itself is **off by default** (`online.enabled = false`), so the table
+simply stays empty until you opt in — it does not change any existing table. See
 [Online monitoring](/guides/online-monitoring).
+
+<Tip>
+  You only need `vendor:publish --tag=eval-harness-migrations` if you want to
+  **copy** the migration into your app's `database/migrations` to customize it.
+  Publishing is not required for the table to be created — the auto-load handles
+  that.
+</Tip>
 
 ## Pointing at a provider
 
