@@ -72,11 +72,16 @@ Offline metrics need no provider. The embedding-backed metrics
 <Tabs>
   <Tab title="OpenAI (default)">
     ```env
+    # OPENAI_API_KEY is the fallback for BOTH the judge and embeddings keys,
+    # so setting it alone authenticates every provider-backed metric.
+    OPENAI_API_KEY=sk-...
+
     EVAL_HARNESS_EMBEDDINGS_ENDPOINT=https://api.openai.com/v1/embeddings
     EVAL_HARNESS_EMBEDDINGS_MODEL=text-embedding-3-small
+    EVAL_HARNESS_EMBEDDINGS_API_KEY=sk-...   # optional; defaults to OPENAI_API_KEY
     EVAL_HARNESS_JUDGE_ENDPOINT=https://api.openai.com/v1/chat/completions
     EVAL_HARNESS_JUDGE_MODEL=gpt-4o-mini
-    EVAL_HARNESS_JUDGE_API_KEY=sk-...
+    EVAL_HARNESS_JUDGE_API_KEY=sk-...        # optional; defaults to OPENAI_API_KEY
     ```
   </Tab>
   <Tab title="OpenRouter">

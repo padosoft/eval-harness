@@ -96,12 +96,20 @@ compatible report-schema / dataset / metric / category / sample-count slice.
 
 ```mermaid
 flowchart LR
-    RUN[adversarial run] --> CHK{failure-free<br/>and gate-clean?}
+    RUN[adversarial --regression-gate run] --> CHK{failure-free<br/>AND gate passed?}
     CHK -->|yes| REC[record summary +<br/>advance baseline]
-    CHK -->|no| SKIP[summary kept,<br/>baseline NOT advanced]
+    CHK -->|no| SKIP[NOT recorded —<br/>no summary, no baseline]
     REC --> MAN[(manifest<br/>locked + atomic write)]
-    SKIP --> MAN
 ```
+
+<Warning>
+  For `--regression-gate` runs, a run with metric failures **or** a tripped gate
+  is **not written to the manifest at all** — no summary and no baseline. The
+  manifest is therefore not a complete audit log of *every* gated run; failed
+  gated runs leave no record there (rely on the JSON/Markdown report artifact for
+  failed-run history). This is deliberate: it guarantees a broken run can never
+  seed a baseline.
+</Warning>
 
 <Note>
   Size `--manifest-retain` for the number of **distinct slices** you run (report
