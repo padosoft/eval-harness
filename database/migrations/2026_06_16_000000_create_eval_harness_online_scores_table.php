@@ -21,11 +21,13 @@ return new class extends Migration
             $table->json('details')->nullable();
             $table->timestamp('judged_at');
             $table->timestamps();
-            // Single composite index covers every hot query
-            // (forDataset()->orderByDesc('judged_at') and the grouped
-            // trend aggregate); standalone dataset/judged_at indexes
-            // would be redundant write amplification.
-            $table->index(['dataset', 'judged_at']);
+            // Single composite index covers every hot query: the trend
+            // aggregate (filter dataset, group by date) and the drift
+            // alert (filter dataset, ORDER BY judged_at DESC, id DESC).
+            // `id` is included so the tie-break ordering is covered too;
+            // standalone dataset/judged_at indexes would be redundant
+            // write amplification.
+            $table->index(['dataset', 'judged_at', 'id']);
         });
     }
 
