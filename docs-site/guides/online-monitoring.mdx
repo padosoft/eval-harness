@@ -81,9 +81,20 @@ app(OnlineMonitor::class)->capture(
 <Note>
   `expected` is whatever reference you can supply at runtime — a known-good FAQ
   answer, a retrieved canonical document, or a human-curated reference. When no
-  reference exists, lean on metrics that judge the answer on its own merits
-  (e.g. refusal/helpfulness rubrics) rather than against a gold string.
+  reference exists, keep the default `online.metric` of `llm-as-judge` (or a
+  custom `llm-as-judge` prompt that grades the answer on its own merits), which
+  scores from the input/output alone.
 </Note>
+
+<Warning>
+  Do **not** set `online.metric` to `refusal-quality` for online monitoring. The
+  sampled `JudgeLiveSampleJob` builds its `DatasetSample` from `id` / `input` /
+  `expected` only — with **no metadata** — but `refusal-quality` requires
+  `metadata.refusal_expected`, so every sampled judgement would fail and no
+  `OnlineScore` rows (or drift alerts) would be produced. Drive refusal scoring
+  through the [adversarial lane](/guides/adversarial-testing) instead, where the
+  seed samples carry that metadata.
+</Warning>
 
 ## Drift alerts
 
