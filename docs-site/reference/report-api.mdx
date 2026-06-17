@@ -54,8 +54,11 @@ A client should branch on the **HTTP status first**, and only read
   (`adversarial.manifests.disk` is `null`), `GET /adversarial/manifests` and
   `…/{name}` return a `404` whose body **is** enveloped —
   `{ "schema_version": "…", "error": "discovery_not_configured", "message": "…" }`
-  — a structured "feature off" signal, not a generic error. Treat a `404` on the
-  manifest endpoints as "discovery not configured" rather than "missing".
+  — a structured "feature off" signal, not a generic error. Distinguish the two
+  by the body: a `404` carrying `error === "discovery_not_configured"` means
+  discovery is **off**; a `404` **without** that envelope (a standard Laravel
+  error) means the requested manifest name genuinely **does not exist** (discovery
+  is configured but the file is missing). Check the `error` field before deciding.
 </Note>
 
 ## Endpoint catalog
@@ -107,8 +110,8 @@ browse compliance history without scraping the filesystem. The CLI
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /batches/live` | Active lazy-parallel batch ids + status. |
-| `GET /batches/{id}/progress` | Compact progress counters for one batch. |
+| `GET /batches/live` | Active lazy-parallel batches, each with `id` and `expires_at` (no per-batch `status` — fetch that from the progress endpoint). |
+| `GET /batches/{id}/progress` | Compact progress counters **and** the `status` for one batch. |
 
 Enabled by default; disable via `eval-harness.batches.live_registry.enabled`.
 
