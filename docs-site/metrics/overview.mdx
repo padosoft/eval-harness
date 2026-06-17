@@ -6,9 +6,10 @@ icon: "function"
 
 ## The contract
 
-Every metric implements one method. It receives a sample and the SUT's actual
-output and returns a `MetricScore` — a real number in $[0, 1]$ plus optional
-structured details:
+Every metric implements a small two-method interface: `name()` returns the
+metric's alias, and `score()` receives a sample and the SUT's actual output and
+returns a `MetricScore` — a real number in $[0, 1]$ plus optional structured
+details:
 
 ```php
 interface Metric

@@ -110,7 +110,7 @@ adds a `reportTerminal(...)` callback with explicit `success` / `failure` /
 
 ```mermaid
 flowchart LR
-    B[LazyParallelBatch] -->|every N done| PR["BatchProgressReporter::report()"]
+    B[LazyParallelBatch] -->|every N done| PR["BatchProgressReporter::reportCheckpoint()"]
     B -->|on completion| TR["BatchTerminalProgressReporter::reportTerminal()<br/>success / failure / empty"]
 ```
 

@@ -74,7 +74,7 @@ scoring math.
 
 A **metric** scores `(sample, actual output)` into a `MetricScore` — a number in
 `[0, 1]` plus optional structured details (e.g. provider `usage`). Metrics
-implement a single-method `Metric` interface, so adding your own is a class, not
+implement a two-method `Metric` interface (`name()` + `score()`), so adding your own is a class, not
 a fork. The package ships **fifteen built-in metrics** across five families;
 see [Metrics overview](/metrics/overview).
 
