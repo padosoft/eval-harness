@@ -95,20 +95,25 @@ the newest N summaries **plus** any additional failure-free baselines needed per
 compatible report-schema / dataset / metric / category / sample-count slice.
 
 ```mermaid
-flowchart LR
-    RUN[adversarial --regression-gate run] --> CHK{failure-free<br/>AND gate passed?}
-    CHK -->|yes| REC[record summary +<br/>advance baseline]
-    CHK -->|no| SKIP[NOT recorded —<br/>no summary, no baseline]
+flowchart TB
+    RUN[adversarial --regression-gate run] --> Q1{metric failures?}
+    Q1 -->|yes| NO[NOT recorded]
+    Q1 -->|no| Q2{gate FAILED, or a configured<br/>regression-metric aggregate missing?}
+    Q2 -->|yes| NO
+    Q2 -->|no| REC["recorded — including the first clean<br/>'missing-baseline' run, which seeds the baseline"]
     REC --> MAN[(manifest<br/>locked + atomic write)]
 ```
 
 <Warning>
-  For `--regression-gate` runs, a run with metric failures **or** a tripped gate
-  is **not written to the manifest at all** — no summary and no baseline. The
-  manifest is therefore not a complete audit log of *every* gated run; failed
-  gated runs leave no record there (rely on the JSON/Markdown report artifact for
-  failed-run history). This is deliberate: it guarantees a broken run can never
-  seed a baseline.
+  A `--regression-gate` run is recorded only when it has **no metric failures**,
+  the gate **did not fail**, and no configured regression-metric aggregate is
+  missing. A failed or gate-failed run is **not written at all** — so the
+  manifest is not a complete audit log of every gated run (rely on the
+  JSON/Markdown report for failed-run history). Note that a **first clean run with
+  no compatible baseline** reports a `missing-baseline` status but **is** recorded
+  — that is exactly how the baseline gets seeded for future comparisons. The net
+  guarantee: a *broken* run can never seed a baseline, while a *clean* one always
+  can.
 </Warning>
 
 <Note>
