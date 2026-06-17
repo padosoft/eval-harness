@@ -30,7 +30,7 @@ default** because the package bundles no authentication.
 
 ## The response envelope
 
-Every JSON response carries a version discriminator:
+**Successful** JSON responses carry a version discriminator:
 
 ```json
 {
@@ -40,9 +40,14 @@ Every JSON response carries a version discriminator:
 ```
 
 Individual endpoints add their own sub-schema discriminators (e.g.
-`eval-harness.report-api.v1.trend`). Errors use standard codes: `404` (missing
-artifact / id), `422` (malformed JSON on a JSON-only endpoint), `503`
-(disk/cache read failure).
+`eval-harness.report-api.v1.trend`).
+
+**Error responses are not enveloped.** Missing artifacts/ids (`404`), malformed
+report JSON on a JSON-only endpoint (`422`), and storage/cache failures (`503`)
+are thrown as standard Laravel HTTP exceptions and rendered as Laravel's default
+error JSON (e.g. `{ "message": "..." }`) — **without** a `schema_version`. A
+client should branch on the **HTTP status first**, and only read
+`schema_version` / `data` on a `2xx` response.
 
 ## Endpoint catalog
 

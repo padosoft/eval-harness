@@ -79,11 +79,14 @@ app(OnlineMonitor::class)->capture(
 ```
 
 <Note>
-  `expected` is whatever reference you can supply at runtime — a known-good FAQ
-  answer, a retrieved canonical document, or a human-curated reference. When no
-  reference exists, keep the default `online.metric` of `llm-as-judge` (or a
-  custom `llm-as-judge` prompt that grades the answer on its own merits), which
-  scores from the input/output alone.
+  `expected` is the reference the judge grades **against** — supply a real one (a
+  known-good FAQ answer, a retrieved canonical document, a human-curated
+  reference). The default `llm-as-judge` metric grades the actual answer against
+  `expected`, so it needs a meaningful reference; passing an empty or placeholder
+  string makes the score meaningless. If you genuinely have no reference at
+  capture time, configure a **custom `llm-as-judge` `prompt_template` that ignores
+  `{expected}`** and grades the answer on its own merits — that is the only
+  supported reference-less path.
 </Note>
 
 <Warning>
