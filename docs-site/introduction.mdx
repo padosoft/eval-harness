@@ -10,8 +10,10 @@ icon: "book-open"
 LLM applications.** It gives the non-deterministic part of your stack — the
 retriever, the prompt, the model, the chunker — the same regression protection
 your business logic has had for fifteen years: a curated golden dataset, a set
-of declared metrics, and a CI gate that exits non-zero the moment quality
-drops.
+of declared metrics, and a CI gate that fails the build when a **macro-F1
+threshold you set** is breached (or a metric errors). The raw command exit code
+is an execution-health signal; you turn it into a quality gate by asserting on
+the report's `macro_f1` — see [the CI gate](/guides/ci-gate).
 
 It runs **inside your application container**, resolving your real Laravel
 services directly. Datasets are **YAML** (reviewable in pull requests), reports
