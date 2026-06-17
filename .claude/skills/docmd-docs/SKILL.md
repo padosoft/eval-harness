@@ -90,15 +90,21 @@ is Markdown (used for the "© Lorenzo Padovani — Padosoft" credit); `columns[]
 hold link groups (`{ title, links: [{ title, path, external }] }`); `branding`
 keeps the "Powered by docmd" mark.
 
-## Deploy: GitHub Actions → Cloudflare Pages
+## Deploy: Cloudflare Pages (Option A — active, confirmed working)
 
-`.github/workflows/docs.yml` builds in Actions (Node 20, `npm ci`, `npm run
-check`, `npm run build`) and deploys `_site/` to Cloudflare Pages via
-`cloudflare/wrangler-action` (`pages deploy _site --project-name=eval-harness-docs`).
-ONNX runs only in the build job; Cloudflare just serves static assets. Secrets:
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. One-time:
-`npx wrangler pages project create eval-harness-docs --production-branch main`,
-then attach the custom domain in the Pages dashboard.
+The site is deployed via **Cloudflare Pages' Git integration**: CF builds on every
+push to `main`, no API key. **Confirmed working** — the semantic-search build
+(`onnxruntime-node` + `@huggingface/transformers`) runs fine on CF's Linux build
+image. CF Pages build config: root `docs-site`, build command `npm run build`,
+output `_site`, Node 20 (auto via `docs-site/.node-version`). The lockfile is v3
+and cross-platform, so CF's Linux `npm ci` resolves the right native binaries
+(`sharp-linux-x64`, onnxruntime for linux). Custom domain
+`doc.eval-harness.padosoft.com` is attached in the Pages dashboard.
+
+**Fallback (Option B — not needed, kept disabled):** `.github/workflows/docs.yml`
+builds in GitHub Actions and uploads `_site/` via `cloudflare/wrangler-action`
+(needs `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`). It is `workflow_dispatch`-
+only (never auto-runs). Use it only if CF's own build ever breaks on ONNX.
 
 ## Navigation
 
