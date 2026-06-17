@@ -88,9 +88,11 @@ When a dataset is generated rather than hand-curated, build it from
 
 ```php
 use Padosoft\EvalHarness\Datasets\DatasetSample;
-use Padosoft\EvalHarness\Facades\EvalFacade as Eval;
+use Padosoft\EvalHarness\Facades\EvalFacade;
 
-Eval::dataset('rag.smoke')
+// The facade class is EvalFacade because `Eval` is a reserved word in PHP and
+// cannot be used as a class alias (`use ... as Eval` is a parse error).
+EvalFacade::dataset('rag.smoke')
     ->withSamples([
         new DatasetSample(id: 's1', input: ['q' => 'hi'], expectedOutput: 'hello'),
         new DatasetSample(id: 's2', input: ['q' => 'bye'], expectedOutput: 'goodbye'),

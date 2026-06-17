@@ -131,13 +131,14 @@ attempts and pass it back so completed datasets are skipped on a retry:
 ```php
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\EvalSets\EvalSetManifest;
+use Padosoft\EvalHarness\Facades\EvalFacade;
 
-$evalSet = Eval::evalSet('release.rag', [
+$evalSet = EvalFacade::evalSet('release.rag', [
     'rag.factuality.fy2026',
     'rag.refusals.fy2026',
 ]);
 
-$result = Eval::runEvalSet(
+$result = EvalFacade::runEvalSet(
     $evalSet,
     app(\App\Eval\MyRagRunner::class),
     BatchOptions::serial(),

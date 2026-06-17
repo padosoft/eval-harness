@@ -130,7 +130,7 @@ report into a **merge gate** in CI.
   </Accordion>
   <Accordion title="Scoring saved outputs (no SUT)">
     When another job already produced model responses, `--outputs=<path>` (or
-    `Eval::scoreOutputs()`) scores them directly against the same dataset and
+    `EvalFacade::scoreOutputs()`) scores them directly against the same dataset and
     metrics — no `eval-harness.sut` binding required.
   </Accordion>
   <Accordion title="An eval set">

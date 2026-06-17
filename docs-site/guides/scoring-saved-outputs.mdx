@@ -1,6 +1,6 @@
 ---
 title: "Scoring saved outputs"
-description: "Score precomputed model responses without invoking your agent in CI — the --outputs flag, the map and list formats, Eval::scoreOutputs(), and when to decouple generation from scoring."
+description: "Score precomputed model responses without invoking your agent in CI — the --outputs flag, the map and list formats, EvalFacade::scoreOutputs(), and when to decouple generation from scoring."
 icon: "file-import"
 ---
 
@@ -91,9 +91,11 @@ command:
 
 ```php
 use Padosoft\EvalHarness\Datasets\DatasetSample;
-use Padosoft\EvalHarness\Facades\EvalFacade as Eval;
+use Padosoft\EvalHarness\Facades\EvalFacade;
 
-Eval::dataset('rag.smoke')
+// The facade class is EvalFacade because `Eval` is a reserved word in PHP and
+// cannot be used as a class alias (`use ... as Eval` is a parse error).
+EvalFacade::dataset('rag.smoke')
     ->withSamples([
         new DatasetSample(id: 's1', input: ['q' => 'hi'], expectedOutput: 'hello'),
         new DatasetSample(id: 's2', input: ['q' => 'bye'], expectedOutput: 'goodbye'),
@@ -101,7 +103,7 @@ Eval::dataset('rag.smoke')
     ->withMetrics(['exact-match'])
     ->register();
 
-$report = Eval::scoreOutputs('rag.smoke', [
+$report = EvalFacade::scoreOutputs('rag.smoke', [
     's1' => 'hello',
     's2' => 'wrong answer',
 ]);
