@@ -108,9 +108,16 @@ prerequisite matrix and provider configuration, see
       --json --out=factuality.json
     ```
 
-    The exit code is **`0` if every metric scored cleanly, non-zero otherwise**.
-    Wire that into the same workflow that runs your PHPUnit suite and you have a
-    regression gate.
+    The exit code is **`0` if every metric *executed* cleanly, non-zero on any
+    captured failure** (a timeout, a malformed provider response). This is an
+    **execution-health** signal — note it does **not** fail on merely *low*
+    scores: a SUT that returns wrong-but-clean answers still exits `0`.
+
+    <Warning>
+      To gate on **quality** — to fail when scores drop even though metrics ran
+      cleanly — read the JSON report's `macro_f1` and assert on a threshold. See
+      [Gating on a quality threshold](/guides/ci-gate#gating-on-a-quality-threshold).
+    </Warning>
   </Step>
 
   <Step title="Read the report">
