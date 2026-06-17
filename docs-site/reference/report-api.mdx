@@ -42,12 +42,21 @@ default** because the package bundles no authentication.
 Individual endpoints add their own sub-schema discriminators (e.g.
 `eval-harness.report-api.v1.trend`).
 
-**Error responses are not enveloped.** Missing artifacts/ids (`404`), malformed
-report JSON on a JSON-only endpoint (`422`), and storage/cache failures (`503`)
-are thrown as standard Laravel HTTP exceptions and rendered as Laravel's default
-error JSON (e.g. `{ "message": "..." }`) — **without** a `schema_version`. A
-client should branch on the **HTTP status first**, and only read
+**Most error responses are not enveloped.** Missing artifacts/ids (`404`),
+malformed report JSON on a JSON-only endpoint (`422`), and storage/cache failures
+(`503`) are thrown as standard Laravel HTTP exceptions and rendered as Laravel's
+default error JSON (e.g. `{ "message": "..." }`) — **without** a `schema_version`.
+A client should branch on the **HTTP status first**, and only read
 `schema_version` / `data` on a `2xx` response.
+
+<Note>
+  One deliberate exception: when adversarial manifest discovery is disabled
+  (`adversarial.manifests.disk` is `null`), `GET /adversarial/manifests` and
+  `…/{name}` return a `404` whose body **is** enveloped —
+  `{ "schema_version": "…", "error": "discovery_not_configured", "message": "…" }`
+  — a structured "feature off" signal, not a generic error. Treat a `404` on the
+  manifest endpoints as "discovery not configured" rather than "missing".
+</Note>
 
 ## Endpoint catalog
 

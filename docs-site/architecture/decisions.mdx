@@ -106,12 +106,16 @@ Do not unwind a non-obvious one without understanding what it holds up.
     **Problem.** A full `DatasetSample` may hold objects, resources, or invalid
     UTF-8 that won't serialize onto a queue.
 
-    **Decision.** Jobs carry a minimal `SampleInvocation` (`sample_id` + `input`);
-    the worker reconstructs the rest from the registry. Queued SUTs must therefore
-    be container-resolvable `SampleRunner` classes.
+    **Decision.** Jobs carry a minimal `SampleInvocation` (fields `id` + `input`
+    only); the worker hands just that to the runner and does **not** reconstruct
+    the full sample, so `expected_output` / `metadata` are unavailable in the
+    worker (scoring runs later in the producer against the original dataset).
+    Queued SUTs must therefore be container-resolvable `SampleRunner` classes that
+    need only `input`.
 
-    **Consequence.** No serialization failures and no contract creep — closures and
-    caller-specific runner state stay serial-only.
+    **Consequence.** No serialization failures and no contract creep — closures,
+    caller-specific runner state, and runners that need expected/metadata stay
+    serial-only.
   </Accordion>
 </AccordionGroup>
 

@@ -62,16 +62,27 @@ when jobs finish out of order. Covered in
 
 Queue jobs cannot carry a full `DatasetSample` — it may hold objects, resources,
 or invalid-UTF-8 metadata that don't serialize. So a job carries a minimal
-**`SampleInvocation`** DTO (`sample_id` + `input`) and the worker reconstructs the
-rest from the dataset registry. This avoids serialization failures and stops the
-queue contract from creeping to depend on arbitrary sample state.
+**`SampleInvocation`** DTO whose only public fields are `id` and `input`. The
+worker resolves the runner and hands it **just that invocation** — it does **not**
+reconstruct the full `DatasetSample`, so `expected_output` and `metadata` are
+**not** available inside the worker. Scoring happens later, in the producer,
+against the original in-memory dataset. This avoids serialization failures and
+stops the queue contract from depending on arbitrary sample state.
 
 ```mermaid
 flowchart LR
-    DS["DatasetSample<br/>(rich, may be unserializable)"] --> DTO["SampleInvocation<br/>(sample_id + input)"]
+    DS["DatasetSample<br/>(rich, may be unserializable)"] --> DTO["SampleInvocation<br/>(id + input only)"]
     DTO --> JOB["queued job"]
-    JOB --> W["worker: re-resolve runner,<br/>run input, write output[index]"]
+    JOB --> W["worker: re-resolve runner,<br/>run(input) → write output[index]"]
+    W --> PROD["producer: score outputs vs<br/>original dataset (expected/metadata)"]
 ```
+
+<Warning>
+  A queued `SampleRunner` receives only `id` and `input`. A runner that needs the
+  sample's `expected_output` or `metadata` at run time cannot get them on the
+  lazy-parallel path — keep that logic in the metric (which scores in the
+  producer with the full sample) or run such datasets serially.
+</Warning>
 
 ## Stage 3 — scoring with failure capture
 
