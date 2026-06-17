@@ -1,0 +1,128 @@
+{
+  "tree": [
+    {
+      "title": "Architecture\\Decisions",
+      "path": "architecture\\decisions.md"
+    },
+    {
+      "title": "Architecture\\Evaluation Pipeline",
+      "path": "architecture\\evaluation-pipeline.md"
+    },
+    {
+      "title": "Architecture\\Overview",
+      "path": "architecture\\overview.md"
+    },
+    {
+      "title": "Architecture\\Report Contract",
+      "path": "architecture\\report-contract.md"
+    },
+    {
+      "title": "Best Practices\\Regression Gating",
+      "path": "best-practices\\regression-gating.md"
+    },
+    {
+      "title": "Best Practices\\Safety And Red Teaming",
+      "path": "best-practices\\safety-and-red-teaming.md"
+    },
+    {
+      "title": "Best Practices\\Trustworthy Judges",
+      "path": "best-practices\\trustworthy-judges.md"
+    },
+    {
+      "title": "Configuration",
+      "path": "configuration.md"
+    },
+    {
+      "title": "Core Concepts",
+      "path": "core-concepts.md"
+    },
+    {
+      "title": "Guides\\Adversarial Testing",
+      "path": "guides\\adversarial-testing.md"
+    },
+    {
+      "title": "Guides\\Ci Gate",
+      "path": "guides\\ci-gate.md"
+    },
+    {
+      "title": "Guides\\Golden Datasets",
+      "path": "guides\\golden-datasets.md"
+    },
+    {
+      "title": "Guides\\Judge Calibration",
+      "path": "guides\\judge-calibration.md"
+    },
+    {
+      "title": "Guides\\Online Monitoring",
+      "path": "guides\\online-monitoring.md"
+    },
+    {
+      "title": "Guides\\Running Evaluations",
+      "path": "guides\\running-evaluations.md"
+    },
+    {
+      "title": "Guides\\Scoring Saved Outputs",
+      "path": "guides\\scoring-saved-outputs.md"
+    },
+    {
+      "title": "Index",
+      "path": "index.md"
+    },
+    {
+      "title": "Installation",
+      "path": "installation.md"
+    },
+    {
+      "title": "Metrics\\Lexical And Structural",
+      "path": "metrics\\lexical-and-structural.md"
+    },
+    {
+      "title": "Metrics\\Llm As Judge",
+      "path": "metrics\\llm-as-judge.md"
+    },
+    {
+      "title": "Metrics\\Ordinal And Aggregation",
+      "path": "metrics\\ordinal-and-aggregation.md"
+    },
+    {
+      "title": "Metrics\\Overview",
+      "path": "metrics\\overview.md"
+    },
+    {
+      "title": "Metrics\\Retrieval Ranking",
+      "path": "metrics\\retrieval-ranking.md"
+    },
+    {
+      "title": "Metrics\\Semantic Similarity",
+      "path": "metrics\\semantic-similarity.md"
+    },
+    {
+      "title": "Operations\\Batch Execution",
+      "path": "operations\\batch-execution.md"
+    },
+    {
+      "title": "Operations\\Horizon And Queues",
+      "path": "operations\\horizon-and-queues.md"
+    },
+    {
+      "title": "Operations\\Troubleshooting",
+      "path": "operations\\troubleshooting.md"
+    },
+    {
+      "title": "Quickstart",
+      "path": "quickstart.md"
+    },
+    {
+      "title": "Reference\\Cli",
+      "path": "reference\\cli.md"
+    },
+    {
+      "title": "Reference\\Metrics Catalog",
+      "path": "reference\\metrics-catalog.md"
+    },
+    {
+      "title": "Reference\\Report Api",
+      "path": "reference\\report-api.md"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+/*
+ * eval-harness brand overrides for docmd.
+ * Preserves the teal palette from the original Mintlify site
+ * (primary #0d9488, light #14b8a6, dark #0f766e).
+ */
+:root {
+  --docmd-color-primary: #0d9488;
+  --docmd-color-primary-light: #14b8a6;
+  --docmd-color-primary-dark: #0f766e;
+
+  /* common aliases used by docmd themes; harmless if unused */
+  --color-primary: #0d9488;
+  --color-accent: #14b8a6;
+  --link-color: #0d9488;
+  --brand: #0d9488;
+}
+
+:root[data-theme="dark"],
+.dark {
+  --docmd-color-primary: #14b8a6;
+  --color-primary: #14b8a6;
+  --link-color: #2dd4bf;
+  --brand: #14b8a6;
+}
+
+/* Accent links and active sidebar items with the brand teal. */
+a { color: var(--link-color, #0d9488); }
+
+/* Slightly tighter, more "product doc" card grid. */
+.docmd-card { border-radius: 12px; }

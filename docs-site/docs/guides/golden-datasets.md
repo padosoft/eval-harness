@@ -1,0 +1,149 @@
+---
+title: "Golden datasets"
+description: "The dataset contract — the strict-schema YAML loader, the sample shape, metadata knobs (tags, k, refusal_expected, citation_evidence), programmatic datasets, and how to curate a dataset that actually catches regressions."
+---
+
+A golden dataset is the heart of the framework: a curated set of
+`(input, expected output)` cases that encode what *correct* means for your
+pipeline. It is **YAML, not a database model** — reviewable in pull requests,
+diffable across releases, and stored in `eval/golden/*.yml` next to your code.
+
+## The dataset contract
+
+```yaml
+schema_version: eval-harness.dataset.v1
+name: rag.factuality.fy2026
+samples:
+  - id: capital-france
+    input:
+      question: "What is the capital of France?"
+    expected_output: "Paris"
+    metadata:
+      tags: [geography, easy]
+```
+
+| field | required | meaning |
+| --- | --- | --- |
+| `schema_version` | no | Defaults to `eval-harness.dataset.v1`. Keep it explicit for forward-compatibility. |
+| `name` | yes | The dataset id you pass to `eval-harness:run`. |
+| `samples` | yes | The list of evaluation cases. |
+| `samples[].id` | yes | Stable identifier — aligns saved outputs and labels report rows. |
+| `samples[].input` | yes | The argument object handed to your SUT. |
+| `samples[].expected_output` | yes | Ground truth — a string, a list of ids, or a graded-gains map. |
+| `samples[].metadata` | no | Tags and per-sample knobs (see below). |
+
+The **strict-schema loader** validates every sample and raises actionable errors
+on malformed entries — a missing `id`, a non-list `samples`, an unparseable
+`expected_output` — instead of silently scoring them wrong.
+
+## Metadata knobs
+
+`metadata` is where samples carry per-case configuration:
+
+  ::: collapsible "tags — cohort slicing"
+`tags: [policy, support]` puts a sample into one or more **cohorts**. Reports
+break every aggregate down by tag, so you can see *which* slice regressed.
+Multi-tag samples appear in each cohort; untagged samples fall into an
+explicit untagged bucket.
+:::
+  ::: collapsible "k — retrieval cutoff override"
+`k: 10` overrides the retrieval-ranking cutoff for that sample (otherwise the
+constructor `k`, then `metrics.retrieval.default_k`, then `5`). Use it when a
+few hard queries need a deeper top-k.
+:::
+  ::: collapsible "refusal_expected — safety contract"
+`refusal_expected: true|false` is **required** by the `refusal-quality`
+metric. It states whether refusing is the correct behavior, letting reports
+separate over-refusal from under-refusal.
+:::
+  ::: collapsible "citation_evidence — grounded-citation spans"
+A list of `{citation, quote}` spans that the `citation-groundedness` metric
+requires to appear together in the answer. The strict "no ungrounded claims"
+contract.
+:::
+
+## Expected-output shapes
+
+The same `expected_output` field carries different shapes depending on the
+metric family:
+
+```yaml
+# string — for lexical, semantic, judge metrics
+expected_output: "30 days from delivery."
+
+# list of ids — binary relevance for retrieval-ranking metrics
+expected_output: ["doc-3", "doc-9"]
+
+# id -> gain map — graded relevance for nDCG@k
+expected_output: { "doc-3": 3, "doc-9": 1 }
+```
+
+## Programmatic datasets
+
+When a dataset is generated rather than hand-curated, build it from
+`DatasetSample` objects — no YAML file required:
+
+```php
+use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Facades\EvalFacade;
+
+// The facade class is EvalFacade because `Eval` is a reserved word in PHP and
+// cannot be used as a class alias (`use ... as Eval` is a parse error).
+EvalFacade::dataset('rag.smoke')
+    ->withSamples([
+        new DatasetSample(id: 's1', input: ['q' => 'hi'], expectedOutput: 'hello'),
+        new DatasetSample(id: 's2', input: ['q' => 'bye'], expectedOutput: 'goodbye'),
+    ])
+    ->withMetrics(['exact-match'])
+    ->register();
+```
+
+## Curating a dataset that catches regressions
+
+::: steps
+
+1. **Start from real queries**
+   Seed the dataset from your actual logs — the questions users really ask, not
+   the ones you wish they asked. 30–200 representative cases beat 2,000
+   synthetic ones.
+
+2. **Tag for cohorts you care about**
+   Tag by topic (`policy`, `geography`), difficulty (`easy`, `hard`), and risk
+   (`safety`). Cohorts are free at report time and invaluable when a global
+   score holds but one slice rots.
+
+3. **Pick expected outputs you can defend**
+   For `exact-match`, the expected output must be genuinely canonical. For prose,
+   write a faithful reference and lean on semantic or judge metrics rather than
+   forcing exactness.
+
+4. **Promote real failures back in**
+   When production surfaces a wrong answer, add it as a sample. The adversarial
+   lane automates this with `--promote-failures`; do the same by hand for
+   factual misses. Your dataset should grow with every incident.
+
+:::
+
+::: callout tip
+Keep datasets **small and sharp**. A 60-sample dataset that runs in seconds on
+every PR catches more regressions in practice than a 3,000-sample suite nobody
+waits for. Add a larger nightly dataset for depth.
+:::
+
+::: grids
+::: grid
+::: card "Running evaluations" icon:play
+Wire a registrar and run the dataset against your pipeline.
+
+[Open →](/guides/running-evaluations)
+:::
+:::
+::: grid
+::: card "Metrics overview" icon:square-function
+Choose the metrics that score your samples.
+
+[Open →](/metrics/overview)
+:::
+:::
+:::
+

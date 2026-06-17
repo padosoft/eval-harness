@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "model": "Xenova/all-MiniLM-L6-v2",
+  "dimensions": 384,
+  "status": "complete",
+  "totalFiles": 31,
+  "indexedFiles": 31,
+  "totalChunks": 243,
+  "batchCount": 1,
+  "files": {
+    "architecture\\decisions.md": {
+      "mtime": 1781696767639.0103,
+      "size": 8531,
+      "batches": []
+    },
+    "architecture\\evaluation-pipeline.md": {
+      "mtime": 1781696767640.8242,
+      "size": 6398,
+      "batches": []
+    },
+    "architecture\\overview.md": {
+      "mtime": 1781696767641.9404,
+      "size": 4987,
+      "batches": []
+    },
+    "architecture\\report-contract.md": {
+      "mtime": 1781696767644.945,
+      "size": 6913,
+      "batches": []
+    },
+    "best-practices\\regression-gating.md": {
+      "mtime": 1781696767645.9446,
+      "size": 5062,
+      "batches": []
+    },
+    "best-practices\\safety-and-red-teaming.md": {
+      "mtime": 1781696767646.945,
+      "size": 4926,
+      "batches": []
+    },
+    "best-practices\\trustworthy-judges.md": {
+      "mtime": 1781696767647.9446,
+      "size": 4248,
+      "batches": []
+    },
+    "configuration.md": {
+      "mtime": 1781696767648.973,
+      "size": 9079,
+      "batches": []
+    },
+    "core-concepts.md": {
+      "mtime": 1781696767650.9893,
+      "size": 6627,
+      "batches": []
+    },
+    "guides\\adversarial-testing.md": {
+      "mtime": 1781696767651.9905,
+      "size": 7466,
+      "batches": []
+    },
+    "guides\\ci-gate.md": {
+      "mtime": 1781696767652.9795,
+      "size": 5255,
+      "batches": []
+    },
+    "guides\\golden-datasets.md": {
+      "mtime": 1781696767653.98,
+      "size": 5436,
+      "batches": []
+    },
+    "guides\\judge-calibration.md": {
+      "mtime": 1781696767655.0493,
+      "size": 4586,
+      "batches": []
+    },
+    "guides\\online-monitoring.md": {
+      "mtime": 1781696767656.057,
+      "size": 5557,
+      "batches": []
+    },
+    "guides\\running-evaluations.md": {
+      "mtime": 1781696767657.0544,
+      "size": 5400,
+      "batches": []
+    },
+    "guides\\scoring-saved-outputs.md": {
+      "mtime": 1781696767658.0537,
+      "size": 3961,
+      "batches": []
+    },
+    "index.md": {
+      "mtime": 1781717098259.0945,
+      "size": 5502,
+      "batches": []
+    },
+    "installation.md": {
+      "mtime": 1781696767659.0542,
+      "size": 4725,
+      "batches": []
+    },
+    "metrics\\lexical-and-structural.md": {
+      "mtime": 1781696767661.0547,
+      "size": 4706,
+      "batches": []
+    },
+    "metrics\\llm-as-judge.md": {
+      "mtime": 1781696767661.0547,
+      "size": 6498,
+      "batches": []
+    },
+    "metrics\\ordinal-and-aggregation.md": {
+      "mtime": 1781696767662.0598,
+      "size": 5838,
+      "batches": []
+    },
+    "metrics\\overview.md": {
+      "mtime": 1781696767663.0542,
+      "size": 6518,
+      "batches": []
+    },
+    "metrics\\retrieval-ranking.md": {
+      "mtime": 1781696767664.0547,
+      "size": 6401,
+      "batches": []
+    },
+    "metrics\\semantic-similarity.md": {
+      "mtime": 1781696767664.0547,
+      "size": 5095,
+      "batches": []
+    },
+    "operations\\batch-execution.md": {
+      "mtime": 1781696767665.0554,
+      "size": 5556,
+      "batches": []
+    },
+    "operations\\horizon-and-queues.md": {
+      "mtime": 1781696767666.0544,
+      "size": 4937,
+      "batches": []
+    },
+    "operations\\troubleshooting.md": {
+      "mtime": 1781696767667.178,
+      "size": 5048,
+      "batches": []
+    },
+    "quickstart.md": {
+      "mtime": 1781696767668.1843,
+      "size": 5891,
+      "batches": []
+    },
+    "reference\\cli.md": {
+      "mtime": 1781696767670.1826,
+      "size": 5825,
+      "batches": []
+    },
+    "reference\\metrics-catalog.md": {
+      "mtime": 1781696767671.188,
+      "size": 5173,
+      "batches": []
+    },
+    "reference\\report-api.md": {
+      "mtime": 1781696767672.185,
+      "size": 6199,
+      "batches": []
+    }
+  }
+}

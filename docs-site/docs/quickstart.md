@@ -1,0 +1,179 @@
+---
+title: "Quickstart"
+description: "From composer require to a gated, cited evaluation report in about five minutes — curate a golden dataset, wire a registrar, run the Artisan gate."
+---
+
+This walks you from install to a regression gate wired into CI. For the full
+prerequisite matrix and provider configuration, see
+[Installation](/installation).
+
+::: callout info
+eval-harness is a Laravel package. You need **PHP 8.3+** and **Laravel
+12.x / 13.x**. Offline metrics (`exact-match`, `contains`, `regex`,
+`rouge-l`, `citation-groundedness`, the retrieval-ranking family, and
+`ordinal-distance`) require **no API key and no network**. Only the
+embedding- and judge-backed metrics call a provider.
+:::
+
+::: steps
+
+1. **Install the package**
+   ```bash
+   composer require padosoft/eval-harness
+   ```
+
+   Auto-discovery wires the service provider — no `config/app.php` edits. The
+   package ships a **single** auto-loaded migration (`eval_harness_online_scores`)
+   for the optional online-monitoring feature, so your next `php artisan migrate`
+   creates that one table; nothing else touches your schema.
+
+2. **Curate a golden dataset**
+   A golden dataset is a small YAML file of `(question, expected answer)` pairs
+   that represent the queries you actually care about — 30–200 is plenty.
+
+   `eval/golden/factuality.yml`:
+
+   ```yaml
+   schema_version: eval-harness.dataset.v1
+   name: rag.factuality.fy2026
+   samples:
+     - id: capital-france
+       input:
+         question: "What is the capital of France?"
+       expected_output: "Paris"
+       metadata:
+         tags: [geography, easy]
+
+     - id: refund-policy
+       input:
+         question: "How many days do I have to return an order?"
+       expected_output: "30 days from delivery."
+       metadata:
+         tags: [policy, support]
+   ```
+
+   ::: callout tip
+   `schema_version` is optional. Omit it and the loader defaults to
+   `eval-harness.dataset.v1`. Keeping it explicit makes your dataset
+   forward-compatible across releases.
+   :::
+
+3. **Wire a registrar in your app**
+   A registrar registers the dataset, declares its metrics, and binds the
+   **system under test (SUT)** — a callable that drives your real pipeline.
+
+   `app/Console/EvalRegistrar.php`:
+
+   ```php
+   <?php
+
+   namespace App\Console;
+
+   use Illuminate\Contracts\Container\Container;
+   use Padosoft\EvalHarness\EvalEngine;
+
+   class EvalRegistrar
+   {
+       public function __construct(private readonly Container $container) {}
+
+       public function __invoke(EvalEngine $engine): void
+       {
+           $engine->dataset('rag.factuality.fy2026')
+               ->loadFromYaml(base_path('eval/golden/factuality.yml'))
+               ->withMetrics(['exact-match', 'rouge-l'])
+               ->register();
+
+           $this->container->bind('eval-harness.sut', fn () =>
+               fn (array $input): string => app(\App\Rag\KnowledgeAgent::class)
+                   ->answer($input['question']),
+           );
+       }
+   }
+   ```
+
+   ::: callout tip
+   This quickstart uses **offline** metrics (`exact-match`, `rouge-l`) so it
+   runs with no API key on a fresh install. To add paraphrase-tolerant or
+   judged scoring (`cosine-embedding`, `llm-as-judge`, …), configure an
+   embeddings/judge provider first — see [Installation](/installation#pointing-at-a-provider).
+   :::
+
+4. **Run the eval**
+   ```bash
+   php artisan eval-harness:run rag.factuality.fy2026 \
+     --registrar="App\Console\EvalRegistrar" \
+     --json --out=factuality.json
+   ```
+
+   The exit code is **`0` if every metric *executed* cleanly, non-zero on any
+   captured failure** (a timeout, a malformed provider response). This is an
+   **execution-health** signal — note it does **not** fail on merely *low*
+   scores: a SUT that returns wrong-but-clean answers still exits `0`.
+
+   ::: callout warning
+   To gate on **quality** — to fail when scores drop even though metrics ran
+   cleanly — read the JSON report's `macro_f1` and assert on a threshold. See
+   [Gating on a quality threshold](/guides/ci-gate#gating-on-a-quality-threshold).
+   :::
+
+5. **Read the report**
+   Drop the `--json` / `--out` flags to render a human-readable Markdown report
+   to stdout:
+
+   ```
+   # Eval report — rag.factuality.fy2026
+
+   _Run completed in 2.41s over 30 samples (0 failures captured)._
+
+   ## Per-metric aggregates
+
+   | metric           | mean   | p50    | p95    | pass-rate (>= 0.5) |
+   | ---------------- | ------ | ------ | ------ | ------------------ |
+   | exact-match      | 0.7333 | 1.0000 | 1.0000 | 0.7333             |
+   | rouge-l          | 0.9012 | 0.9421 | 0.9893 | 0.9667             |
+
+   ## Macro-F1 (avg pass-rate across all metrics): 0.8500
+   ```
+
+:::
+
+## What just happened
+
+1. The YAML dataset was loaded and validated against
+   `eval-harness.dataset.v1`.
+2. For each sample, the **SUT callable** ran your real pipeline to produce an
+   actual output.
+3. Each declared **metric** scored `(sample, actual output)` into a
+   `MetricScore` in `[0, 1]` — or recorded a `SampleFailure` if the provider /
+   metric contract broke (captured by default, not fatal).
+4. The engine aggregated everything into an `EvalReport`:
+   per-metric mean / p50 / p95 / pass-rate, **macro-F1**, per-cohort
+   breakdowns, and score histograms.
+5. The Artisan command set the **exit code** from the report so CI can gate.
+
+## Next steps
+
+::: grids
+::: grid
+::: card "Golden datasets" icon:sprout
+The dataset contract, samples, metadata, tags, and per-sample knobs.
+
+[Open →](/guides/golden-datasets)
+:::
+:::
+::: grid
+::: card "The CI gate" icon:traffic-cone
+Wire the exit code into GitHub Actions and gate the merge on macro-F1.
+
+[Open →](/guides/ci-gate)
+:::
+:::
+::: grid
+::: card "Metrics & theory" icon:square-function
+Choose the right metric and understand the math behind each score.
+
+[Open →](/metrics/overview)
+:::
+:::
+:::
+

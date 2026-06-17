@@ -1,0 +1,67 @@
+name: Docs (docmd → Cloudflare Pages)
+
+# Builds the docmd documentation site (including the docmd-search semantic index,
+# whose embeddings are computed at build time with ONNX Runtime) in GitHub
+# Actions, then deploys the static output to Cloudflare Pages. Cloudflare only
+# serves static assets — no ONNX/Node runtime is needed at request time.
+#
+# Required repository secrets:
+#   CLOUDFLARE_API_TOKEN   - token with "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID  - the target account id
+# One-time project creation (locally, once):
+#   npx wrangler pages project create eval-harness-docs --production-branch main
+# Custom domain (doc.eval-harness.padosoft.com) is attached in the
+# Cloudflare Pages dashboard → Custom domains.
+
+# DISABLED: deployment is handled by Cloudflare Pages' own Git integration
+# (Option A — CF builds on push). This workflow is kept ONLY as a manual
+# fallback (Option B: build in Actions, upload to CF via API token). It never
+# runs automatically, so it consumes no Actions minutes. To use it, set the
+# CLOUDFLARE_* secrets and trigger it by hand from the Actions tab.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: docs-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # docmd git plugin reads history for edit links / last-updated
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Guard — no unconverted MDX tags
+        run: npm run check
+
+      - name: Build (docmd + semantic search index)
+        run: npm run build
+        # The embedding model (Xenova/all-MiniLM-L6-v2, ~23 MB) is pinned in
+        # .docmd-search/config.json and downloaded at build time, so the build
+        # is non-interactive (no model-selection wizard).
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: docs-site
+          command: pages deploy _site --project-name=eval-harness-docs --branch=${{ github.ref_name }}

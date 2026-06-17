@@ -1,0 +1,8 @@
+node_modules/
+_site/
+*.log
+.DS_Store
+
+# docmd-search: keep the pinned model config, ignore build cache/index artifacts
+.docmd-search/*
+!.docmd-search/config.json
