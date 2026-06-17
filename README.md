@@ -12,8 +12,22 @@
 
 ![eval-harness report banner](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/banner.png)
 
+## Official Documentation
+
+📚 **Full documentation is available at
+[doc.eval-harness.padosoft.com](https://doc.eval-harness.padosoft.com/).**
+
+The documentation site covers everything in depth: a five-minute quickstart, the
+fifteen built-in metrics with their underlying theory and formulas, guides for
+CI gating, judge calibration, online monitoring and adversarial testing, the
+batch/Horizon operations model, the architecture and decision records, and the
+full CLI, configuration, and report-API reference.
+
+---
+
 ## Table of Contents
 
+0. [Official Documentation](https://doc.eval-harness.padosoft.com/)
 1. [Why eval-harness?](#why-eval-harness)
 2. [Design rationale](#design-rationale)
 3. [Features](#features)

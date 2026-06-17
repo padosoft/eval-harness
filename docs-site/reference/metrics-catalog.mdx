@@ -1,0 +1,97 @@
+---
+title: "Metrics catalog"
+description: "Every built-in metric alias in one table — family, what it scores, its inputs, codomain, provider requirement, and configuration knobs — plus the resolver forms and the custom-metric contract."
+icon: "table-list"
+---
+
+The fifteen built-in metrics at a glance. Each links to its theory page. The
+codomain is $[0, 1]$ for all metrics; a sample **passes** a metric when its score
+is $\ge 0.5$.
+
+## The full table
+
+| alias | family | scores | inputs | provider | key knobs |
+| --- | --- | --- | --- | --- | --- |
+| `exact-match` | [lexical](/metrics/lexical-and-structural) | strict (`===`) case-sensitive equality | string expected | none | — |
+| `contains` | [lexical](/metrics/lexical-and-structural) | substring presence | string expected | none | — |
+| `regex` | [lexical](/metrics/lexical-and-structural) | PCRE pattern match | regex expected | none | — |
+| `rouge-l` | [structural](/metrics/lexical-and-structural) | LCS F-measure overlap | string expected | none | — |
+| `cosine-embedding` | [semantic](/metrics/semantic-similarity) | cosine of sentence embeddings | string expected | embeddings | model, endpoint |
+| `bertscore-like` | [semantic](/metrics/semantic-similarity) | token-level greedy-match F1 | string expected | embeddings | model, endpoint |
+| `llm-as-judge` | [judge](/metrics/llm-as-judge) | graded `score` 0..1 from a rubric | string expected | chat | model, prompt_template |
+| `refusal-quality` | [judge](/metrics/llm-as-judge) | graded refusal-behavior `score` 0..1 | `metadata.refusal_expected` | chat | model (prompt is built-in) |
+| `ordinal-distance` | [ordinal](/metrics/ordinal-and-aggregation) | ordered-label proximity | string label + scale | none | ordered scale (required) |
+| `citation-groundedness` | [citation](/metrics/ordinal-and-aggregation) | fraction of required citation markers / evidence spans present | `metadata.citations` or `metadata.citation_evidence` | none | — |
+| `retrieval-hit-at-k` | [retrieval](/metrics/retrieval-ranking) | any relevant id in top-k | ranked ids + relevant set | none | `k` |
+| `retrieval-recall-at-k` | [retrieval](/metrics/retrieval-ranking) | fraction of relevant in top-k | ranked ids + relevant set | none | `k` |
+| `retrieval-mrr` | [retrieval](/metrics/retrieval-ranking) | reciprocal rank of first hit | ranked ids + relevant set | none | — |
+| `retrieval-ndcg-at-k` | [retrieval](/metrics/retrieval-ranking) | nDCG@k, binary or graded gains | ranked ids + gains | none | `k` |
+| `answer-containment-at-k` | [retrieval](/metrics/retrieval-ranking) | expected span in any top-k text | ranked `{id,text}` + answer | none | `k` |
+
+That is **four** lexical/structural, **two** semantic, **two** judge, **two**
+ordinal/citation, and **five** retrieval-ranking metrics — fifteen total.
+
+## Resolving `k`
+
+For the retrieval family, the cutoff resolves in precedence order: per-sample
+`metadata.k` → constructor `k` → `metrics.retrieval.default_k` (config, default
+`5`).
+
+## The resolver forms
+
+`withMetrics([...])` accepts any mix of:
+
+```php
+->withMetrics([
+    'exact-match',                          // 1. built-in alias
+    \App\Eval\DomainSpecificMetric::class,  // 2. FQCN (container-resolved)
+    new OrdinalDistanceMetric(['low','medium','high','urgent']), // 3. instance
+])
+```
+
+Aliases (including the retrieval family and `answer-containment-at-k`) auto-wire
+from the container. `ordinal-distance` requires an ordered scale, so pass an
+**instance** or bind one under the alias. Every resolved class is asserted to
+implement `Metric`, so a typo fails with a clear error.
+
+## Provider-backed metric inputs
+
+| metric | expects from the SUT |
+| --- | --- |
+| `cosine-embedding`, `bertscore-like` | a plain string answer; both embed it and the reference. |
+| `llm-as-judge` | a plain string answer; the judge sees input + expected + actual. |
+| `refusal-quality` | a plain string answer; the sample must set `metadata.refusal_expected`. |
+| retrieval family | JSON `{"retrieved":[{"id","text"}]}` or a bare `["id", ...]` array, rank 1 first. |
+
+## The custom-metric contract
+
+Implement the interface's two methods (`name()` + `score()`) and the metric is registry-ready:
+
+```php
+use Padosoft\EvalHarness\Datasets\DatasetSample;
+use Padosoft\EvalHarness\Metrics\Metric;
+use Padosoft\EvalHarness\Metrics\MetricScore;
+
+class MyMetric implements Metric
+{
+    public function name(): string { return 'my-metric'; }
+
+    public function score(DatasetSample $sample, string $actualOutput): MetricScore
+    {
+        // return a score in [0, 1], optionally with structured details
+        return new MetricScore(0.0, ['usage' => [/* tokens, cost_usd, latency_ms */]]);
+    }
+}
+```
+
+Throw a `MetricException` for a genuine contract error — the engine captures it as
+a `SampleFailure` (unless strict mode is on) rather than letting it crash the run.
+
+<CardGroup cols={2}>
+  <Card title="Metrics overview" icon="function" href="/metrics/overview">
+    The five families and a decision guide.
+  </Card>
+  <Card title="Aggregation & macro-F1" icon="sigma" href="/metrics/ordinal-and-aggregation">
+    How these scores roll up into the gate.
+  </Card>
+</CardGroup>
