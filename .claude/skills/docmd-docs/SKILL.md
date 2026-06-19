@@ -16,7 +16,7 @@ It was migrated from Mintlify (MDX). This skill is the operating manual.
 | `docs-site/docs/**.md` | Pages. Route = path under `docs/` (`docs/guides/ci-gate.md` → `/guides/ci-gate`). `docs/index.md` is the home page (route `/`) and is the former `introduction`. |
 | `docs-site/assets/` | `favicon.svg`, `custom.css` (teal brand: `#0d9488` / `#14b8a6` / `#0f766e`). |
 | `docs-site/scripts/migrate-from-mintlify.mjs` | One-shot, reproducible Mintlify→docmd converter. |
-| `docs-site/scripts/check-no-mdx-tags.mjs` | CI guard: fails if any `<Component>` MDX tag survives. |
+| `docs-site/scripts/check-no-raw-html.mjs` | CI guard: fails if raw HTML/MDX-like tags or `::: button` survive. |
 | `docs-site/_site/` | Build output (git-ignored). |
 
 ## Commands
@@ -26,7 +26,7 @@ cd docs-site
 npm install
 npm run dev      # live preview at http://localhost:3000
 npm run build    # static build into _site/
-npm run check    # guard: no leftover MDX component tags
+npm run check    # guard: no raw HTML/MDX-like tags or ::: button blocks
 ```
 
 Node 18+. Current pinned engine: `@docmd/core ^0.8.6`. Confirm the live version
@@ -35,8 +35,8 @@ with `npm view @docmd/core version` before pinning — do NOT invent a version
 
 ## Authoring containers (docmd syntax)
 
-Plain Markdown plus `:::` containers. There is **no MDX / JSX** — never write
-`<Card>`, `<Note>`, etc. (the guard rejects them).
+Plain Markdown plus `:::` containers. There is **no MDX / JSX / raw HTML** —
+never write `<Card>`, `<Note>`, `<br>`, etc. (the guard rejects them).
 
 | Need | Syntax |
 | --- | --- |

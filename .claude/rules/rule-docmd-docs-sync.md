@@ -31,11 +31,12 @@ così la scelta è tracciata.
    i plugin e i gotcha.
 2. Mantieni il contratto dati e i nomi coerenti tra codice, README e doc.
 3. Prima di chiudere: `cd docs-site && npm run check && npm run build` e verifica
-   che la build sia pulita (nessun tag `<Component>` residuo, `_site/index.html`
+   che la build sia pulita (nessun HTML/MDX raw residuo, `_site/index.html`
    presente, nessun `:::` come testo visibile).
 
 ## Anti-pattern
 
 - spedire una feature o un aggiornamento README user-facing senza toccare `docs-site/`;
 - aggiungere una pagina senza registrarla nel `navigation[]`;
-- reintrodurre sintassi MDX/Mintlify (`<Card>`, `<Note>`, …) nei file `.md`.
+- reintrodurre sintassi MDX/Mintlify o HTML raw (`<Card>`, `<Note>`, `<br>`, …)
+  nei file `.md`.

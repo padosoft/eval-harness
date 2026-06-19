@@ -54,15 +54,27 @@
       ]
     },
     {
-      "title": "Metrics & Theory",
+      "title": "Concetti & Teoria",
       "icon": "square-function",
       "children": [
+        { "title": "Motivazione", "path": "/architecture/decisions" },
+        { "title": "Teoria", "path": "/metrics/overview" },
         { "title": "Metrics overview", "path": "/metrics/overview" },
         { "title": "Lexical & structural metrics", "path": "/metrics/lexical-and-structural" },
         { "title": "Semantic similarity metrics", "path": "/metrics/semantic-similarity" },
         { "title": "LLM-as-judge metrics", "path": "/metrics/llm-as-judge" },
         { "title": "Retrieval-ranking metrics", "path": "/metrics/retrieval-ranking" },
         { "title": "Ordinal scoring & aggregation", "path": "/metrics/ordinal-and-aggregation" }
+      ]
+    },
+    {
+      "title": "Architettura",
+      "icon": "workflow",
+      "children": [
+        { "title": "Architecture overview", "path": "/architecture/overview" },
+        { "title": "Pipeline / workflow", "path": "/architecture/evaluation-pipeline" },
+        { "title": "Modello dati / contratto", "path": "/architecture/report-contract" },
+        { "title": "ADR", "path": "/architecture/decisions" }
       ]
     },
     {
@@ -75,7 +87,7 @@
       ]
     },
     {
-      "title": "Configuration & Operations",
+      "title": "Operations",
       "icon": "settings",
       "children": [
         { "title": "Configuration", "path": "/configuration" },
@@ -85,29 +97,13 @@
       ]
     },
     {
-      "title": "Architecture",
-      "icon": "workflow",
-      "children": [
-        { "title": "Architecture overview", "path": "/architecture/overview" },
-        { "title": "The evaluation pipeline", "path": "/architecture/evaluation-pipeline" },
-        { "title": "The report contract", "path": "/architecture/report-contract" },
-        { "title": "Architecture decisions", "path": "/architecture/decisions" }
-      ]
-    },
-    {
       "title": "Reference",
       "icon": "book-marked",
       "children": [
         { "title": "CLI reference", "path": "/reference/cli" },
+        { "title": "PHP API", "path": "/reference/php-api" },
         { "title": "Report API", "path": "/reference/report-api" },
         { "title": "Metrics catalog", "path": "/reference/metrics-catalog" }
-      ]
-    },
-    {
-      "title": "Links",
-      "children": [
-        { "title": "GitHub", "path": "https://github.com/padosoft/eval-harness", "external": true },
-        { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/eval-harness", "external": true }
       ]
     }
   ],

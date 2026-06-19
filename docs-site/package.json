@@ -7,13 +7,12 @@
   "scripts": {
     "dev": "docmd dev",
     "build": "docmd build",
-    "preview": "docmd preview",
-    "check": "node scripts/check-no-mdx-tags.mjs"
+    "check": "node scripts/check-no-raw-html.mjs"
   },
   "devDependencies": {
     "@docmd/core": "^0.8.6",
     "@huggingface/transformers": "^4.2.0",
-    "onnxruntime-node": "^1.26.0"
+    "onnxruntime-node": "^1.27.0"
   },
   "dependencies": {
     "docmd-search": "^0.1.0-alpha.1"

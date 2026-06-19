@@ -1,5 +1,9 @@
 /vendor/
-/node_modules/
+node_modules/
+_site/
+.docmd-search/*
+!.docmd-search/config.json
+!**/.docmd-search/config.json
 .phpunit.cache/
 .phpunit.result.cache
 composer.lock
