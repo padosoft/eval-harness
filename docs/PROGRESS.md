@@ -3100,3 +3100,59 @@ have handed people a way to spend 3× more without telling them.
   level 6 no errors; Pint passed.
 - Docs: `docs-site/docs/guides/cost-and-budgets.md` + nav; README bullet; config
   block with the reasoning inline.
+
+## 2026-08-24 — P6: production failures become regression tests, safely
+
+Sixth item from the vizra analysis, and the one that changes what a dataset *is*:
+a golden dataset written at a desk encodes what its authors already thought to
+worry about, while the questions that break a system arrive at 11pm from a real
+user. Online monitoring already scored those; nothing turned them into tests.
+
+- **The interaction has to be kept first.** `eval_harness_online_scores` stored a
+  score, not the text. New nullable columns (`input`, `expected_output`,
+  `actual_output`, `redactor`, `redacted_at`) via an additive migration, filled
+  only when `eval-harness.online.retention.enabled` is on — keeping production
+  text is a different decision with a different legal basis from keeping a
+  number, so it is a different switch and it is off.
+- `Online\Redactor` — one method, text in and text out, so a host that already
+  owns a text redactor plugs straight in. **This package ships none**: a redactor
+  trustworthy with production text is a package of its own, and an eval harness
+  with its own half-good PII regex is a package quietly promising a compliance
+  property it cannot keep.
+- `Online\InteractionRetention` — three defaults chosen against convenience:
+  retention off; `require_redactor` on, so retention with nothing bound **raises**
+  rather than storing raw text (the failure that actually happens is "enabled in
+  a hurry, redactor next sprint, six months of customer questions in a table");
+  and a throwing redactor **drops** the interaction, with the exception message
+  deliberately not carrying the text it failed on. Walks nested input at any
+  depth, string keys included — a map keyed by email address is not hypothetical.
+- Redaction happens **at the boundary**, in `JudgeLiveSampleJob`, never written
+  raw and cleaned up later: "later" is where backups, replicas and log shippers
+  already took a copy.
+- `Online\OnlineInteractionPromoter` + `eval-harness:promote-online` — failures by
+  default (a dataset of rows already passing can only stay green), `--all`,
+  `--max-score`, `--since`, `--limit` (keeps the **worst-scoring** rows when it
+  truncates), `--merge` writing back in place so the diff is pure additions.
+- **Dedup by `RowHash`** — the same content hash the regression gate joins on. A
+  nightly promotion is idempotent, a hand-written row already covering the case is
+  not duplicated, and a promoted row keeps its history from the moment it lands.
+  The row id derives from the hash (`online-9f2c4a1b3e7d`), not the database id,
+  so promoting from a second environment or after a truncation does not renumber
+  a committed dataset.
+- **Unredacted rows are skipped unless `--allow-unredacted`**, and the skip is
+  announced rather than silent — otherwise somebody expects a row and concludes
+  it never existed. Legacy scores with no retained text get their own line.
+- **A corrupt `--merge` target stops the command**: the promoter reads an
+  unreadable target as "no existing rows", which is right for a missing file and
+  catastrophic for a corrupt one, since writing back would replace a curated
+  dataset with this run's handful of promotions.
+- Every promoted row is tagged `promoted-from-production`, which puts them in one
+  cohort — so a briefing can say "7 of 9 failures are tagged
+  promoted-from-production", i.e. the pipeline is failing on real traffic and
+  passing the tests somebody imagined.
+- Tests: +25 (`OK (1136 tests, 3078 assertions)`, was 1111/3006). New files:
+  `tests/Unit/Online/{InteractionRetentionTest,PromoteOnlineCommandTest}.php`.
+- Local gate green: composer validate --strict; phpunit OK (1136/3078); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/promoting-production-failures.md` + nav; README
+  bullet; config block with the reasoning inline.
