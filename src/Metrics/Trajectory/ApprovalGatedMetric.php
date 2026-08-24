@@ -24,9 +24,12 @@ use Padosoft\EvalHarness\Trajectory\Trajectory;
  * ```
  *
  * The action ids are whatever the host's approval layer records — a saga step
- * from `padosoft/laravel-flow`, a consent id from `padosoft/laravel-iam-agents`,
- * or a string a custom orchestrator chose. This metric only checks that the
- * ones this row declared are present.
+ * id, a consent id, or a string a custom orchestrator chose. This metric only
+ * checks that the ones this row declared are present.
+ *
+ * (Deliberately unnamed: `tests/Architecture/StandaloneAgnosticTest.php`
+ * forbids sibling-package names anywhere under `src/`, prose included, so that
+ * a real coupling cannot arrive dressed as a comment.)
  */
 final class ApprovalGatedMetric extends AbstractTrajectoryMetric
 {
