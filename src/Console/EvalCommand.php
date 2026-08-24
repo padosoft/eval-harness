@@ -218,6 +218,22 @@ final class EvalCommand extends Command
 
             $comparison = $this->compareRuns($comparator, $currentPayload, $reference['payload'], $reference['label']);
 
+            // An unusable reference is treated exactly like a missing one: warn
+            // and leave the run's own exit code alone. The alternative — gating
+            // on a comparison that could not join a single row — reports zero
+            // regressions and passes, which is the most expensive kind of green.
+            if (! $comparison->isComparable()) {
+                $this->warn(sprintf(
+                    'Skipping the comparison against %s: %s.',
+                    $reference['label'],
+                    (string) $comparison->incomparableReason,
+                ));
+
+                $this->promoteBaselineIfRequested($baselines, $datasetName, $report, false);
+
+                return false;
+            }
+
             $this->renderComparison($comparison);
 
             if (! $this->writeComparison($comparison)) {

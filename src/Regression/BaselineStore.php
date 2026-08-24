@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Reports\ReportSchema;
 use Throwable;
 
 /**
@@ -75,12 +76,23 @@ final class BaselineStore
         }
 
         try {
-            $this->disk()->put($this->pointerPath($dataset), $encoded);
+            $written = $this->disk()->put($this->pointerPath($dataset), $encoded);
         } catch (Throwable $e) {
             throw new EvalRunException(
                 sprintf("Baseline pointer for dataset '%s' could not be written: %s", $dataset, $e->getMessage()),
                 previous: $e,
             );
+        }
+
+        // Laravel filesystem adapters return false rather than throwing on a
+        // rejected write. Announcing a promotion that never landed would leave
+        // the next run comparing against the wrong baseline and believing it
+        // was the right one.
+        if ($written === false) {
+            throw new EvalRunException(sprintf(
+                "Baseline pointer for dataset '%s' could not be written to the reports disk.",
+                $dataset,
+            ));
         }
 
         return $pointer;
@@ -210,6 +222,15 @@ final class BaselineStore
             $report = $this->readReport($path);
 
             if ($report === null || ($report['dataset'] ?? null) !== $dataset) {
+                continue;
+            }
+
+            // A comparison payload written by --comparison-out sits in the same
+            // prefix, names the same dataset, and is newer than the report it
+            // describes — so without this it would win "latest" and, having no
+            // sample_aggregates, make the next gate see zero regressions and
+            // pass. Only artifacts that declare the report contract qualify.
+            if (($report['schema_version'] ?? null) !== ReportSchema::VERSION) {
                 continue;
             }
 

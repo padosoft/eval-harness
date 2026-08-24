@@ -9,6 +9,7 @@ use Padosoft\EvalHarness\Regression\BaselineStore;
 use Padosoft\EvalHarness\Regression\RegressionGate;
 use Padosoft\EvalHarness\Regression\RunComparator;
 use Padosoft\EvalHarness\Regression\RunComparison;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
 /**
  * `--compare` handling for the eval command: resolve a reference run, diff the
@@ -116,9 +117,16 @@ trait ComparesRuns
     {
         $counts = $comparison->toArray()['counts'];
 
-        $this->line('');
-        $this->line(sprintf('<options=bold>Compared against %s</>', $comparison->referenceLabel ?? 'the reference run'));
-        $this->line(sprintf(
+        $this->diagnostic('');
+        $this->diagnostic(sprintf('<options=bold>Compared against %s</>', $comparison->referenceLabel ?? 'the reference run'));
+
+        if ($comparison->joinedByIdOnly()) {
+            $this->diagnostic(
+                '  <comment>Rows joined by sample id: the reference predates content hashes, so a renamed row reads as removed and added.</comment>',
+            );
+        }
+
+        $this->diagnostic(sprintf(
             '  %d regressed (%d beyond this run\'s %.1f-point detectable difference), %d improved, %d added, %d removed, %d compared.',
             $counts['regressed'],
             $counts['regressed_confident'],
@@ -135,25 +143,57 @@ trait ComparesRuns
             return;
         }
 
-        $rows = [];
         foreach (array_slice($regressions, 0, self::MAX_RENDERED_REGRESSIONS) as $row) {
-            $rows[] = [
-                $row->sampleId,
-                $this->formatRate($row->before['pass_rate'] ?? null).' → '.$this->formatRate($row->after['pass_rate'] ?? null),
+            $this->diagnostic(sprintf(
+                '  %-28s %s → %s   score %s   %s%s',
+                $this->truncate($row->sampleId, 28),
+                $this->formatRate($row->before['pass_rate'] ?? null),
+                $this->formatRate($row->after['pass_rate'] ?? null),
                 $this->formatDelta($row->scoreDelta),
-                $row->confident ? 'yes' : 'no',
-                $row->isNewlyFailing() ? 'yes' : '',
-            ];
+                $row->confident ? 'beyond noise' : 'within noise',
+                $row->isNewlyFailing() ? ', newly failing' : '',
+            ));
         }
 
-        $this->table(['sample', 'pass rate', 'score delta', 'beyond noise', 'newly failing'], $rows);
-
         if (count($regressions) > self::MAX_RENDERED_REGRESSIONS) {
-            $this->line(sprintf(
+            $this->diagnostic(sprintf(
                 '  … and %d more. Write the full comparison with --comparison-out=<path>.',
                 count($regressions) - self::MAX_RENDERED_REGRESSIONS,
             ));
         }
+    }
+
+    /**
+     * Operator-facing text that must never end up inside a machine-readable
+     * report.
+     *
+     * `--json` without `--out` streams the report to stdout, and a single line
+     * of commentary appended to that stream makes the whole payload
+     * unparseable — which is worse than an unprinted note, because the CI job
+     * consuming it fails somewhere else entirely. Diagnostics go to stderr
+     * where one exists, and are dropped when it does not and stdout is
+     * carrying JSON.
+     */
+    private function diagnostic(string $message): void
+    {
+        $output = $this->output->getOutput();
+
+        if ($output instanceof ConsoleOutputInterface) {
+            $output->getErrorOutput()->writeln($message);
+
+            return;
+        }
+
+        if ($this->option('json') === true && $this->option('out') === null) {
+            return;
+        }
+
+        $this->line($message);
+    }
+
+    private function truncate(string $value, int $length): string
+    {
+        return mb_strlen($value) > $length ? mb_substr($value, 0, $length - 1).'…' : $value;
     }
 
     /**

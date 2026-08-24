@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Regression;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Regression\BaselineStore;
 use Padosoft\EvalHarness\Regression\RegressionSchema;
 use Padosoft\EvalHarness\Tests\TestCase;
@@ -137,6 +142,60 @@ final class BaselineStoreTest extends TestCase
         Storage::disk('eval-baselines')->put('eval-harness/reports/baselines/rag.json', 'not json');
 
         $this->assertNull($this->store()->pointer('rag'));
+    }
+
+    /**
+     * A comparison payload sits in the same prefix, names the same dataset, and
+     * is newer than the report it describes. Accepting it as "latest" would
+     * hand the next gate an artifact with no rows in it — which reads as zero
+     * regressions and passes.
+     */
+    public function test_latest_report_skips_comparison_payloads(): void
+    {
+        Storage::fake('eval-baselines');
+        $this->putReport('eval-harness/reports/run.json', 'rag', 0.8, finishedAt: 100.0);
+        Storage::disk('eval-baselines')->put('eval-harness/reports/diff.json', (string) json_encode([
+            'schema_version' => 'eval-harness.comparison.v1',
+            'dataset' => 'rag',
+            'finished_at' => 999.0,
+            'counts' => ['regressed' => 0],
+        ]));
+
+        $this->assertSame('eval-harness/reports/run.json', $this->store()->latestReportPath('rag'));
+    }
+
+    public function test_latest_report_skips_artifacts_without_the_report_schema(): void
+    {
+        Storage::fake('eval-baselines');
+        Storage::disk('eval-baselines')->put('eval-harness/reports/notes.json', (string) json_encode([
+            'dataset' => 'rag',
+            'finished_at' => 500.0,
+        ]));
+
+        $this->assertNull($this->store()->latestReportPath('rag'));
+    }
+
+    /**
+     * Laravel filesystem adapters return false rather than throwing on a
+     * rejected write; announcing a promotion that never landed would leave the
+     * next run comparing against the wrong baseline and believing it was right.
+     */
+    public function test_a_rejected_pointer_write_raises(): void
+    {
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('put')->once()->andReturnFalse();
+
+        $filesystems = Mockery::mock(FilesystemFactory::class);
+        $filesystems->shouldReceive('disk')->andReturn($disk);
+
+        /** @var ConfigRepository $config */
+        $config = $this->app->make(ConfigRepository::class);
+        $store = new BaselineStore($filesystems, $config);
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('could not be written to the reports disk');
+
+        $store->promote('rag', 'eval-harness/reports/run.json', []);
     }
 
     private function store(): BaselineStore

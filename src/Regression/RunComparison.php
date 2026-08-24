@@ -24,7 +24,33 @@ final class RunComparison
         public readonly ?float $passRateDelta,
         public readonly float $resolution,
         public readonly bool $resolutionIsStatistical,
+        public readonly ?string $joinKey = 'row_hash',
+        public readonly ?string $incomparableReason = null,
     ) {}
+
+    /**
+     * Could these two runs be compared at all?
+     *
+     * False when the reference carries no per-row data. The distinction matters
+     * because "no rows regressed" and "no rows could be checked" look identical
+     * in a count and are opposite facts.
+     */
+    public function isComparable(): bool
+    {
+        return $this->incomparableReason === null;
+    }
+
+    /**
+     * Was the join degraded to sample ids?
+     *
+     * True against a report written before row hashes existed. The comparison
+     * is real but loses the property hashes buy: a renamed row reads as
+     * removed-and-added rather than as the same row.
+     */
+    public function joinedByIdOnly(): bool
+    {
+        return $this->joinKey === 'id';
+    }
 
     /**
      * @return list<RowComparison>
@@ -102,6 +128,9 @@ final class RunComparison
             'schema_version' => RegressionSchema::VERSION,
             'dataset' => $this->dataset,
             'reference' => $this->referenceLabel,
+            'comparable' => $this->isComparable(),
+            'join_key' => $this->joinKey,
+            'incomparable_reason' => $this->incomparableReason,
             'resolution' => round($this->resolution, 6),
             'resolution_is_statistical' => $this->resolutionIsStatistical,
             'macro_f1_delta' => $this->macroF1Delta === null ? null : round($this->macroF1Delta, 6),

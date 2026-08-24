@@ -411,3 +411,20 @@
   comparison is written through the same helper right after the report, so
   `$lastWrittenArtifactPath` has to be set for the report only or "the artifact this
   run produced" silently points at the diff.
+
+## 2026-08-24 — Review lessons from PR #50
+
+- **Anything a command prints during a `--json` run can corrupt the payload.** Not
+  just `line()`: `table()`, `info()` and progress bars all write to stdout. Route
+  operator text through one helper that knows about stderr and about JSON mode.
+- **"Zero regressions" and "no rows could be checked" look identical in a count.**
+  Any comparison that can end up with an empty join must report *why* it is empty,
+  and callers must treat that as "no reference" rather than as a pass.
+- **Two artifacts in one directory need a discriminator.** Writing a comparison next
+  to the reports made it a candidate for "the latest report". `schema_version` was
+  already there for exactly this; use it rather than a filename convention.
+- **Derive a threshold once and read it everywhere.** The comparator recomputing the
+  resolution from a different input than the report printed was invisible until a
+  reviewer noticed the two could disagree.
+- **A verdict and its confidence must come from the same axis**, or good news on one
+  axis certifies bad news on the other.

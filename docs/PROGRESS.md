@@ -2932,3 +2932,34 @@ generalises it to the main lane and improves on it in two places.
 - Docs: `docs-site/docs/guides/baselines-and-regressions.md` + nav; README bullet.
 - NEXT (P2b): optional database index of runs/rows + `eval-harness:reindex` + git
   metadata (sha/branch/dirty/commit subject) — the artifact stays source of truth.
+
+### 2026-08-24 — PR #50 review round 1 (Codex): 6 findings, all applied
+
+Two of them ended in a gate that passes when it should not, which is the only
+kind of bug a regression gate cannot afford.
+
+1. **Comparison diagnostics on JSON stdout** (P1). `--json` without `--out` streams
+   the report to stdout and the comparison text was appended to the same stream,
+   making the payload unparseable. Diagnostics now go to stderr where one exists,
+   and are dropped when it does not and stdout is carrying JSON. The regression
+   table became plain lines for the same reason (`$this->table()` writes to stdout).
+2. **Tolerance recomputed from the pooled pass rate** (P1). It now comes from the
+   report's own `precision.resolution`, then `precision.within_row_variance`, then
+   the pooled rate only for a pre-P1 artifact. On a deterministic mixed suite the
+   pooled 0.5 implied noise the run did not have, and a real row regression could
+   be classified unprovable and pass `--confident-only`.
+3. **Confidence taken from the wrong axis** (P1). `status()` and `isConfident()`
+   became one `verdict()`: confidence is judged on the axis that produced the
+   verdict, so a score *improvement* can no longer certify a pass-rate regression.
+4. **Comparison payloads winning `--compare=latest`** (P1). `latestReportPath()`
+   now requires `schema_version === ReportSchema::VERSION`. A diff.json is newer
+   than the report it describes, names the same dataset, and has no aggregates —
+   it would have made the next gate see zero regressions.
+5. **A reference without row hashes silently disabled the gate** (P1). Join key is
+   now negotiated: `row_hash` when both sides carry it, `id` as a degraded fallback,
+   and `null` when the reference has no per-row data at all — in which case the
+   comparison reports `comparable: false` with a reason, and the command warns and
+   skips gating exactly as it does for a missing baseline.
+6. **`put()` returning false read as success** (P2). Promotion now throws.
+- Tests: +13 (`OK (994 tests, 2721 assertions)`), including a test that the JSON
+  report on stdout still parses while comparing.

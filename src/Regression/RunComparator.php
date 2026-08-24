@@ -48,10 +48,30 @@ final class RunComparator
      */
     public function compare(array $current, array $reference, ?string $referenceLabel = null, ?float $epsilon = null): RunComparison
     {
-        $currentRows = $this->rowsByHash($current);
-        $referenceRows = $this->rowsByHash($reference);
-
         $resolution = $epsilon ?? $this->resolutionFor($current);
+        $joinKey = $this->joinKeyFor($current, $reference);
+
+        // A reference with nothing to join on cannot produce a comparison, and
+        // the failure mode to avoid is the quiet one: joining on nothing makes
+        // every current row look "added", which reads as zero regressions and
+        // passes the gate. Say so instead, and let the caller treat it the way
+        // it treats a missing baseline.
+        if ($joinKey === null) {
+            return new RunComparison(
+                dataset: is_string($current['dataset'] ?? null) ? $current['dataset'] : '',
+                referenceLabel: $referenceLabel,
+                rows: [],
+                macroF1Delta: null,
+                passRateDelta: null,
+                resolution: $resolution,
+                resolutionIsStatistical: $epsilon === null,
+                joinKey: null,
+                incomparableReason: $this->incomparableReason($current, $reference),
+            );
+        }
+
+        $currentRows = $this->rowsBy($current, $joinKey);
+        $referenceRows = $this->rowsBy($reference, $joinKey);
         $rows = [];
 
         foreach ($currentRows as $hash => $after) {
@@ -66,8 +86,7 @@ final class RunComparator
             $passRateDelta = $this->delta($before['pass_rate'], $after['pass_rate']);
             $scoreDelta = $this->delta($before['score_mean'], $after['score_mean']);
 
-            $status = $this->status($passRateDelta, $scoreDelta, $resolution);
-            $confident = $this->isConfident($passRateDelta, $scoreDelta, $resolution);
+            [$status, $confident] = $this->verdict($passRateDelta, $scoreDelta, $resolution);
 
             $rows[] = $this->row($hash, $after['sample_id'], $status, $before, $after, $passRateDelta, $scoreDelta, $confident, $resolution);
         }
@@ -88,66 +107,56 @@ final class RunComparator
             passRateDelta: $this->delta($this->float($reference, 'pass_rate'), $this->float($current, 'pass_rate')),
             resolution: $resolution,
             resolutionIsStatistical: $epsilon === null,
+            joinKey: $joinKey,
         );
     }
 
     /**
-     * Any drop counts as a regression; the resolution only decides whether the
-     * drop is one the run could prove.
+     * What to join the two runs on.
      *
-     * The asymmetry between the two axes is deliberate. A pass rate is a count
-     * of independent trials, so a drop there is a change in outcome. A mean
-     * score is a continuous aggregate that drifts with any judge, so a drop
-     * inside the resolution is reported as stable rather than as an
-     * unprovable regression: flagging every third decimal place would bury the
-     * rows that actually broke.
+     * `row_hash` when both sides carry it — the identity that survives renames
+     * and reordering. `id` when they do not, which happens against a report
+     * written before hashes existed: a degraded join is still a real
+     * comparison, and far better than declaring every row new. Null when the
+     * reference has no per-row data at all.
+     *
+     * @param  array<string, mixed>  $current
+     * @param  array<string, mixed>  $reference
      */
-    private function status(?float $passRateDelta, ?float $scoreDelta, float $resolution): string
+    private function joinKeyFor(array $current, array $reference): ?string
     {
-        if ($passRateDelta !== null && $passRateDelta < 0.0) {
-            return RowComparison::STATUS_REGRESSED;
+        $currentAggregates = $this->aggregatesOf($current);
+        $referenceAggregates = $this->aggregatesOf($reference);
+
+        if ($currentAggregates === [] || $referenceAggregates === []) {
+            return null;
         }
 
-        if ($scoreDelta !== null && $scoreDelta < -$resolution) {
-            return RowComparison::STATUS_REGRESSED;
+        if ($this->allCarryHashes($currentAggregates) && $this->allCarryHashes($referenceAggregates)) {
+            return 'row_hash';
         }
 
-        if ($passRateDelta !== null && $passRateDelta > 0.0) {
-            return RowComparison::STATUS_IMPROVED;
-        }
-
-        if ($scoreDelta !== null && $scoreDelta > $resolution) {
-            return RowComparison::STATUS_IMPROVED;
-        }
-
-        return RowComparison::STATUS_STABLE;
+        return 'id';
     }
 
-    private function isConfident(?float $passRateDelta, ?float $scoreDelta, float $resolution): bool
+    /**
+     * @param  array<string, mixed>  $current
+     * @param  array<string, mixed>  $reference
+     */
+    private function incomparableReason(array $current, array $reference): string
     {
-        if ($passRateDelta !== null && abs($passRateDelta) > $resolution) {
-            return true;
+        if ($this->aggregatesOf($reference) === []) {
+            return 'the reference report has no per-row data (sample_aggregates), so no row can be compared against it; re-run and promote a report produced by this version';
         }
 
-        return $scoreDelta !== null && abs($scoreDelta) > $resolution;
+        return 'this run produced no per-row data to compare';
     }
 
     /**
      * @param  array<string, mixed>  $report
+     * @return list<array<string, mixed>>
      */
-    private function resolutionFor(array $report): float
-    {
-        $repetitions = $this->int($report, 'repetitions') ?? 1;
-        $passRate = $this->float($report, 'pass_rate') ?? 0.0;
-
-        return SamplingPrecision::differenceResolution($passRate, $repetitions);
-    }
-
-    /**
-     * @param  array<string, mixed>  $report
-     * @return array<string, array{sample_id: string, pass_rate: float|null, score_mean: float|null, score_stddev: float|null, repetitions: int}>
-     */
-    private function rowsByHash(array $report): array
+    private function aggregatesOf(array $report): array
     {
         $aggregates = $report['sample_aggregates'] ?? null;
 
@@ -155,19 +164,121 @@ final class RunComparator
             return [];
         }
 
+        return array_values(array_filter($aggregates, static fn (mixed $entry): bool => is_array($entry)));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $aggregates
+     */
+    private function allCarryHashes(array $aggregates): bool
+    {
+        foreach ($aggregates as $aggregate) {
+            $hash = $aggregate['row_hash'] ?? null;
+
+            if (! is_string($hash) || $hash === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * What happened to this row, and whether the run could prove it.
+     *
+     * The two travel together because confidence has to be judged on the axis
+     * that produced the verdict. Judged independently, a row whose pass rate
+     * slipped a hair inside the noise while its mean score rose sharply would
+     * be reported as a *confident regression* — regressed on one axis,
+     * confident on the other — and fail a `--confident-only` gate on the
+     * strength of an improvement.
+     *
+     * The asymmetry between the axes is deliberate. A pass rate is a count of
+     * independent trials, so any drop there is a change in outcome and is
+     * reported, with confidence deciding whether it is provable. A mean score
+     * is a continuous aggregate that drifts with any judge, so a drop inside
+     * the resolution is stable rather than an unprovable regression: flagging
+     * every third decimal place would bury the rows that actually broke.
+     *
+     * @return array{0: string, 1: bool}
+     */
+    private function verdict(?float $passRateDelta, ?float $scoreDelta, float $resolution): array
+    {
+        if ($passRateDelta !== null && $passRateDelta < 0.0) {
+            return [RowComparison::STATUS_REGRESSED, abs($passRateDelta) > $resolution];
+        }
+
+        if ($scoreDelta !== null && $scoreDelta < -$resolution) {
+            // Beyond the resolution by construction — that is what made it a
+            // regression rather than drift.
+            return [RowComparison::STATUS_REGRESSED, true];
+        }
+
+        if ($passRateDelta !== null && $passRateDelta > 0.0) {
+            return [RowComparison::STATUS_IMPROVED, abs($passRateDelta) > $resolution];
+        }
+
+        if ($scoreDelta !== null && $scoreDelta > $resolution) {
+            return [RowComparison::STATUS_IMPROVED, true];
+        }
+
+        return [RowComparison::STATUS_STABLE, false];
+    }
+
+    /**
+     * The tolerance, taken from the run's own precision block.
+     *
+     * Recomputing it from the pooled pass rate would disagree with the number
+     * the report prints, and disagree in the direction that matters: on a
+     * deterministic suite where half the rows always pass and half always fail,
+     * the pooled rate is 0.5 and implies substantial noise, while the report
+     * correctly records zero within-row variance. A gate reading the pooled
+     * figure would classify a real row regression as unprovable and let it
+     * through `--confident-only`.
+     *
+     * The fallbacks descend: the resolution the report computed, then its
+     * observed within-row variance, then — only for an artifact written before
+     * this existed — the pooled pass rate.
+     *
+     * @param  array<string, mixed>  $report
+     */
+    private function resolutionFor(array $report): float
+    {
+        $repetitions = $this->int($report, 'repetitions') ?? 1;
+        $precision = $report['precision'] ?? null;
+
+        if (is_array($precision)) {
+            $resolution = $this->float($precision, 'resolution');
+
+            if ($resolution !== null) {
+                return $resolution;
+            }
+
+            $variance = $this->float($precision, 'within_row_variance');
+
+            if ($variance !== null) {
+                return SamplingPrecision::differenceResolutionFromVariance($variance, $repetitions);
+            }
+        }
+
+        return SamplingPrecision::differenceResolution($this->float($report, 'pass_rate') ?? 0.0, $repetitions);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     * @return array<string, array{sample_id: string, pass_rate: float|null, score_mean: float|null, score_stddev: float|null, repetitions: int}>
+     */
+    private function rowsBy(array $report, string $joinKey): array
+    {
         $rows = [];
 
-        foreach ($aggregates as $aggregate) {
-            if (! is_array($aggregate)) {
+        foreach ($this->aggregatesOf($report) as $aggregate) {
+            $key = $aggregate[$joinKey] ?? null;
+            if (! is_string($key) || $key === '') {
                 continue;
             }
 
-            $hash = $aggregate['row_hash'] ?? null;
-            if (! is_string($hash) || $hash === '') {
-                continue;
-            }
-
-            $rows[$hash] = [
+            $rows[$key] = [
                 'sample_id' => is_string($aggregate['id'] ?? null) ? $aggregate['id'] : '',
                 'pass_rate' => $this->float($aggregate, 'pass_rate'),
                 'score_mean' => $this->float($aggregate, 'score_mean'),

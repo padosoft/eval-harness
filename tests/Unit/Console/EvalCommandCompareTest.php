@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Tests\Unit\Console;
 
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
@@ -251,6 +252,81 @@ final class EvalCommandCompareTest extends TestCase
         ])
             ->expectsOutputToContain('--compare-epsilon option requires a number between 0 and 1')
             ->assertExitCode(1);
+    }
+
+    /**
+     * `--json` without `--out` streams the report to stdout. One line of
+     * comparison commentary appended to that stream makes the whole payload
+     * unparseable, and the CI job consuming it then fails somewhere else
+     * entirely.
+     */
+    public function test_a_json_report_on_stdout_stays_parseable_while_comparing(): void
+    {
+        Storage::fake('eval-compare');
+        $this->registerDataset('gate.stdout');
+        $this->bindSut(fn (array $input): string => $input['q'] === 'a' ? 'A' : 'B');
+
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'gate.stdout',
+            '--json' => true,
+            '--out' => 'first.json',
+            '--promote-baseline' => true,
+        ])->assertExitCode(0);
+
+        $this->bindSut(static fn (): string => 'WRONG');
+
+        $exitCode = $this->withoutMockingConsoleOutput()
+            ->artisan('eval-harness:run', [
+                'dataset' => 'gate.stdout',
+                '--json' => true,
+                '--compare' => 'baseline',
+                '--max-regressions' => '5',
+            ]);
+
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertIsArray(
+            json_decode($output, true),
+            'the report streamed to stdout must still parse as JSON: '.substr($output, 0, 200),
+        );
+    }
+
+    /**
+     * A reference with no per-row data cannot be compared. Gating on it anyway
+     * reports zero regressions and passes — the most expensive kind of green.
+     */
+    public function test_an_incomparable_reference_warns_and_does_not_gate(): void
+    {
+        Storage::fake('eval-compare');
+        $this->registerDataset('gate.legacy');
+        $this->bindSut(static fn (): string => 'WRONG');
+
+        Storage::disk('eval-compare')->put('eval-harness/reports/legacy.json', (string) json_encode([
+            'schema_version' => 'eval-harness.report.v1',
+            'dataset' => 'gate.legacy',
+            'macro_f1' => 1.0,
+            'pass_rate' => 1.0,
+            'finished_at' => 1.0,
+        ]));
+
+        // Exit code 0 is the run's own outcome: no metric raised, so nothing
+        // failed. The point is that the gate did not manufacture a pass out of
+        // a comparison that could not join a single row.
+        $this->artisan('eval-harness:run', [
+            'dataset' => 'gate.legacy',
+            '--json' => true,
+            '--out' => 'run.json',
+            '--compare' => 'eval-harness/reports/legacy.json',
+            '--max-regressions' => '0',
+        ])
+            // Only the short stable prefix is asserted here: the reason is long
+            // enough for the terminal formatter to wrap it, and the wording is
+            // covered by RunComparatorReviewTest.
+            ->expectsOutputToContain('Skipping the comparison')
+            ->assertExitCode(0);
+
+        Storage::disk('eval-compare')->assertMissing('eval-harness/reports/diff.json');
     }
 
     /**
