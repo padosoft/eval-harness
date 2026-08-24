@@ -168,3 +168,25 @@ Serial, lazy-parallel, profiles, and backpressure.
 :::
 :::
 
+
+## A metric that costs nothing per row
+
+[`padosoft/laravel-evidence-risk-review`](https://github.com/padosoft/laravel-evidence-risk-review)
+ships an `evidence-risk` metric that answers a narrower question than a judge —
+*is this answer actually supported by the sources it cites, and does its
+confidence match its evidence?* — with **deterministic checks and no provider
+call at all**.
+
+```php
+use Padosoft\EvidenceRiskReview\Eval\EvidenceRiskMetric;
+
+$eval->dataset('rag.grounding')
+    ->loadFromYaml(database_path('evals/rag.grounding.yaml'))
+    ->withMetrics(['llm-as-judge', EvidenceRiskMetric::class])
+    ->register();
+```
+
+Because it is free and reproducible it can run on **every** row of **every**
+build, next to the judge you can only afford on some of them. `MetricResolver`
+resolves any FQCN through the container, so that line is the whole integration:
+nothing to register, and this package never learns about that one.

@@ -1,6 +1,6 @@
 {
     "name": "padosoft/eval-harness",
-    "description": "Laravel evaluation framework for RAG / LLM applications: golden datasets, exact-match + cosine-embedding + LLM-as-judge metrics, JSON + Markdown reports, Artisan-driven CI gate.",
+    "description": "Laravel evaluation framework for RAG / LLM applications: golden datasets, twenty-two metrics including agent trajectories, repeated sampling with real statistics, per-row regression gates on content hashes, run briefings, cost budgets, JSON + Markdown reports, Artisan-driven CI gate.",
     "type": "library",
     "license": "Apache-2.0",
     "keywords": [

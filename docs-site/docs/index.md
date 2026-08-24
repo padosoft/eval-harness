@@ -1,6 +1,6 @@
 ---
 title: "eval-harness — regression tests for the non-deterministic part of your stack"
-description: "A Laravel-native evaluation framework for RAG and LLM apps: golden datasets in YAML, fifteen built-in metrics (incl. retrieval-ranking), judge calibration, production online monitoring, an adversarial red-team lane, and an Artisan CI gate. Stop shipping silent AI regressions. Apache-2.0."
+description: "A Laravel-native evaluation framework for RAG and LLM apps: golden datasets in YAML, twenty-two built-in metrics (incl. retrieval-ranking and agent trajectories), judge calibration, production online monitoring, an adversarial red-team lane, and an Artisan CI gate. Stop shipping silent AI regressions. Apache-2.0."
 ---
 
 # eval-harness

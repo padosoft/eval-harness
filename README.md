@@ -1,6 +1,14 @@
 # padosoft/eval-harness
 
-> Laravel-native evaluation framework for RAG / LLM applications. Golden datasets in YAML, fifteen built-in metrics (including retrieval-ranking and ordinal scoring), judge calibration against human labels, production online monitoring with drift alerts, standalone output assertions, Markdown + JSON reports, and an Artisan CI gate. Stop shipping silent regressions in your AI pipeline.
+> **Unit tests for the part of your app that has no right answer.**
+>
+> Laravel-native evaluation for RAG and LLM pipelines: golden datasets in YAML,
+> twenty-two built-in metrics, statistics that tell you when a change is real,
+> per-row regression gates, cost budgets that can stop a run, and an Artisan
+> command that turns a red build into a briefing somebody can act on.
+>
+> Everything runs inside your app, against your services, with your provider.
+> Nothing is hosted. Nothing phones home.
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/padosoft/eval-harness.svg?style=flat-square)](https://packagist.org/packages/padosoft/eval-harness)
 [![Tests](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/padosoft/eval-harness/actions/workflows/ci.yml)
@@ -12,13 +20,89 @@
 
 ![eval-harness report banner](https://raw.githubusercontent.com/padosoft/eval-harness/main/resources/banner.png)
 
+## The thirty-second version
+
+```bash
+composer require --dev padosoft/eval-harness
+```
+
+```yaml
+# database/evals/rag.factuality.yaml
+name: rag.factuality
+repetitions: 3
+samples:
+  - id: refund-window
+    input: { question: 'What is the refund window for a faulty item?' }
+    expected_output: '30 days from delivery'
+    metadata:
+      tags: [policy]
+```
+
+```php
+$eval->dataset('rag.factuality')
+    ->loadFromYaml(database_path('evals/rag.factuality.yaml'))
+    ->withMetrics(['exact-match', 'llm-as-judge'])
+    ->register();
+```
+
+```bash
+php artisan eval-harness:run rag.factuality \
+    --compare=baseline --max-regressions=0 --confident-only
+```
+
+```
+Macro-F1 91.2%, pass rate 88.0% · 3 repetitions · differences below 4.7 points are noise
+Compared against the baseline [eval-harness/reports/run-41.json]
+  1 regressed (1 beyond this run's 4.7-point detectable difference), 2 improved, 0 added, 0 removed.
+  refund-window                100% → 33%   score -0.4200   beyond noise, newly failing
+Gate failed: 1 confident regression.
+```
+
+```bash
+php artisan eval-harness:brief report.json --dataset=database/evals/rag.factuality.yaml | claude -p
+```
+
+That is the whole loop: **measure → prove it moved → say what to do about it.**
+
+## Why this and not the others
+
+Most eval tooling stops at the first step. These are the five places this package
+goes further, and each is a link to the guide that explains why.
+
+| | |
+|---|---|
+| **Statistics, not vibes** | `--repetitions=N` reports the **smallest difference the run could actually have detected**. A fixed "ignore drops under 5%" epsilon is a guess wearing the costume of a threshold. → [Repeated sampling](https://doc.eval-harness.padosoft.com/guides/repeated-sampling) |
+| **Regressions per row, not per average** | Rows join across runs by a **content hash** of input + expected output, so renaming a sample keeps its history and rewriting the expected answer correctly reads as a different test. The baseline is a **file**, so CI compares the same bytes you did. → [Baselines](https://doc.eval-harness.padosoft.com/guides/baselines-and-regressions) |
+| **How the answer was produced** | Seven trajectory metrics score tool calls, ordering, step budgets and approvals — because an agent that answers without calling its tools has guessed, and every text metric scores that guess `1.0`. The DTO is **SDK-agnostic**, so the eval outlives the runtime. → [Trajectories](https://doc.eval-harness.padosoft.com/guides/agent-trajectories) |
+| **A red build that explains itself** | `eval-harness:brief` turns a report into a document a person reads in a minute and a coding agent acts on — cohorts, metric semantics, safety findings — and it opens by declaring its own quoted blocks untrusted data. → [Briefing](https://doc.eval-harness.padosoft.com/guides/briefing) |
+| **What it costs, and a stop button** | Cost per run split into billed and derived, unpriced models named rather than counted as `$0.00`, and `--budget-usd` that **halts**. → [Cost & budgets](https://doc.eval-harness.padosoft.com/guides/cost-and-budgets) |
+
+And the loop closes: `eval-harness:promote-online` turns the production failures
+your monitor already scored into permanent regression tests, behind a PII
+redactor it refuses to run without. → [Promoting production failures](https://doc.eval-harness.padosoft.com/guides/promoting-production-failures)
+
+## New in 1.6
+
+Six additive features. Every existing report, dataset, metric and command keeps
+working unchanged; the report contract grew only new keys.
+
+| | |
+|---|---|
+| Repeated sampling + Wilson intervals + detectable difference | `--repetitions=N` |
+| Baselines and per-row regression gating on content hashes | `--compare=baseline --max-regressions=0` |
+| SDK-agnostic agent trajectories, seven tool-call metrics | `tool-called`, `approval-gated`, … |
+| A briefing a coding agent can act on | `eval-harness:brief` |
+| Cost per run and a budget that halts | `--budget-usd=2.50` |
+| Production failures promoted into the dataset | `eval-harness:promote-online` |
+
+
 ## Official Documentation
 
 📚 **Full documentation is available at
 [doc.eval-harness.padosoft.com](https://doc.eval-harness.padosoft.com/).**
 
 The documentation site covers everything in depth: a five-minute quickstart, the
-fifteen built-in metrics with their underlying theory and formulas, guides for
+the built-in metrics with their underlying theory and formulas, guides for
 CI gating, judge calibration, online monitoring and adversarial testing, the
 batch/Horizon operations model, the architecture and decision records, and the
 full CLI, configuration, and report-API reference.
@@ -28,6 +112,9 @@ full CLI, configuration, and report-API reference.
 ## Table of Contents
 
 0. [Official Documentation](https://doc.eval-harness.padosoft.com/)
+0. [The thirty-second version](#the-thirty-second-version)
+0. [Why this and not the others](#why-this-and-not-the-others)
+0. [New in 1.6](#new-in-16)
 1. [Why eval-harness?](#why-eval-harness)
 2. [Design rationale](#design-rationale)
 3. [Features](#features)
@@ -36,6 +123,7 @@ full CLI, configuration, and report-API reference.
 6. [Quick start](#quick-start)
 7. [Usage examples](#usage-examples)
 8. [Web admin panel UI](#web-admin-panel-ui)
+8. [Companion packages](#companion-packages)
 9. [Contract stability and migration](#contract-stability-and-migration)
 10. [Configuration](#configuration)
 11. [Architecture](#architecture)
@@ -202,7 +290,8 @@ surface small and the offline path fast.
   of its own, because an eval harness with its own half-good PII regex
   is a package quietly promising a compliance property it cannot keep.
 
-- **Fifteen metrics out of the box** — `exact-match`, `contains`,
+- **Fifteen answer metrics out of the box** (plus the seven trajectory
+  metrics above, for twenty-two in total) — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,
   `refusal-quality`, `ordinal-distance`, and the retrieval-ranking
@@ -1079,6 +1168,35 @@ The UI package spec is documented in
 [`docs/UI_PACKAGE_SPEC.md`](docs/UI_PACKAGE_SPEC.md). It covers the intended
 read-only admin screens: Dashboard, Reports list, Report detail, Compare,
 Trend, Adversarial manifests, and Live batches.
+
+## Companion packages
+
+Three packages extend the harness without either side depending on the other —
+the generic package never learns about the specific one.
+
+| Package | What it adds |
+|---|---|
+| **[padosoft/eval-harness-admin](https://github.com/padosoft/eval-harness-admin)** | The read-only web panel above. Report detail surfaces per-row aggregates with Wilson intervals and trajectories, sampling precision, unstable rows, and run cost with budget halts |
+| **[padosoft/eval-harness-ai-bridge](https://github.com/padosoft/eval-harness-ai-bridge)** | Evaluate a **`laravel/ai`** agent: translates an `AgentResponse` into a scoreable `Trajectory`, adds multi-turn conversation datasets, and gives you `expect($agent)->toPassEval(...)` in Pest and `assertPassesEval()` in PHPUnit. The translation lives there and not here, so an eval written today survives a move to another runtime |
+| **[padosoft/laravel-evidence-risk-review](https://github.com/padosoft/laravel-evidence-risk-review)** | An `evidence-risk` metric: *is this answer actually supported by the sources it cites?* — **deterministic and with no provider call**, so it runs on every row of every build next to the judge you can only afford on some of them |
+
+```php
+use Padosoft\EvalHarnessAiBridge\Runners\AgentSampleRunner;
+use Padosoft\EvidenceRiskReview\Eval\EvidenceRiskMetric;
+
+$eval->dataset('support.agent')
+    ->loadFromYaml(database_path('evals/support.yaml'))
+    ->withMetrics(['llm-as-judge', 'tool-called', EvidenceRiskMetric::class])
+    ->register();
+
+$eval->run('support.agent', new AgentSampleRunner(
+    fn (array $input) => Ai::agent(SupportAgent::class)->prompt($input['question']),
+));
+```
+
+`MetricResolver` resolves any metric FQCN through the container, so a host
+package can ship a metric with `padosoft/eval-harness` as a `require-dev` and
+nothing needs registering on either side.
 
 ## Contract stability and migration
 

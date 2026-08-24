@@ -229,3 +229,30 @@ Combined with [repeated sampling](/guides/repeated-sampling), this is where
 agent instability becomes visible: a row that called the lookup on two
 executions out of three has the same text every time and a trajectory that says
 otherwise.
+
+## Evaluating a `laravel/ai` agent
+
+The DTO is deliberately not tied to an SDK, so the translation for any specific
+runtime lives outside this package. For `laravel/ai`, that is
+[`padosoft/eval-harness-ai-bridge`](https://github.com/padosoft/eval-harness-ai-bridge):
+
+```bash
+composer require --dev padosoft/eval-harness-ai-bridge
+```
+
+```php
+use Padosoft\EvalHarnessAiBridge\Runners\AgentSampleRunner;
+
+$eval->run('support.agent', new AgentSampleRunner(
+    fn (array $input) => Ai::agent(SupportAgent::class)->prompt($input['question']),
+));
+```
+
+It returns the response text for the text metrics and records the translated
+trajectory for the ones on this page. It also adds multi-turn conversation
+datasets and a Pest / PHPUnit assertion, and it keeps four details right that
+are easy to get wrong: results join calls **by id** rather than by position, a
+**denied** call is recorded as failed rather than as a quiet success, a run
+stopped on an approval reports `pending_approval` rather than `stop`, and usage
+travels in the shape the [cost ledger](/guides/cost-and-budgets) reads so agent
+spend is not treated as free.
