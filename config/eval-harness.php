@@ -134,6 +134,38 @@ return [
         ),
         'queue' => env('EVAL_HARNESS_ONLINE_QUEUE'),
         'connection' => env('EVAL_HARNESS_ONLINE_CONNECTION'),
+
+        /*
+         * Keeping the interaction, not just the score.
+         *
+         * The online monitor stores a number, which is enough to plot drift and
+         * not enough to turn a production failure into a regression test — for
+         * that you need the question that was asked. Keeping production text is
+         * a separate decision with a separate legal basis, so it is a separate
+         * switch, and it is off.
+         *
+         * `require_redactor` is on: with retention enabled and nothing bound,
+         * the job raises rather than quietly storing raw customer text. The
+         * failure it prevents is the one that actually happens — retention gets
+         * switched on in a hurry to debug something, the redactor is "next
+         * sprint", and six months of real questions are sitting in a table
+         * nobody remembers agreeing to. Turn it off only for a corpus you know
+         * carries no personal data, and know that you turned it off.
+         *
+         * `redactor` is a container key or FQCN implementing
+         * Padosoft\EvalHarness\Online\Redactor — padosoft/laravel-pii-redactor
+         * is one, your own regex is another. This package deliberately ships
+         * none: an eval harness with its own half-good PII regex is a package
+         * quietly promising a compliance property it cannot keep.
+         */
+        'retention' => [
+            'enabled' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_ONLINE_RETENTION'), false),
+            'require_redactor' => RuntimeOptions::normalizeBoolean(
+                env('EVAL_HARNESS_ONLINE_REQUIRE_REDACTOR'),
+                true,
+            ),
+            'redactor' => env('EVAL_HARNESS_ONLINE_REDACTOR'),
+        ],
         'alert' => [
             'threshold' => RuntimeOptions::normalizeUnitInterval(
                 env('EVAL_HARNESS_ONLINE_ALERT_THRESHOLD'),
@@ -193,6 +225,44 @@ return [
     'reports' => [
         'disk' => env('EVAL_HARNESS_REPORTS_DISK', 'local'),
         'path_prefix' => env('EVAL_HARNESS_REPORTS_PATH', 'eval-harness/reports'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cost attribution and token rates (FinOps)
+    |--------------------------------------------------------------------------
+    |
+    | Evaluation traffic is indistinguishable from production traffic on a
+    | provider dashboard — same key, same model, same endpoint — so the honest
+    | answer to "how much are we spending on quality?" is usually "we cannot
+    | tell". Every run dispatches EvalRunCosted tagged with `cost_center`
+    | (`{dataset}` is substituted), which a FinOps package can subscribe to
+    | without either side depending on the other.
+    |
+    | `models` declares what a million tokens costs, split input/output. It is
+    | only consulted when the provider did NOT bill us in the response body;
+    | a reported cost always wins. A model with no declared rate is reported as
+    | **unpriced** rather than as zero: a cost report that quietly says $0.00
+    | for a self-hosted or newly released model gets believed, budgeted
+    | against, and quoted in a meeting.
+    |
+    | Names match by longest prefix after stripping a `vendor/` prefix, so
+    | `gpt-4o-mini` covers `gpt-4o-mini-2024-07-18` and `openai/gpt-4o-mini`,
+    | while declaring the dated name explicitly still wins.
+    |
+    | No rates ship by default: provider prices change, and a stale rate baked
+    | into a package is a wrong number with a straight face. Declare the models
+    | you actually use.
+    |
+    */
+
+    'costs' => [
+        'cost_center' => env('EVAL_HARNESS_COST_CENTER', 'eval:{dataset}'),
+
+        'models' => [
+            // 'gpt-4o-mini' => ['input_per_million' => 0.15, 'output_per_million' => 0.60],
+            // 'text-embedding-3-small' => ['input_per_million' => 0.02, 'output_per_million' => 0.0],
+        ],
     ],
 
     /*

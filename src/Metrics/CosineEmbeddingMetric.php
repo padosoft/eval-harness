@@ -28,7 +28,7 @@ use Padosoft\EvalHarness\Support\MetricUsageDetails;
 final class CosineEmbeddingMetric implements Metric, ProvidesUsageDetails
 {
     /**
-     * @var array<string, int|float>
+     * @var array<string, int|float|string>
      */
     private array $usageDetails = [];
 

@@ -7,6 +7,13 @@ namespace Padosoft\EvalHarness\Metrics;
 use Illuminate\Contracts\Container\Container;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
 use Padosoft\EvalHarness\Exceptions\MetricException;
+use Padosoft\EvalHarness\Metrics\Trajectory\ApprovalGatedMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\NoPendingApprovalsMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\StepsBelowMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\ToolCalledMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\ToolCalledWithMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\ToolCallOrderMetric;
+use Padosoft\EvalHarness\Metrics\Trajectory\ToolNotCalledMetric;
 
 /**
  * Resolves the strings / classes / instances declared by callers
@@ -62,6 +69,13 @@ final class MetricResolver
         'retrieval-mrr' => RetrievalMrrMetric::class,
         'retrieval-ndcg-at-k' => RetrievalNdcgAtKMetric::class,
         'answer-containment-at-k' => AnswerContainmentAtKMetric::class,
+        'tool-called' => ToolCalledMetric::class,
+        'tool-not-called' => ToolNotCalledMetric::class,
+        'tool-called-with' => ToolCalledWithMetric::class,
+        'tool-call-order' => ToolCallOrderMetric::class,
+        'steps-below' => StepsBelowMetric::class,
+        'no-pending-approvals' => NoPendingApprovalsMetric::class,
+        'approval-gated' => ApprovalGatedMetric::class,
     ];
 
     public function __construct(private readonly Container $container) {}

@@ -71,10 +71,13 @@ trait WritesEvalReports
      * Write one artifact through the same path rules the report uses.
      *
      * @param  string  $label  what is being written, for the operator-facing messages
+     * @param  bool|null  $forceRawPath  overrides the --raw-path flag; used when the
+     *                                   destination came from another option that
+     *                                   already named a real filesystem path
      */
-    private function writeArtifact(string $out, string $payload, string $label = 'report'): bool
+    private function writeArtifact(string $out, string $payload, string $label = 'report', ?bool $forceRawPath = null): bool
     {
-        $rawPath = (bool) $this->option('raw-path');
+        $rawPath = $forceRawPath ?? (bool) $this->option('raw-path');
         $isAbsolute = $this->isAbsolutePath($out);
 
         if ($rawPath || $isAbsolute) {

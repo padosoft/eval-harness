@@ -28,15 +28,20 @@ use Padosoft\EvalHarness\Calibration\CalibrationCaseLoader;
 use Padosoft\EvalHarness\Calibration\JudgeCalibrator;
 use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\BaselineCommand;
+use Padosoft\EvalHarness\Console\BriefCommand;
 use Padosoft\EvalHarness\Console\CalibrateJudgeCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
+use Padosoft\EvalHarness\Console\PromoteOnlineCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Costs\PriceBook;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Online\InteractionRetention;
 use Padosoft\EvalHarness\Online\OnlineDriftAlert;
+use Padosoft\EvalHarness\Online\OnlineInteractionPromoter;
 use Padosoft\EvalHarness\Online\OnlineMonitor;
 use Padosoft\EvalHarness\Online\OnlineSamplingDecision;
 use Padosoft\EvalHarness\Online\OnlineTrendRepository;
@@ -48,6 +53,7 @@ use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
 use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+use Padosoft\EvalHarness\Trajectory\TrajectoryRecorder;
 
 /**
  * Package service provider.
@@ -116,6 +122,9 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new FailedSampleDatasetExporter;
         });
 
+        $this->app->singleton(TrajectoryRecorder::class, static function (): TrajectoryRecorder {
+            return new TrajectoryRecorder;
+        });
         $this->app->singleton(BaselineStore::class, static function (Container $app): BaselineStore {
             return new BaselineStore(
                 filesystems: $app->make(\Illuminate\Contracts\Filesystem\Factory::class),
@@ -124,6 +133,15 @@ class EvalHarnessServiceProvider extends ServiceProvider
         });
         $this->app->singleton(RunComparator::class, static function (): RunComparator {
             return new RunComparator;
+        });
+        $this->app->singleton(PriceBook::class, static function (Container $app): PriceBook {
+            return new PriceBook($app->make(ConfigRepository::class));
+        });
+        $this->app->singleton(InteractionRetention::class, static function (Container $app): InteractionRetention {
+            return new InteractionRetention($app, $app->make(ConfigRepository::class));
+        });
+        $this->app->singleton(OnlineInteractionPromoter::class, static function (Container $app): OnlineInteractionPromoter {
+            return new OnlineInteractionPromoter($app->make(YamlDatasetLoader::class));
         });
         $this->app->singleton(ReportArtifactRepository::class, static function (Container $app): ReportArtifactRepository {
             return new ReportArtifactRepository(
@@ -331,6 +349,8 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 AdversarialCommand::class,
                 CalibrateJudgeCommand::class,
                 BaselineCommand::class,
+                BriefCommand::class,
+                PromoteOnlineCommand::class,
             ]);
 
             $this->publishes([

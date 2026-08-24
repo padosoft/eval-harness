@@ -28,7 +28,7 @@ final class MetricUsageDetails
     }
 
     /**
-     * @return array<string, int|float>
+     * @return array<string, int|float|string>
      */
     public static function from(object $provider): array
     {

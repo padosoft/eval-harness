@@ -19,7 +19,7 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 final class OpenAiCompatibleJudgeClient implements JudgeClient, ProvidesUsageDetails
 {
     /**
-     * @var array<string, int|float>
+     * @var array<string, int|float|string>
      */
     private array $usageDetails = [];
 

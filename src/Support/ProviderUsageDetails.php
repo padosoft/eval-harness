@@ -4,17 +4,27 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Support;
 
+use Padosoft\EvalHarness\Costs\PriceBook;
+
 /**
  * Extracts safe, reportable usage fields from provider response bodies.
+ *
+ * The `model` is read from the top level rather than from `usage`, because
+ * that is where OpenAI-compatible APIs echo it — and it is what turns token
+ * counts into money later ({@see PriceBook}).
+ * Providers echo the *resolved* model, so an alias or a dated variant comes
+ * back as whatever actually served the request, which is the name worth
+ * recording.
  */
 final class ProviderUsageDetails
 {
     /**
      * @param  array<mixed>  $body
-     * @return array<string, int|float>
+     * @return array<string, int|float|string>
      */
     public static function fromResponseBody(array $body): array
     {
+        /** @var array<string, int|float|string> $details */
         $details = [];
         $rawUsage = $body['usage'] ?? null;
 
@@ -36,6 +46,12 @@ final class ProviderUsageDetails
             if ($latencyMs !== null) {
                 $details['latency_ms'] = $latencyMs;
             }
+        }
+
+        $model = $body['model'] ?? null;
+
+        if (is_string($model) && trim($model) !== '') {
+            $details['model'] = trim($model);
         }
 
         return $details;

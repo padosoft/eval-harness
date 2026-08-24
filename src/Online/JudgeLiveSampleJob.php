@@ -49,8 +49,12 @@ final class JudgeLiveSampleJob implements ShouldQueue
         }
     }
 
-    public function handle(MetricResolver $resolver, ConfigRepository $config, OnlineDriftAlert $drift): void
-    {
+    public function handle(
+        MetricResolver $resolver,
+        ConfigRepository $config,
+        OnlineDriftAlert $drift,
+        InteractionRetention $retention,
+    ): void {
         $alias = $config->get('eval-harness.online.metric', 'llm-as-judge');
         $alias = is_string($alias) && trim($alias) !== '' ? trim($alias) : 'llm-as-judge';
 
@@ -69,8 +73,9 @@ final class JudgeLiveSampleJob implements ShouldQueue
             0.7,
         );
 
-        $row = new OnlineScore;
-        $row->fill([
+        $now = Carbon::now();
+
+        $columns = [
             'dataset' => $this->dataset,
             'sample_id' => $this->sampleId,
             'metric' => $alias,
@@ -78,8 +83,20 @@ final class JudgeLiveSampleJob implements ShouldQueue
             'passed' => $score->score >= $passThreshold,
             'judge_model' => $this->judgeModel($config),
             'details' => $score->details,
-            'judged_at' => Carbon::now(),
-        ]);
+            'judged_at' => $now,
+        ];
+
+        // Retention is opt-in and redacted at the boundary: the interaction is
+        // never written raw and then cleaned up later, because "later" is where
+        // backups, replicas and log shippers already took a copy.
+        $retained = $retention->prepare($this->input, $this->expected, $this->actual);
+
+        if ($retained !== null) {
+            $columns = array_merge($columns, $retained->toColumns((string) $now->toDateTimeString()));
+        }
+
+        $row = new OnlineScore;
+        $row->fill($columns);
         $row->save();
 
         $drift->evaluate($this->dataset);

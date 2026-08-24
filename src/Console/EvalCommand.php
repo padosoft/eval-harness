@@ -84,6 +84,7 @@ final class EvalCommand extends Command
         {--rate-limit= : Maximum samples dispatched per --rate-window-seconds in lazy-parallel mode}
         {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}
         {--checkpoint-every= : Emit a progress checkpoint every N completed samples in lazy-parallel mode}
+        {--budget-usd= : Stop the run once observable provider spend (judge + embedding calls) passes this many US dollars; a halted run always exits non-zero}
         {--repetitions= : Execute every sample this many times and report pass rate, spread, and the smallest difference the run could actually detect; overrides the dataset `repetitions:` field (default 1)}
         {--compare= : Compare this run against a reference: `baseline`, `latest`, or a report path on the reports disk}
         {--max-regressions=0 : Fail the run when more than N rows regressed against the reference (requires --compare)}
@@ -112,6 +113,7 @@ final class EvalCommand extends Command
             // suite of tokens.
             $this->maxRegressionsOption();
             $this->compareEpsilonOption();
+            $budgetUsd = $this->budgetOption();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -154,7 +156,7 @@ final class EvalCommand extends Command
             try {
                 /** @var SavedOutputsLoader $loader */
                 $loader = $this->laravel->make(SavedOutputsLoader::class);
-                $report = $engine->scoreOutputs($datasetName, $loader->loadFile($outputsPath), $repetitions);
+                $report = $engine->scoreOutputs($datasetName, $loader->loadFile($outputsPath), $repetitions, $budgetUsd);
             } catch (EvalHarnessException $e) {
                 $this->error($e->getMessage());
 
@@ -167,7 +169,7 @@ final class EvalCommand extends Command
             }
 
             try {
-                $report = $engine->runBatch($datasetName, $sut, $this->batchOptions(), $repetitions);
+                $report = $engine->runBatch($datasetName, $sut, $this->batchOptions(), $repetitions, $budgetUsd);
             } catch (EvalHarnessException $e) {
                 $this->error($e->getMessage());
 
@@ -176,13 +178,17 @@ final class EvalCommand extends Command
         }
 
         $this->reportSamplingPrecision($report);
+        $this->reportCost($report);
 
         $payload = $this->reportPayload($report);
         if ($payload === null || ! $this->writeOrPrintReport($payload)) {
             return self::FAILURE;
         }
 
-        $exitCode = $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+        // A halted run is incomplete data, and incomplete data that exits zero
+        // is the worst outcome a gate can produce: the rows that would have
+        // failed are exactly the ones that never ran.
+        $exitCode = $report->totalFailures() === 0 && ! $report->wasHalted() ? self::SUCCESS : self::FAILURE;
 
         try {
             $gateFailed = $this->compareAgainstReference($datasetName, $report);
@@ -193,6 +199,59 @@ final class EvalCommand extends Command
         }
 
         return $gateFailed ? self::FAILURE : $exitCode;
+    }
+
+    private function budgetOption(): ?float
+    {
+        $raw = $this->option('budget-usd');
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (! is_string($raw) || ! is_numeric($raw) || (float) $raw <= 0.0) {
+            throw new EvalRunException(sprintf(
+                'The --budget-usd option requires a positive amount in US dollars; got %s.',
+                is_scalar($raw) ? var_export($raw, true) : get_debug_type($raw),
+            ));
+        }
+
+        return (float) $raw;
+    }
+
+    /**
+     * Print what the run cost, and say loudly when it stopped for lack of money.
+     *
+     * Routed through the same diagnostic channel as the comparison, so a
+     * `--json` run streaming to stdout stays parseable.
+     */
+    private function reportCost(EvalReport $report): void
+    {
+        $cost = $report->cost;
+
+        if ($cost !== null && $cost->calls > 0) {
+            $this->diagnostic('');
+            $this->diagnostic(sprintf(
+                '<options=bold>Cost</> $%s across %d provider call%s (%s tokens).',
+                number_format($cost->totalUsd(), 4),
+                $cost->calls,
+                $cost->calls === 1 ? '' : 's',
+                number_format($cost->totalTokens()),
+            ));
+
+            if (! $cost->isComplete()) {
+                $this->diagnostic(sprintf(
+                    '  <comment>Floor, not a figure: %d call(s) on unpriced model(s) %s. Declare rates under eval-harness.costs.models.</comment>',
+                    $cost->unpricedCalls,
+                    implode(', ', $cost->unpricedModels),
+                ));
+            }
+        }
+
+        if ($report->wasHalted()) {
+            $this->error('Halted on budget. '.(string) $report->budget?->reason);
+            $this->diagnostic('  This report covers a partial run: the rows that never executed are not failures, they are unknowns.');
+        }
     }
 
     /**

@@ -439,3 +439,78 @@
   `dataset` and no report schema disabled the gate exactly as promoting the wrong
   dataset would have. The guard has to be "prove it matches", never "prove it
   differs".
+
+
+## 2026-08-24 — P4 lessons
+
+- **The report is not the dataset.** Every instinct said "add `input`/`expected` to
+  `samples[]` and be done" — additive, contract-legal, one line. It would also have
+  put whole corpora into an artifact that gets committed, diffed and shipped to a
+  browser. The dataset is already in the repo; read it there and join on the hash
+  that already exists for exactly this problem.
+- **Degrade loudly, never plausibly.** With no dataset the briefing says "the dataset
+  was not supplied" rather than printing the row id where a question belongs. A
+  fabricated input is the one output that would make this document actively
+  misleading to the thing reading it.
+- **`expectsOutputToContain` matches per `doWrite` chunk, not against the whole
+  buffer.** A multi-line payload written in one call still failed on a phrase that
+  was plainly in it. Same lesson as PR #50 from the other direction: assert short
+  prefixes on the console and everything else from the written artifact.
+- **A generated artifact is an LLM surface too.** The rule about model output reaching
+  a router or a WebView is usually read as being about *runtime* code. A markdown file
+  pasted into a coding agent has repository write access at the end of it, which is a
+  larger blast radius than a WebView, and the fence alone does not say what the text
+  is.
+- **PHPStan: `reset()` takes its array by reference**, so `reset($sample->input)` on a
+  readonly promoted property is an error. Copy to a local first — and the copy is
+  free, since PHP arrays are copy-on-write.
+
+
+## 2026-08-24 — P5 lessons
+
+- **An unknown cost is not a zero cost.** The tempting implementation prices what
+  it knows and sums it. That produces a number that is smaller than the truth,
+  looks authoritative, and will be quoted. Three buckets — reported, derived,
+  unpriced — plus an `isComplete()` a gate can read, is barely more code and is
+  the difference between a figure and a floor.
+- **Stopping is only half the feature; exiting non-zero is the other half.** A
+  budget halt that returns 0 turns "we ran out of money" into "everything
+  passed", and the rows that never ran are disproportionately the interesting
+  ones. Same family as the P2 lesson about an empty join reading as zero
+  regressions.
+- **Check the stop condition *between* samples, not before scoring.** Before
+  scoring wastes an answer you already paid for; only after the next SUT call
+  wastes the call the budget existed to prevent.
+- **A metric that threw still spent the money.** Charging only successful metric
+  calls makes a run that fails every judge call look free — the exact opposite of
+  the truth, since it retried.
+- **Don't ship a price list.** Provider rates change monthly. A default rate in a
+  package is a number that will be wrong, silently, in somebody else's
+  production cost report.
+- **`SerialBatch::runEach` needed a `shouldStop`, not a control-flow exception.**
+  The exception version worked and read worse: a signal class whose only job is
+  to be caught two frames up is a loop condition wearing a costume.
+
+## 2026-08-24 — P6 lessons
+
+- **The valuable row and the dangerous row are the same row.** A production
+  failure is the best dataset row anybody can have precisely because it is real,
+  which is also precisely why it carries a name or an order number. Any design
+  that treats "useful" and "sensitive" as separate populations is wrong about
+  this feature.
+- **Redact at the boundary, not on read.** Storing raw and cleaning up later
+  loses, because "later" is after the backup, the read replica and the log
+  shipper have each taken a copy.
+- **Refusing is a feature.** `require_redactor` defaulting to true means
+  retention *fails* when misconfigured. The alternative — retain and warn — is
+  the version where six months of customer questions accumulate in a table.
+- **An error message can be the leak.** The natural exception text for a failed
+  redaction includes the string that failed. That string is the one thing that
+  must not reach a log.
+- **A "no existing rows" fallback is only safe for a missing file.** The promoter
+  reading a corrupt merge target as empty is correct for `--merge=new-file.yaml`
+  and would have replaced a curated dataset for `--merge=broken.yaml`. Same
+  fallback, opposite consequences; the caller has to distinguish them.
+- **Derive promoted ids from content, not from the database.** An id from
+  `online_scores.id` renumbers a committed dataset the first time somebody
+  promotes from staging or truncates the table.

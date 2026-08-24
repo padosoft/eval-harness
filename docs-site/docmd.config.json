@@ -81,6 +81,18 @@
           "path": "/guides/baselines-and-regressions"
         },
         {
+          "title": "Agent trajectories",
+          "path": "/guides/agent-trajectories"
+        },
+        {
+          "title": "Briefing a failed run",
+          "path": "/guides/briefing"
+        },
+        {
+          "title": "Cost & budgets",
+          "path": "/guides/cost-and-budgets"
+        },
+        {
           "title": "The CI gate",
           "path": "/guides/ci-gate"
         },
@@ -95,6 +107,10 @@
         {
           "title": "Online / production monitoring",
           "path": "/guides/online-monitoring"
+        },
+        {
+          "title": "Promoting production failures",
+          "path": "/guides/promoting-production-failures"
         },
         {
           "title": "Adversarial / red-team testing",

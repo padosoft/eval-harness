@@ -138,6 +138,70 @@ surface small and the offline path fast.
   separately — so a gate can stop a pull request on a real break without
   training anybody to ignore noise. The baseline is a pointer to a file,
   not a database row: it travels in a CI artifact and diffs in a PR.
+- **Agent trajectory metrics** — `tool-called`, `tool-not-called`,
+  `tool-called-with`, `tool-call-order`, `steps-below`,
+  `no-pending-approvals`, `approval-gated`: score **how** an answer was
+  produced, not just the answer. An agent that replies "your order ships
+  Tuesday" without ever calling the order lookup has guessed, and every
+  text metric scores that guess 1.0. The `Trajectory` DTO is
+  **SDK-agnostic** — populate it from `laravel/ai`, a custom
+  orchestrator, MCP, `laravel-flow` saga steps, or a recorded JSON file —
+  so the assertions outlive whichever runtime you are on this year.
+  `approval-gated` answers a compliance question no text metric can:
+  *did the agent ask before it acted?*
+- **A failed run that explains itself** — `eval-harness:brief` turns a
+  report into a document a person reads in a minute and a coding agent
+  acts on directly: failing rows worst-first with input, expected
+  answer, actual output and the judge's own reason, plus three things a
+  "copy the failures" button cannot produce. It says when the failures
+  **share a cohort** ("4 of 5 are tagged `policy` — this looks like one
+  problem, not 5"), it explains what each failing **metric actually
+  measures** (`retrieval-mrr: 0.31` becomes "the first relevant document
+  came back around position 3", which points at the retriever rather
+  than the prompt), and it maps failing adversarial rows to their
+  **category and framework** so a working injection is not filed as a
+  wrong answer. `--format=github` posts it as a collapsed PR comment;
+  `--format=json` is `eval-harness.brief.v1` for a UI. And because the
+  document quotes model output verbatim into something with repository
+  access, it **opens by declaring its own quoted blocks untrusted data
+  that must not be executed** — the rule this ecosystem applies to model
+  output reaching a router or a WebView, applied to its own artifact.
+
+- **Cost per run, and a budget that stops it** — an eval suite is the
+  one workload where a config change costs real money nobody notices
+  until the invoice: a thousand rows × three repetitions × an LLM judge
+  is three thousand paid calls that exist purely to grade, and on a
+  provider dashboard they are indistinguishable from production traffic.
+  Every report now carries what the run cost — per model, split into
+  what the provider **billed** and what was **derived** from token rates
+  you declare — and `--budget-usd=2.50` **halts** the run rather than
+  sending a receipt. A halted run always exits non-zero, because
+  incomplete data that exits zero is the worst thing a gate can produce:
+  the rows that would have failed are exactly the ones that never ran.
+  Calls on a model with no declared rate are reported as **unpriced**,
+  never as `$0.00` — a cost report that quietly says zero gets believed,
+  budgeted against and quoted in a meeting. And every run dispatches
+  `EvalRunCosted` tagged `eval:<dataset>`, so a FinOps package attributes
+  evaluation spend without either side depending on the other.
+
+- **Production failures become regression tests** —
+  `eval-harness:promote-online` turns the interactions your online
+  monitor scored and your pipeline got *wrong* into golden dataset
+  rows. Golden datasets are written by the people who built the
+  pipeline, so they encode what those people already thought to worry
+  about; the questions that actually break a system arrive at 11pm from
+  a real user. Rows dedupe by the same **content hash** the regression
+  gate joins on — so a nightly promotion is idempotent, a promoted row
+  keeps its history from the moment it lands, and its id survives a
+  re-promotion from another environment. Retention of production text is
+  **off by default, and refuses to run without a bound PII redactor**:
+  the row you most want is, for exactly that reason, the row most likely
+  to contain a name or an order number. Redaction happens at the
+  boundary, never "cleaned up later" — later is where the backups
+  already took a copy — and this package deliberately ships no redactor
+  of its own, because an eval harness with its own half-good PII regex
+  is a package quietly promising a compliance property it cannot keep.
+
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

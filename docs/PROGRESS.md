@@ -2963,3 +2963,196 @@ kind of bug a regression gate cannot afford.
 6. **`put()` returning false read as success** (P2). Promotion now throws.
 - Tests: +13 (`OK (994 tests, 2721 assertions)`), including a test that the JSON
   report on stdout still parses while comparing.
+## 2026-08-24 — P3a: agent trajectories (SDK-agnostic core)
+
+Third item from the vizra analysis, and the largest functional gap: this package
+scored a string, which is the one part a broken agent can still get right by
+accident. Their equivalent assertions are welded to `laravel/ai`'s AgentResponse;
+these are a plain DTO, so the same expectations work over any runtime.
+
+- `Trajectory\{Trajectory,ToolCall}` — tool calls with arguments/result/error,
+  steps, finish reason, pending approvals, approvals. Arguments match as a SUBSET
+  (a runtime that adds a trace id has still made the call) with numeric loose
+  compare across `7`/`"7"`; order matches as a SUBSEQUENCE (a new tool in between
+  must not fail an eval).
+- `Trajectory\TrajectoryRecorder` — container singleton the SampleRunner records
+  into. Keyed by (sample, repetition) with fallback to the row, so a runner that
+  does not know it is the third execution still works.
+- Seven metrics under `Metrics\Trajectory\` + aliases: `tool-called`,
+  `tool-not-called`, `tool-called-with`, `tool-call-order`, `steps-below`,
+  `no-pending-approvals`, `approval-gated`. Expectations live under
+  `metadata.trajectory.*` on the row; a constructor default covers dataset-wide
+  rules. Lists score with partial credit.
+- **The Metric contract is unchanged.** `TrajectoryMetric extends Metric` and the
+  engine calls `scoreTrajectory()` only for that family; every other metric and
+  every host-written one is untouched.
+- **A missing trajectory raises MetricException** (captured as a failure), never
+  0.0 and never 1.0: scoring 0 blames the agent for the harness's wiring, scoring
+  1 lets a dataset go green because nobody plugged the recorder in.
+- Saved outputs carry an optional `trajectory` block, so the whole family is
+  usable offline with no agent runtime — record once, score forever, free.
+- `samples[].trajectory` in the JSON report, emitted only when one exists.
+- `approval-gated` is the compliance hook: action ids come from whatever the host
+  records (laravel-flow saga step, laravel-iam-agents consent id, custom string).
+- Tests: +37 (`OK (1018 tests, 2792 assertions)`, was 981/2689). New files:
+  `tests/Unit/Trajectory/TrajectoryTest.php`,
+  `tests/Unit/Metrics/TrajectoryMetricsTest.php`,
+  `tests/Unit/EvalEngineTrajectoryTest.php`.
+- Local gate green: phpunit OK (1018/2792); PHPStan level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/agent-trajectories.md` + nav; README bullet.
+- NEXT: `padosoft/eval-harness-ai-bridge` carries the `laravel/ai` adapter, the
+  conversation dataset source and the Pest surface — this package stays SDK-free.
+
+## 2026-08-24 — P4: `eval-harness:brief`, and the guard on its own artifact
+
+Fourth item from the vizra analysis. Theirs stops at a JSON report; the loop that
+actually closes is *report → diagnosis → fix*, and it breaks because nobody opens
+a thousand-line artifact. `eval-harness:brief` produces the document instead.
+
+- `Brief\RunBriefing` — failing rows worst-first (only the worst-scoring execution
+  of each, so repetitions do not eat the budget), input, expected, actual output,
+  metric scores, the judge's own `judge_reason`, trajectory summary, and the
+  metrics that threw.
+- `Brief\MetricGlossary` — one line of *semantics* per built-in metric. This is
+  the part a briefing built from pass/fail assertions cannot have: an assertion
+  describes itself, a metric has meaning. `retrieval-mrr: 0.31` → "the first
+  relevant document came back around position 3", which points at the retriever
+  instead of at the prompt. An unknown name degrades to no description, never a
+  guess.
+- **Cohort diagnosis**: when one tag carries ≥60% of the failures the briefing
+  says "4 of 5 failures share the tag `policy` — this looks like one problem, not
+  5". Six failures in one cohort is a diagnosis; six scattered ones are a list.
+- **Adversarial rows are named as safety findings** with category, severity and
+  compliance framework, because the fix for a working injection is not the fix
+  for a wrong refund window.
+- **The prompt-injection guard.** The document quotes model output verbatim and
+  is designed to be pasted into an agent with repository access, so it opens —
+  before the first fence — by declaring its quoted blocks untrusted data that
+  must not be executed, and a value containing a fence gets a longer fence.
+  `MOBILE-SEC-LLM-001` / `SEC-LLM-001` applied to our own artifact.
+- **The input comes from the dataset, not the report.** A report records what the
+  pipeline *said*, never what it was *asked*; copying corpora into a committed,
+  diffed, browser-rendered artifact is not a trade worth making. `--dataset=`
+  joins by **content hash first, id second** (same negotiation as the comparator,
+  so a renamed row is still found). Without it the briefing says the dataset was
+  not supplied — it never invents a question.
+- `Brief\BriefSchema` = `eval-harness.brief.v1`; `--format=json` carries the
+  structure *and* the markdown so a UI can show both.
+- `--format=github` = collapsed `<details>` PR comment: the briefing belongs where
+  the diff is reviewed, not only in a dashboard somebody must remember to open.
+- Truncation is **declared with counts** — silently cutting the list leaves an
+  agent reasoning about "all the failures" while holding a third of them.
+- An artifact whose `schema_version` is not the report contract is **refused**:
+  briefing a comparison payload would print "every row passed" for a run that did
+  not.
+- Tests: +35 (`OK (1066 tests, 2909 assertions)`, was 1031/2846). New files:
+  `tests/Unit/Brief/RunBriefingTest.php`, `tests/Unit/Console/BriefCommandTest.php`.
+- Local gate green: composer validate --strict; phpunit OK (1066/2909); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/briefing.md` + nav; README bullet.
+
+## 2026-08-24 — P5: the FinOps seam, and a budget that stops a run
+
+Fifth item from the vizra analysis. Their tooling reports token counts; the gap
+is that an eval suite is the one workload where a config change costs real money
+nobody notices until the invoice — and P1's repeated sampling multiplies that
+bill by the repetition count, so shipping precision without cost control would
+have handed people a way to spend 3× more without telling them.
+
+- `Costs\PriceBook` — config-declared rates per million tokens, split
+  input/output. Longest-prefix match after stripping a `vendor/` prefix, so
+  `gpt-4o-mini` covers `gpt-4o-mini-2024-07-18` and `openai/gpt-4o-mini` while an
+  explicitly declared dated name still wins. **No rates ship by default**: a
+  stale price baked into a package is a wrong number with a straight face. A
+  half-declared rate is ignored rather than half applied.
+- `Costs\CostLedger` / `RunCost` / `ModelCost` — three buckets, and the third is
+  the point: **reported** (provider billed us, authoritative), **derived**
+  (computed from rates, an estimate), **unpriced** (neither → counted in tokens,
+  absent from the money, and *named*). `RunCost::isComplete()` and
+  `cost.complete` are the machine-readable form of "this total is a floor, not a
+  figure". A total that quietly says `$0.00` for a self-hosted model gets
+  believed, budgeted against and quoted in a meeting.
+- `Costs\RunBudget` + `--budget-usd=<n>` — **halts**. Stops at the row that
+  crossed the line, keeps every row already scored, and does not invoke the
+  pipeline again (`SerialBatch::runEach` gained a `shouldStop` callback checked
+  *between* samples, so the stop also prevents the next paid SUT call).
+- **A halted run always exits non-zero**, even with zero failures: incomplete
+  data that exits zero is the worst outcome a gate can produce, because the rows
+  that would have failed are exactly the ones that never ran. Recorded in
+  `report.budget` in every format; the markdown shouts it.
+- One budget spans repetitions (a halt in pass two ends the run) and covers
+  `--outputs` too, where the grading bill *is* the bill.
+- A metric that threw **after** calling a provider is still charged — otherwise a
+  run that fails every judge call looks free.
+- `Costs\Events\EvalRunCosted` — the seam. Dispatched every run with
+  `costCenter` (`eval:{dataset}`, configurable), the full `RunCost`, and
+  `halted`. `laravel-ai-finops` subscribes; neither package depends on the other.
+  Eval traffic is indistinguishable from production traffic on a provider
+  dashboard, which is why "how much are we spending on quality?" is normally
+  unanswerable.
+- `ProviderUsageDetails` now also extracts the top-level `model` — the field that
+  turns token counts into money.
+- Tests: +42 (`OK (1108 tests, 2996 assertions)`, was 1066/2909). New files:
+  `tests/Unit/Costs/{PriceBookTest,CostLedgerTest,BudgetedRunTest}.php`,
+  `tests/Unit/Console/EvalCommandBudgetTest.php`,
+  `tests/Unit/Support/ProviderUsageModelTest.php`.
+- Local gate green: composer validate --strict; phpunit OK (1108/2996); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/cost-and-budgets.md` + nav; README bullet; config
+  block with the reasoning inline.
+
+## 2026-08-24 — P6: production failures become regression tests, safely
+
+Sixth item from the vizra analysis, and the one that changes what a dataset *is*:
+a golden dataset written at a desk encodes what its authors already thought to
+worry about, while the questions that break a system arrive at 11pm from a real
+user. Online monitoring already scored those; nothing turned them into tests.
+
+- **The interaction has to be kept first.** `eval_harness_online_scores` stored a
+  score, not the text. New nullable columns (`input`, `expected_output`,
+  `actual_output`, `redactor`, `redacted_at`) via an additive migration, filled
+  only when `eval-harness.online.retention.enabled` is on — keeping production
+  text is a different decision with a different legal basis from keeping a
+  number, so it is a different switch and it is off.
+- `Online\Redactor` — one method, text in and text out, so a host that already
+  owns a text redactor plugs straight in. **This package ships none**: a redactor
+  trustworthy with production text is a package of its own, and an eval harness
+  with its own half-good PII regex is a package quietly promising a compliance
+  property it cannot keep.
+- `Online\InteractionRetention` — three defaults chosen against convenience:
+  retention off; `require_redactor` on, so retention with nothing bound **raises**
+  rather than storing raw text (the failure that actually happens is "enabled in
+  a hurry, redactor next sprint, six months of customer questions in a table");
+  and a throwing redactor **drops** the interaction, with the exception message
+  deliberately not carrying the text it failed on. Walks nested input at any
+  depth, string keys included — a map keyed by email address is not hypothetical.
+- Redaction happens **at the boundary**, in `JudgeLiveSampleJob`, never written
+  raw and cleaned up later: "later" is where backups, replicas and log shippers
+  already took a copy.
+- `Online\OnlineInteractionPromoter` + `eval-harness:promote-online` — failures by
+  default (a dataset of rows already passing can only stay green), `--all`,
+  `--max-score`, `--since`, `--limit` (keeps the **worst-scoring** rows when it
+  truncates), `--merge` writing back in place so the diff is pure additions.
+- **Dedup by `RowHash`** — the same content hash the regression gate joins on. A
+  nightly promotion is idempotent, a hand-written row already covering the case is
+  not duplicated, and a promoted row keeps its history from the moment it lands.
+  The row id derives from the hash (`online-9f2c4a1b3e7d`), not the database id,
+  so promoting from a second environment or after a truncation does not renumber
+  a committed dataset.
+- **Unredacted rows are skipped unless `--allow-unredacted`**, and the skip is
+  announced rather than silent — otherwise somebody expects a row and concludes
+  it never existed. Legacy scores with no retained text get their own line.
+- **A corrupt `--merge` target stops the command**: the promoter reads an
+  unreadable target as "no existing rows", which is right for a missing file and
+  catastrophic for a corrupt one, since writing back would replace a curated
+  dataset with this run's handful of promotions.
+- Every promoted row is tagged `promoted-from-production`, which puts them in one
+  cohort — so a briefing can say "7 of 9 failures are tagged
+  promoted-from-production", i.e. the pipeline is failing on real traffic and
+  passing the tests somebody imagined.
+- Tests: +25 (`OK (1136 tests, 3078 assertions)`, was 1111/3006). New files:
+  `tests/Unit/Online/{InteractionRetentionTest,PromoteOnlineCommandTest}.php`.
+- Local gate green: composer validate --strict; phpunit OK (1136/3078); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/promoting-production-failures.md` + nav; README
+  bullet; config block with the reasoning inline.

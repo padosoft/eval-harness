@@ -100,6 +100,10 @@ final class MarkdownReportRenderer
             $lines[] = '';
         }
 
+        foreach ($this->costLines($report) as $line) {
+            $lines[] = $line;
+        }
+
         $cohorts = $report->cohortSummaries();
         if ($cohorts !== []) {
             $lines[] = '## Cohorts by metadata.tags';
@@ -328,6 +332,96 @@ final class MarkdownReportRenderer
     private function htmlText(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * What the run cost, and — the part that matters — what it could not price.
+     *
+     * A cost table that silently omits the calls it has no rate for reads as a
+     * cheap run. It is an unknown one, and the difference shows up on an
+     * invoice six weeks later, so the incomplete case says so in words.
+     *
+     * @return list<string>
+     */
+    private function costLines(EvalReport $report): array
+    {
+        $cost = $report->cost;
+
+        if ($cost === null || $cost->calls === 0) {
+            return $this->budgetLines($report);
+        }
+
+        $lines = ['## Cost', ''];
+        $lines[] = sprintf(
+            '**$%s** across %d provider call%s (%s tokens).%s',
+            number_format($cost->totalUsd(), 4),
+            $cost->calls,
+            $cost->calls === 1 ? '' : 's',
+            number_format($cost->totalTokens()),
+            $cost->reportedUsd > 0.0 && $cost->derivedUsd > 0.0
+                ? sprintf(' $%s billed by the provider, $%s derived from token rates.', number_format($cost->reportedUsd, 4), number_format($cost->derivedUsd, 4))
+                : ($cost->derivedUsd > 0.0 ? ' Derived from configured token rates.' : ' Billed by the provider.'),
+        );
+
+        if (! $cost->isComplete()) {
+            $lines[] = '';
+            $lines[] = sprintf(
+                '> **This total is a floor, not a figure.** %d call%s used a model with no declared rate and no provider-reported cost (%s). Declare rates under `eval-harness.costs.models` to price them.',
+                $cost->unpricedCalls,
+                $cost->unpricedCalls === 1 ? '' : 's',
+                implode(', ', array_map(static fn (string $model): string => '`'.$model.'`', $cost->unpricedModels)),
+            );
+        }
+
+        $lines[] = '';
+        $lines[] = '| model | calls | prompt tokens | completion tokens | cost USD |';
+        $lines[] = '| --- | --- | --- | --- | --- |';
+
+        foreach ($cost->models as $model) {
+            $lines[] = sprintf(
+                '| %s | %d | %s | %s | %s |',
+                $model->model,
+                $model->calls,
+                number_format($model->promptTokens),
+                number_format($model->completionTokens),
+                $model->priced ? number_format($model->costUsd, 6) : 'unpriced',
+            );
+        }
+
+        $lines[] = '';
+
+        return array_merge($lines, $this->budgetLines($report));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function budgetLines(EvalReport $report): array
+    {
+        $budget = $report->budget;
+
+        if ($budget === null || $budget->limitUsd === null) {
+            return [];
+        }
+
+        if (! $budget->halted) {
+            return [
+                sprintf(
+                    '_Budget: $%s of $%s spent._',
+                    number_format($budget->spentUsd, 4),
+                    number_format($budget->limitUsd, 4),
+                ),
+                '',
+            ];
+        }
+
+        // Loud, and first among equals in the report: every number below this
+        // line describes a partial run, and the rows that would have failed
+        // may be exactly the ones that never ran.
+        return [
+            sprintf('> **⛔ Halted on budget.** %s Every figure in this report covers a partial run.', (string) $budget->reason),
+            '',
+        ];
     }
 
     /**
