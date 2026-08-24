@@ -84,7 +84,7 @@ trait WritesEvalReports
 
                 return false;
             }
-            $this->info(sprintf('Wrote %d bytes to %s', $bytes, $out));
+            $this->info(sprintf('Wrote %d bytes of %s to %s', $bytes, $label, $out));
 
             return true;
         }
@@ -118,9 +118,13 @@ trait WritesEvalReports
             $this->lastWrittenArtifactPath = $relativePath;
         }
 
+        // Named, because a run can write a report and a comparison through this
+        // same helper and two identical success lines say nothing about which
+        // file is which.
         $this->info(sprintf(
-            'Wrote %d bytes to disk [%s] at path [%s].',
+            'Wrote %d bytes of %s to disk [%s] at path [%s].',
             strlen($payload),
+            $label,
             $diskName,
             $relativePath,
         ));

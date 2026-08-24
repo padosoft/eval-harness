@@ -428,3 +428,14 @@
   reviewer noticed the two could disagree.
 - **A verdict and its confidence must come from the same axis**, or good news on one
   axis certifies bad news on the other.
+- **A Copilot finding can be wrong and still worth acting on.** Three of the five
+  in round two were false — `??` suppresses the null-offset warning, short-circuit
+  ordering already prevented the second access, and a `{@see}` docblock link is a
+  real use of an import. But two of the three flagged code that made a reader
+  ask the question, which is its own cost. Rewriting for clarity is the right
+  answer; agreeing that there was a bug is not.
+- **"Cannot prove" is not a reason to accept.** `is_string($x) && $x !== $want`
+  refuses a mismatch and *accepts a missing field*. Promoting a payload with no
+  `dataset` and no report schema disabled the gate exactly as promoting the wrong
+  dataset would have. The guard has to be "prove it matches", never "prove it
+  differs".

@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
 use Padosoft\EvalHarness\Regression\BaselineStore;
+use Padosoft\EvalHarness\Reports\ReportSchema;
 
 /**
  * Artisan entry point: `php artisan eval-harness:baseline <dataset>`.
@@ -75,16 +76,30 @@ final class BaselineCommand extends Command
             return self::FAILURE;
         }
 
+        // Promoting anything other than a report of this dataset silently makes
+        // every later comparison meaningless — no row would ever join, so every
+        // row reads as "added", zero regressions are found, and the gate passes.
+        // So the artifact has to prove it is a report, and prove it is this
+        // dataset's: a payload with no `dataset` field cannot prove either, and
+        // "cannot prove" is not a reason to accept it.
+        if (($payload['schema_version'] ?? null) !== ReportSchema::VERSION) {
+            $this->error(sprintf(
+                'Artifact [%s] does not declare the report contract (expected schema_version %s, found %s). Refusing to promote it.',
+                $path,
+                ReportSchema::VERSION,
+                is_string($payload['schema_version'] ?? null) ? $payload['schema_version'] : 'none',
+            ));
+
+            return self::FAILURE;
+        }
+
         $reportDataset = $payload['dataset'] ?? null;
 
-        // Promoting a report from a different dataset would silently make every
-        // later comparison meaningless — the rows would never join, so every row
-        // would read as "added" and no regression could ever be detected.
-        if (is_string($reportDataset) && $reportDataset !== $dataset) {
+        if (! is_string($reportDataset) || $reportDataset !== $dataset) {
             $this->error(sprintf(
                 "Report [%s] belongs to dataset '%s', not '%s'. Refusing to promote it.",
                 $path,
-                $reportDataset,
+                is_string($reportDataset) ? $reportDataset : '(unnamed)',
                 $dataset,
             ));
 

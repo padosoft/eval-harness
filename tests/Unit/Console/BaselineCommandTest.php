@@ -132,6 +132,49 @@ final class BaselineCommandTest extends TestCase
         $this->assertNull($this->store()->pointer('rag'));
     }
 
+    /**
+     * A payload that cannot prove it is a report of this dataset cannot prove
+     * it will ever join a row — and a baseline that joins nothing reads as
+     * zero regressions and passes the gate.
+     */
+    public function test_promoting_an_artifact_that_is_not_a_report_is_refused(): void
+    {
+        Storage::fake('eval-baseline-cli');
+        Storage::disk('eval-baseline-cli')->put('eval-harness/reports/diff.json', (string) json_encode([
+            'schema_version' => 'eval-harness.comparison.v1',
+            'dataset' => 'rag',
+            'counts' => ['regressed' => 0],
+        ]));
+
+        $this->artisan('eval-harness:baseline', [
+            'dataset' => 'rag',
+            '--report' => 'eval-harness/reports/diff.json',
+        ])
+            ->expectsOutputToContain('does not declare the report contract')
+            ->assertExitCode(1);
+
+        $this->assertNull($this->store()->pointer('rag'));
+    }
+
+    public function test_promoting_a_report_without_a_dataset_name_is_refused(): void
+    {
+        Storage::fake('eval-baseline-cli');
+        Storage::disk('eval-baseline-cli')->put('eval-harness/reports/anonymous.json', (string) json_encode([
+            'schema_version' => 'eval-harness.report.v1',
+            'macro_f1' => 0.9,
+            'sample_aggregates' => [],
+        ]));
+
+        $this->artisan('eval-harness:baseline', [
+            'dataset' => 'rag',
+            '--report' => 'eval-harness/reports/anonymous.json',
+        ])
+            ->expectsOutputToContain('Refusing to promote it')
+            ->assertExitCode(1);
+
+        $this->assertNull($this->store()->pointer('rag'));
+    }
+
     private function store(): BaselineStore
     {
         /** @var BaselineStore $store */
