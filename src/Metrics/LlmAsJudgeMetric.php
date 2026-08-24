@@ -51,7 +51,7 @@ Return ONLY the JSON object. No prose, no code fences.
 PROMPT;
 
     /**
-     * @var array<string, int|float>
+     * @var array<string, int|float|string>
      */
     private array $usageDetails = [];
 

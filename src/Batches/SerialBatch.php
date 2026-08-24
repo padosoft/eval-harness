@@ -40,9 +40,14 @@ final class SerialBatch
      * @param  list<DatasetSample>  $samples
      * @param  callable(DatasetSample, int): string  $actualOutputForSample
      * @param  callable(DatasetSample, int, string): void  $handleOutput
+     * @param  callable(): bool|null  $shouldStop  consulted after each sample; true ends the pass early
      */
-    public function runEach(array $samples, callable $actualOutputForSample, callable $handleOutput): void
-    {
+    public function runEach(
+        array $samples,
+        callable $actualOutputForSample,
+        callable $handleOutput,
+        ?callable $shouldStop = null,
+    ): void {
         $this->assertSampleList($samples);
 
         foreach ($samples as $index => $sample) {
@@ -56,6 +61,13 @@ final class SerialBatch
             }
 
             $handleOutput($sample, $index, $actualOutput);
+
+            // Checked between samples, so a stop also prevents the *next*
+            // system-under-test call — which is the call that would have cost
+            // money the caller said it did not have.
+            if ($shouldStop !== null && $shouldStop() === true) {
+                return;
+            }
         }
     }
 

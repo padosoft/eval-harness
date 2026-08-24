@@ -3050,3 +3050,53 @@ a thousand-line artifact. `eval-harness:brief` produces the document instead.
 - Local gate green: composer validate --strict; phpunit OK (1066/2909); PHPStan
   level 6 no errors; Pint passed.
 - Docs: `docs-site/docs/guides/briefing.md` + nav; README bullet.
+
+## 2026-08-24 — P5: the FinOps seam, and a budget that stops a run
+
+Fifth item from the vizra analysis. Their tooling reports token counts; the gap
+is that an eval suite is the one workload where a config change costs real money
+nobody notices until the invoice — and P1's repeated sampling multiplies that
+bill by the repetition count, so shipping precision without cost control would
+have handed people a way to spend 3× more without telling them.
+
+- `Costs\PriceBook` — config-declared rates per million tokens, split
+  input/output. Longest-prefix match after stripping a `vendor/` prefix, so
+  `gpt-4o-mini` covers `gpt-4o-mini-2024-07-18` and `openai/gpt-4o-mini` while an
+  explicitly declared dated name still wins. **No rates ship by default**: a
+  stale price baked into a package is a wrong number with a straight face. A
+  half-declared rate is ignored rather than half applied.
+- `Costs\CostLedger` / `RunCost` / `ModelCost` — three buckets, and the third is
+  the point: **reported** (provider billed us, authoritative), **derived**
+  (computed from rates, an estimate), **unpriced** (neither → counted in tokens,
+  absent from the money, and *named*). `RunCost::isComplete()` and
+  `cost.complete` are the machine-readable form of "this total is a floor, not a
+  figure". A total that quietly says `$0.00` for a self-hosted model gets
+  believed, budgeted against and quoted in a meeting.
+- `Costs\RunBudget` + `--budget-usd=<n>` — **halts**. Stops at the row that
+  crossed the line, keeps every row already scored, and does not invoke the
+  pipeline again (`SerialBatch::runEach` gained a `shouldStop` callback checked
+  *between* samples, so the stop also prevents the next paid SUT call).
+- **A halted run always exits non-zero**, even with zero failures: incomplete
+  data that exits zero is the worst outcome a gate can produce, because the rows
+  that would have failed are exactly the ones that never ran. Recorded in
+  `report.budget` in every format; the markdown shouts it.
+- One budget spans repetitions (a halt in pass two ends the run) and covers
+  `--outputs` too, where the grading bill *is* the bill.
+- A metric that threw **after** calling a provider is still charged — otherwise a
+  run that fails every judge call looks free.
+- `Costs\Events\EvalRunCosted` — the seam. Dispatched every run with
+  `costCenter` (`eval:{dataset}`, configurable), the full `RunCost`, and
+  `halted`. `laravel-ai-finops` subscribes; neither package depends on the other.
+  Eval traffic is indistinguishable from production traffic on a provider
+  dashboard, which is why "how much are we spending on quality?" is normally
+  unanswerable.
+- `ProviderUsageDetails` now also extracts the top-level `model` — the field that
+  turns token counts into money.
+- Tests: +42 (`OK (1108 tests, 2996 assertions)`, was 1066/2909). New files:
+  `tests/Unit/Costs/{PriceBookTest,CostLedgerTest,BudgetedRunTest}.php`,
+  `tests/Unit/Console/EvalCommandBudgetTest.php`,
+  `tests/Unit/Support/ProviderUsageModelTest.php`.
+- Local gate green: composer validate --strict; phpunit OK (1108/2996); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/cost-and-budgets.md` + nav; README bullet; config
+  block with the reasoning inline.

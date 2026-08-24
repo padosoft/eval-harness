@@ -7,12 +7,18 @@ namespace Padosoft\EvalHarness;
 use Closure;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Events\Dispatcher as EventDispatcher;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
 use Padosoft\EvalHarness\Batches\RateLimitWindow;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
+use Padosoft\EvalHarness\Costs\CostLedger;
+use Padosoft\EvalHarness\Costs\Events\EvalRunCosted;
+use Padosoft\EvalHarness\Costs\PriceBook;
+use Padosoft\EvalHarness\Costs\RunBudget;
+use Padosoft\EvalHarness\Costs\RunCost;
 use Padosoft\EvalHarness\Datasets\DatasetBuilder;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\GoldenDataset;
@@ -132,9 +138,13 @@ final class EvalEngine
      * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
      * @param  int|null  $repetitions  Executions per row; null uses the dataset's own setting (default 1).
      */
-    public function run(string $datasetName, callable|SampleRunner $systemUnderTest, ?int $repetitions = null): EvalReport
-    {
-        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial(), $repetitions);
+    public function run(
+        string $datasetName,
+        callable|SampleRunner $systemUnderTest,
+        ?int $repetitions = null,
+        ?float $budgetUsd = null,
+    ): EvalReport {
+        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial(), $repetitions, $budgetUsd);
     }
 
     /**
@@ -151,18 +161,30 @@ final class EvalEngine
      *
      * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
      * @param  int|null  $repetitions  Executions per row; null uses the dataset's own setting (default 1).
+     * @param  float|null  $budgetUsd  Stop the run once observable provider spend passes this; null runs to completion.
      */
     public function runBatch(
         string $datasetName,
         callable|SampleRunner $systemUnderTest,
         ?BatchOptions $batchOptions = null,
         ?int $repetitions = null,
+        ?float $budgetUsd = null,
     ): EvalReport {
         $dataset = $this->getDataset($datasetName);
         $passes = $this->resolveRepetitions($dataset, $repetitions);
+        $budget = RunBudget::of($budgetUsd, new CostLedger($this->prices()));
 
         if ($passes === 1) {
-            return $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, 0);
+            $pass = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, 0, budget: $budget);
+
+            return $this->finish(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                sampleResults: $pass->sampleResults,
+                failures: $pass->failures,
+                startedAt: $pass->startedAt,
+                budget: $budget,
+            );
         }
 
         $startedAt = microtime(true);
@@ -176,7 +198,7 @@ final class EvalEngine
         $rateLimiter = LazyParallelBatch::windowFor($batchOptions ?? BatchOptions::serial());
 
         for ($repetition = 0; $repetition < $passes; $repetition++) {
-            $report = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, $repetition, $rateLimiter);
+            $report = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, $repetition, $rateLimiter, $budget);
 
             // Appended in place rather than array_merge()d: merging inside the
             // loop reallocates the whole accumulator on every pass, which is
@@ -187,15 +209,21 @@ final class EvalEngine
             foreach ($report->failures as $failure) {
                 $failures[] = $failure;
             }
+
+            // One budget spans every pass, so a halt in pass two ends the run
+            // rather than starting pass three with an empty wallet.
+            if ($budget->wasHalted()) {
+                break;
+            }
         }
 
-        return new EvalReport(
+        return $this->finish(
             datasetName: $datasetName,
+            dataset: $dataset,
             sampleResults: $sampleResults,
             failures: $failures,
             startedAt: $startedAt,
-            finishedAt: microtime(true),
-            datasetSchemaVersion: $dataset->schemaVersion,
+            budget: $budget,
         );
     }
 
@@ -230,6 +258,7 @@ final class EvalEngine
         ?BatchOptions $batchOptions,
         int $repetition,
         ?RateLimitWindow $rateLimiter = null,
+        ?RunBudget $budget = null,
     ): EvalReport {
         $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
@@ -253,6 +282,7 @@ final class EvalEngine
                 dataset: $dataset,
                 startedAt: $startedAt,
                 repetition: $repetition,
+                budget: $budget,
                 actualOutputs: $this->lazyParallelBatch()->run(
                     samples: $dataset->samples,
                     sampleInvocations: $sampleInvocations,
@@ -283,6 +313,7 @@ final class EvalEngine
             ),
             batchOptions: $batchOptions,
             repetition: $repetition,
+            budget: $budget,
         );
     }
 
@@ -308,20 +339,39 @@ final class EvalEngine
      *
      * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs  Map or loaded saved-output entries.
      */
-    public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs, ?int $repetitions = null): EvalReport
-    {
+    public function scoreOutputs(
+        string $datasetName,
+        array|SavedOutputs $actualOutputs,
+        ?int $repetitions = null,
+        ?float $budgetUsd = null,
+    ): EvalReport {
         $dataset = $this->getDataset($datasetName);
         $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
         $this->recordSavedTrajectories($actualOutputs);
         $actualOutputForSample = static fn (DatasetSample $sample, int $_index): string => $outputs[self::sampleIdKey($sample->id)];
         $passes = $this->resolveRepetitions($dataset, $repetitions);
 
+        // The pipeline calls are already paid for on this path, so the budget
+        // here caps the *grading* bill — which for an LLM-as-judge suite over
+        // saved outputs is the whole bill.
+        $budget = RunBudget::of($budgetUsd, new CostLedger($this->prices()));
+
         if ($passes === 1) {
-            return $this->scoreDataset(
+            $pass = $this->scoreDataset(
                 datasetName: $datasetName,
                 dataset: $dataset,
                 startedAt: microtime(true),
                 actualOutputForSample: $actualOutputForSample,
+                budget: $budget,
+            );
+
+            return $this->finish(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                sampleResults: $pass->sampleResults,
+                failures: $pass->failures,
+                startedAt: $pass->startedAt,
+                budget: $budget,
             );
         }
 
@@ -341,6 +391,7 @@ final class EvalEngine
                 startedAt: microtime(true),
                 actualOutputForSample: $actualOutputForSample,
                 repetition: $repetition,
+                budget: $budget,
             );
             foreach ($report->sampleResults as $result) {
                 $sampleResults[] = $result;
@@ -348,15 +399,19 @@ final class EvalEngine
             foreach ($report->failures as $failure) {
                 $failures[] = $failure;
             }
+
+            if ($budget->wasHalted()) {
+                break;
+            }
         }
 
-        return new EvalReport(
+        return $this->finish(
             datasetName: $datasetName,
+            dataset: $dataset,
             sampleResults: $sampleResults,
             failures: $failures,
             startedAt: $startedAt,
-            finishedAt: microtime(true),
-            datasetSchemaVersion: $dataset->schemaVersion,
+            budget: $budget,
         );
     }
 
@@ -370,6 +425,7 @@ final class EvalEngine
         callable $actualOutputForSample,
         ?BatchOptions $batchOptions = null,
         int $repetition = 0,
+        ?RunBudget $budget = null,
     ): EvalReport {
         $batchOptions ??= BatchOptions::serial();
 
@@ -380,6 +436,7 @@ final class EvalEngine
                 startedAt: $startedAt,
                 actualOutputForSample: $actualOutputForSample,
                 repetition: $repetition,
+                budget: $budget,
             );
         }
 
@@ -389,6 +446,7 @@ final class EvalEngine
             startedAt: $startedAt,
             actualOutputs: $this->sampleOutputsForBatch($dataset, $actualOutputForSample, $batchOptions),
             repetition: $repetition,
+            budget: $budget,
         );
     }
 
@@ -401,6 +459,7 @@ final class EvalEngine
         float $startedAt,
         callable $actualOutputForSample,
         int $repetition = 0,
+        ?RunBudget $budget = null,
     ): EvalReport {
         $sampleResults = [];
         $failures = [];
@@ -408,8 +467,23 @@ final class EvalEngine
         $this->serialBatch->runEach(
             samples: $dataset->samples,
             actualOutputForSample: $actualOutputForSample,
-            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, $repetition, &$sampleResults, &$failures): void {
-                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition);
+            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, $repetition, $budget, &$sampleResults, &$failures): void {
+                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition, $budget);
+            },
+            // Checked after the row rather than before it: the spend that
+            // crosses the line happens inside the row, and stopping before
+            // scoring would pay for an answer and then throw the grade away.
+            // The rows already scored are kept — they are real measurements,
+            // and the report records the halt so nothing reads them as a
+            // complete verdict.
+            shouldStop: function () use ($budget, &$sampleResults): bool {
+                if ($budget?->isExceeded() !== true) {
+                    return false;
+                }
+
+                $budget->halt(count($sampleResults));
+
+                return true;
             },
         );
 
@@ -432,6 +506,7 @@ final class EvalEngine
         float $startedAt,
         array $actualOutputs,
         int $repetition = 0,
+        ?RunBudget $budget = null,
     ): EvalReport {
         $sampleResults = [];
         $failures = [];
@@ -447,7 +522,16 @@ final class EvalEngine
 
             $actualOutput = $actualOutputs[$index];
 
-            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition);
+            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition, $budget);
+
+            // The provider calls are already paid for on this path — the
+            // outputs arrived from a batch or from a file — but grading them
+            // is not free, and stopping here caps the grading bill.
+            if ($budget?->isExceeded() === true) {
+                $budget->halt(count($sampleResults));
+
+                break;
+            }
         }
 
         return new EvalReport(
@@ -469,26 +553,36 @@ final class EvalEngine
         string $actualOutput,
         array &$failures,
         int $repetition = 0,
+        ?RunBudget $budget = null,
     ): SampleResult {
         $trajectory = $this->trajectoryFor($sample->id, $repetition);
         $metricScores = [];
         foreach ($dataset->metrics as $metric) {
             try {
-                $metricScores[$metric->name()] = $metric instanceof TrajectoryMetric
+                $score = $metric instanceof TrajectoryMetric
                     ? $metric->scoreTrajectory($sample, $actualOutput, $trajectory)
                     : $metric->score($sample, $actualOutput);
+
+                $metricScores[$metric->name()] = $score;
+                $budget?->record($score->details);
             } catch (Throwable $e) {
                 if ($this->shouldRaiseMetricExceptions() && $e instanceof MetricException) {
                     throw $e;
                 }
 
-                $failures[] = new SampleFailure(
+                $failure = new SampleFailure(
                     sampleId: $sample->id,
                     metricName: $metric->name(),
                     error: $e->getMessage(),
                     details: MetricUsageDetails::append([], $metric),
                     repetition: $repetition,
                 );
+
+                // A metric that threw after calling a provider still spent the
+                // money. Charging only for successes would let a run that
+                // fails every judge call look free.
+                $budget?->record($failure->details);
+                $failures[] = $failure;
             }
         }
 
@@ -862,6 +956,103 @@ final class EvalEngine
     /**
      * Drop the registry — primarily for tests that re-use the engine.
      */
+    /**
+     * Assemble the final report and announce what the run cost.
+     *
+     * The event fires whether or not anything is listening and whether or not
+     * the run finished: an evaluation that halted on its budget is precisely
+     * the one a FinOps listener most wants to hear about.
+     *
+     * @param  list<SampleResult>  $sampleResults
+     * @param  list<SampleFailure>  $failures
+     */
+    private function finish(
+        string $datasetName,
+        GoldenDataset $dataset,
+        array $sampleResults,
+        array $failures,
+        float $startedAt,
+        ?RunBudget $budget,
+    ): EvalReport {
+        $finishedAt = microtime(true);
+        $cost = $budget?->toRunCost();
+
+        $report = new EvalReport(
+            datasetName: $datasetName,
+            sampleResults: $sampleResults,
+            failures: $failures,
+            startedAt: $startedAt,
+            finishedAt: $finishedAt,
+            datasetSchemaVersion: $dataset->schemaVersion,
+            cost: $cost,
+            budget: $budget?->outcome(),
+        );
+
+        if ($cost !== null) {
+            $this->announceCost($datasetName, $report, $cost, $budget?->wasHalted() === true);
+        }
+
+        return $report;
+    }
+
+    private function announceCost(string $datasetName, EvalReport $report, RunCost $cost, bool $halted): void
+    {
+        $events = $this->events();
+
+        if ($events === null) {
+            return;
+        }
+
+        $events->dispatch(new EvalRunCosted(
+            dataset: $datasetName,
+            costCenter: $this->costCenterFor($datasetName),
+            cost: $cost,
+            startedAt: $report->startedAt,
+            finishedAt: $report->finishedAt,
+            rows: $report->totalSamples(),
+            executions: $report->totalExecutions(),
+            halted: $halted,
+        ));
+    }
+
+    /**
+     * The label eval spend is attributed under.
+     *
+     * `eval:<dataset>` by default, because to a provider dashboard evaluation
+     * traffic is indistinguishable from production traffic — same key, same
+     * model, same endpoint — and the first honest answer to "how much are we
+     * spending on quality?" is otherwise "we cannot tell".
+     */
+    private function costCenterFor(string $datasetName): string
+    {
+        $template = $this->config?->get('eval-harness.costs.cost_center', 'eval:{dataset}');
+
+        if (! is_string($template) || $template === '') {
+            $template = 'eval:{dataset}';
+        }
+
+        return str_replace('{dataset}', $datasetName, $template);
+    }
+
+    private function prices(): PriceBook
+    {
+        /** @var PriceBook $prices */
+        $prices = $this->container->make(PriceBook::class);
+
+        return $prices;
+    }
+
+    private function events(): ?EventDispatcher
+    {
+        if (! $this->container->bound(EventDispatcher::class)) {
+            return null;
+        }
+
+        $events = $this->container->make(EventDispatcher::class);
+
+        return $events instanceof EventDispatcher ? $events : null;
+    }
+
     public function reset(): void
     {
         $this->datasets = [];

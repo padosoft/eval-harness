@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Reports;
 
+use Padosoft\EvalHarness\Costs\BudgetOutcome;
+use Padosoft\EvalHarness\Costs\RunCost;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Datasets\RowHash;
@@ -50,6 +52,8 @@ final class EvalReport
     /**
      * @param  list<SampleResult>  $sampleResults
      * @param  list<SampleFailure>  $failures
+     * @param  RunCost|null  $cost  what the run's observable provider calls cost
+     * @param  BudgetOutcome|null  $budget  what a spending limit did to the run
      */
     public function __construct(
         public readonly string $datasetName,
@@ -59,6 +63,8 @@ final class EvalReport
         public readonly float $finishedAt,
         public readonly string $schemaVersion = ReportSchema::VERSION,
         public readonly string $datasetSchemaVersion = DatasetSchema::VERSION,
+        public readonly ?RunCost $cost = null,
+        public readonly ?BudgetOutcome $budget = null,
     ) {
         if ($schemaVersion !== ReportSchema::VERSION) {
             throw new ReportSchemaException(
@@ -1063,6 +1069,19 @@ final class EvalReport
         }
 
         return $tagKeys;
+    }
+
+    /**
+     * Whether this report describes a run that finished.
+     *
+     * A budget halt stops the run at the row that crossed the line, so the
+     * rows that would have failed may simply be the ones that never ran.
+     * Anything that reads a pass rate as a verdict has to check this first,
+     * or an out-of-money run reads as a clean one.
+     */
+    public function wasHalted(): bool
+    {
+        return $this->budget?->halted === true;
     }
 
     public function toMarkdown(): string

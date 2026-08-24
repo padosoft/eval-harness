@@ -17,7 +17,7 @@ interface ProvidesUsageDetails
      * request/score attempt and return an empty array when the current
      * attempt fails before any reportable provider usage exists.
      *
-     * @return array<string, int|float>
+     * @return array<string, int|float|string>
      */
     public function usageDetails(): array;
 }

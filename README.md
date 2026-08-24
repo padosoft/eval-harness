@@ -167,6 +167,23 @@ surface small and the offline path fast.
   that must not be executed** — the rule this ecosystem applies to model
   output reaching a router or a WebView, applied to its own artifact.
 
+- **Cost per run, and a budget that stops it** — an eval suite is the
+  one workload where a config change costs real money nobody notices
+  until the invoice: a thousand rows × three repetitions × an LLM judge
+  is three thousand paid calls that exist purely to grade, and on a
+  provider dashboard they are indistinguishable from production traffic.
+  Every report now carries what the run cost — per model, split into
+  what the provider **billed** and what was **derived** from token rates
+  you declare — and `--budget-usd=2.50` **halts** the run rather than
+  sending a receipt. A halted run always exits non-zero, because
+  incomplete data that exits zero is the worst thing a gate can produce:
+  the rows that would have failed are exactly the ones that never ran.
+  Calls on a model with no declared rate are reported as **unpriced**,
+  never as `$0.00` — a cost report that quietly says zero gets believed,
+  budgeted against and quoted in a meeting. And every run dispatches
+  `EvalRunCosted` tagged `eval:<dataset>`, so a FinOps package attributes
+  evaluation spend without either side depending on the other.
+
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

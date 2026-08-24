@@ -465,3 +465,28 @@
   readonly promoted property is an error. Copy to a local first — and the copy is
   free, since PHP arrays are copy-on-write.
 
+
+## 2026-08-24 — P5 lessons
+
+- **An unknown cost is not a zero cost.** The tempting implementation prices what
+  it knows and sums it. That produces a number that is smaller than the truth,
+  looks authoritative, and will be quoted. Three buckets — reported, derived,
+  unpriced — plus an `isComplete()` a gate can read, is barely more code and is
+  the difference between a figure and a floor.
+- **Stopping is only half the feature; exiting non-zero is the other half.** A
+  budget halt that returns 0 turns "we ran out of money" into "everything
+  passed", and the rows that never ran are disproportionately the interesting
+  ones. Same family as the P2 lesson about an empty join reading as zero
+  regressions.
+- **Check the stop condition *between* samples, not before scoring.** Before
+  scoring wastes an answer you already paid for; only after the next SUT call
+  wastes the call the budget existed to prevent.
+- **A metric that threw still spent the money.** Charging only successful metric
+  calls makes a run that fails every judge call look free — the exact opposite of
+  the truth, since it retried.
+- **Don't ship a price list.** Provider rates change monthly. A default rate in a
+  package is a number that will be wrong, silently, in somebody else's
+  production cost report.
+- **`SerialBatch::runEach` needed a `shouldStop`, not a control-flow exception.**
+  The exception version worked and read worse: a signal class whose only job is
+  to be caught two frames up is a loop condition wearing a costume.

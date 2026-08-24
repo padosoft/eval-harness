@@ -89,6 +89,10 @@
           "path": "/guides/briefing"
         },
         {
+          "title": "Cost & budgets",
+          "path": "/guides/cost-and-budgets"
+        },
+        {
           "title": "The CI gate",
           "path": "/guides/ci-gate"
         },
