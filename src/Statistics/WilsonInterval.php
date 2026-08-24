@@ -45,12 +45,15 @@ final class WilsonInterval
             (($point * (1.0 - $point)) / $trials) + ($zSquared / (4 * ($trials ** 2))),
         );
 
-        $low = max(0.0, $centre - $spread);
-        $high = min(1.0, $centre + $spread);
+        // Rounded first, then the half-width derived from the rounded bounds:
+        // a caller checking `half_width == (high - low) / 2` against the values
+        // it was handed must not find them disagreeing in the sixth decimal.
+        $low = round(max(0.0, $centre - $spread), 6);
+        $high = round(min(1.0, $centre + $spread), 6);
 
         return [
-            'low' => round($low, 6),
-            'high' => round($high, 6),
+            'low' => $low,
+            'high' => $high,
             'point' => round($point, 6),
             'half_width' => round(($high - $low) / 2, 6),
         ];

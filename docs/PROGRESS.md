@@ -2852,3 +2852,33 @@ dispersion a per-row regression gate is comparing two single draws.
 - Local gate green: `composer validate --strict` valid; `vendor/bin/phpunit` =>
   `OK (905 tests, 2507 assertions)`; PHPStan level 6 no errors; Pint passed.
 - Docs: `docs-site/docs/guides/repeated-sampling.md` + nav entry; README feature bullet.
+
+### 2026-08-24 — PR #49 review round 1 (Codex + Copilot): 7 findings, all applied
+
+All seven were legitimate; three changed behaviour, not just style.
+
+1. **Rate limit spanned only one pass** (Codex P1). `runSinglePass()` called
+   `LazyParallelBatch::run()`, which built a fresh `RateLimitWindow` each time, so
+   `--repetitions=3 --rate-limit=10` could dispatch 30 requests inside one window.
+   Fix: `LazyParallelBatch::windowFor()` is now public+static, `run()` accepts a
+   caller-supplied limiter, and `EvalEngine` builds one window for the whole run.
+2. **`precision` conflated two scopes** (Codex P1). The block used per-row `n` with a
+   pooled pass rate. Fix: it now states `scope: "per_row"` (the question a gate asks),
+   derives its variance from the **mean within-row variance** — zero for a dataset of
+   deterministic rows, where pooling wrongly reported binomial noise — and reports the
+   aggregate figure separately under `run`. New `SamplingPrecision::*FromVariance()`.
+3. **`total_samples` changed meaning** (Codex P1). With repetitions it counted
+   executions, so `ReportDiffComputer` and the eval-set/adversarial manifests would see
+   a false dataset-size change. Fix: `total_samples` is dataset rows again (v1 meaning,
+   identical at repetitions=1), `totalExecutions()`/`total_executions` carries the work
+   count, and `total_rows` was dropped as a synonym rather than shipped as one.
+4. **Programmatic `repetitions: 0` was clamped** (Codex P2 + Copilot). Now throws
+   `EvalRunException`, matching the CLI/YAML/builder/GoldenDataset validation.
+5. **`array_merge()` inside the repetition loop** (Copilot) — quadratic; appended in place.
+6. **Wilson `half_width` from unrounded bounds** (Copilot) — bounds rounded first so
+   `half_width == (high - low) / 2` holds for the values a caller was handed.
+7. Tests added for every one of the above: `SamplingPrecisionVarianceTest`,
+   `SharedRateLimitWindowTest`, plus cases in the engine, report and Wilson suites.
+
+- Local gate green: phpunit `OK (919 tests, 2541 assertions)`; PHPStan level 6 no
+  errors; Pint passed.

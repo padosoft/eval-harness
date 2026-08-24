@@ -22,8 +22,8 @@ final class SampleAggregationTest extends TestCase
         ]);
 
         $this->assertSame(1, $report->repetitions());
-        $this->assertSame(2, $report->totalRows());
         $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(2, $report->totalExecutions());
         $this->assertSame(0.5, $report->runPassRate());
     }
 
@@ -39,8 +39,8 @@ final class SampleAggregationTest extends TestCase
         ]);
 
         $this->assertSame(3, $report->repetitions());
-        $this->assertSame(2, $report->totalRows());
-        $this->assertSame(6, $report->totalSamples());
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(6, $report->totalExecutions());
 
         $aggregates = $report->sampleAggregates();
         $this->assertCount(2, $aggregates);
@@ -176,6 +176,47 @@ final class SampleAggregationTest extends TestCase
         $this->assertGreaterThan(3, $precision['required_repetitions']);
     }
 
+    /**
+     * Pooling every execution would report binomial noise for a dataset where
+     * every row is deterministic — the spread is between rows, not within them,
+     * and repeating will never move it.
+     */
+    public function test_precision_uses_within_row_variance_not_the_pooled_pass_rate(): void
+    {
+        $report = $this->report([
+            $this->sampleResult('always-passes', 1.0, 0),
+            $this->sampleResult('always-passes', 1.0, 1),
+            $this->sampleResult('always-fails', 0.0, 0),
+            $this->sampleResult('always-fails', 0.0, 1),
+        ]);
+
+        $precision = $report->precision();
+
+        $this->assertSame(0.5, $report->runPassRate());
+        $this->assertSame(0.0, $precision['within_row_variance']);
+        $this->assertStringContainsString('Every row agreed with itself', $precision['summary']);
+    }
+
+    public function test_precision_states_its_scope_and_reports_the_run_level_figure(): void
+    {
+        $report = $this->report([
+            $this->sampleResult('a', 1.0, 0),
+            $this->sampleResult('a', 0.0, 1),
+            $this->sampleResult('b', 1.0, 0),
+            $this->sampleResult('b', 0.0, 1),
+        ]);
+
+        $precision = $report->precision();
+
+        $this->assertSame('per_row', $precision['scope']);
+        $this->assertSame(2, $precision['repetitions']);
+        $this->assertSame(4, $precision['run']['observations']);
+
+        // More observations in the aggregate than in any single row, so the
+        // run-level figure is necessarily the tighter of the two.
+        $this->assertLessThan($precision['resolution'], $precision['run']['resolution']);
+    }
+
     public function test_json_report_carries_the_new_blocks(): void
     {
         $report = $this->report([
@@ -185,8 +226,8 @@ final class SampleAggregationTest extends TestCase
 
         $json = (new JsonReportRenderer)->render($report);
 
-        $this->assertSame(2, $json['total_samples']);
-        $this->assertSame(1, $json['total_rows']);
+        $this->assertSame(1, $json['total_samples']);
+        $this->assertSame(2, $json['total_executions']);
         $this->assertSame(2, $json['repetitions']);
         $this->assertSame(0.5, $json['pass_rate']);
         $this->assertSame(0, $json['samples'][0]['repetition']);
@@ -219,7 +260,7 @@ final class SampleAggregationTest extends TestCase
         $report = $this->report([]);
 
         $this->assertSame(0, $report->repetitions());
-        $this->assertSame(0, $report->totalRows());
+        $this->assertSame(0, $report->totalSamples());
         $this->assertSame(0.0, $report->runPassRate());
         $this->assertSame([], $report->sampleAggregates());
         $this->assertFalse($report->precision()['target_resolvable']);

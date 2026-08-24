@@ -92,6 +92,7 @@ Every report carries a `precision` block:
 
 ```json
 {
+  "scope": "per_row",
   "repetitions": 3,
   "pass_rate": 0.667,
   "confidence": 0.95,
@@ -99,9 +100,30 @@ Every report carries a `precision` block:
   "target_delta": 0.05,
   "target_resolvable": false,
   "required_repetitions": 683,
+  "within_row_variance": 0.222,
+  "run": { "observations": 120, "resolution": 0.084, "target_resolvable": false },
   "summary": "3 repetitions only resolve differences above 53.3 points, so a 5 points change is not distinguishable from noise here. Resolving 5 points needs at least 683 repetitions (--repetitions=683)."
 }
 ```
+
+::: tip Two scopes, never conflated
+`scope: "per_row"` is the headline, because that is the question a regression
+gate asks: *did **this row** get worse?* The relevant sample size is the number
+of repetitions that row ran — a hundred rows repeated three times gives a
+hundred separate three-trial questions, not one three-hundred-trial question.
+
+The aggregate figure travels alongside under `run`: how precisely the whole run
+pinned down its own overall pass rate, across every execution. It is always the
+tighter of the two, and quoting it for a per-row claim would promise a
+resolution the gate cannot deliver.
+:::
+
+The variance behind both is the **within-row** variance — the mean of
+`pᵢ(1-pᵢ)` across rows — not the pooled pass rate. On a dataset where half the
+rows always pass and half always fail, pooling reports substantial noise for a
+suite that never wavered: that spread is *between* rows, and no amount of
+repeating will move it. When every row agreed with itself the variance is zero,
+the rule of three takes over, and the summary says so in as many words.
 
 Read that number before you read any other number in the report. It is the
 honest version of the fixed epsilon every other tool ships: with three
@@ -124,9 +146,9 @@ The useful conclusions are the other two:
 
 ## The arithmetic
 
-Comparing two runs of the same dataset is a two-proportion comparison. With
-equal repetition counts and a shared working estimate of the pass rate `p`, the
-standard error of the difference is `sqrt(2p(1-p)/n)`, and a difference is
+Comparing the same row across two runs is a two-proportion comparison. With
+equal repetition counts, the standard error of the difference is `sqrt(2v/n)`,
+where `v` is the variance of a single execution's outcome, and a difference is
 distinguishable at confidence `z` when it exceeds `z` times that. Inverting for
 `n` gives `required_repetitions`.
 
@@ -145,8 +167,13 @@ callable directly:
 ```php
 use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
+// from a pass rate, for a quick answer
 SamplingPrecision::requiredRepetitions(passRate: 1.0, targetDelta: 0.05); // 60
 SamplingPrecision::differenceResolution(passRate: 0.5, repetitions: 30);  // ~0.253
+
+// from an observed within-row variance, which is what a report uses
+SamplingPrecision::differenceResolutionFromVariance(variance: 0.0, repetitions: 30); // 0.1
+SamplingPrecision::requiredRepetitionsFromVariance(variance: 0.25, targetDelta: 0.05); // 769
 ```
 
 ## Measuring the judge instead of the pipeline

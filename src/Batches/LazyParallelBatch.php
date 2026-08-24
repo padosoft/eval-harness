@@ -81,10 +81,16 @@ final class LazyParallelBatch
      *
      * @param  list<DatasetSample>  $samples
      * @param  list<SampleInvocation>  $sampleInvocations
+     * @param  RateLimitWindow|null  $rateLimiter  Caller-supplied limiter, so one window can span several invocations (see {@see windowFor()}); a fresh one is built per call when null.
      * @return list<string>
      */
-    public function run(array $samples, array $sampleInvocations, SampleRunner $runner, BatchOptions $options): array
-    {
+    public function run(
+        array $samples,
+        array $sampleInvocations,
+        SampleRunner $runner,
+        BatchOptions $options,
+        ?RateLimitWindow $rateLimiter = null,
+    ): array {
         $this->assertLazyParallelOptions($options);
         $samples = $this->assertSampleList($samples);
         $this->assertInvocationList($samples, $sampleInvocations);
@@ -97,7 +103,7 @@ final class LazyParallelBatch
         $resultTtlSeconds = $this->resultTtlSecondsForRun($options, $waitTimeoutSeconds, $sampleCount);
         $completed = false;
 
-        $rateLimiter = $this->rateLimitWindow($options);
+        $rateLimiter ??= self::windowFor($options);
         $checkpointEvery = $options->checkpointEvery;
         $samplesCompleted = 0;
         $nextCheckpointThreshold = $checkpointEvery;
@@ -877,7 +883,17 @@ final class LazyParallelBatch
         return $dispatched;
     }
 
-    private function rateLimitWindow(BatchOptions $options): ?RateLimitWindow
+    /**
+     * The rate limiter these options ask for, or null when unthrottled.
+     *
+     * Public and static because a rate limit is a promise about a *provider*,
+     * not about one invocation of this class. A run that repeats its dataset
+     * calls run() once per repetition, and a limiter rebuilt per call would let
+     * `--repetitions=3 --rate-limit=10` dispatch thirty requests inside a
+     * single configured window — the exact thing the flag exists to prevent.
+     * The caller builds one window and hands it to every pass.
+     */
+    public static function windowFor(BatchOptions $options): ?RateLimitWindow
     {
         if ($options->rateLimit === null) {
             return null;

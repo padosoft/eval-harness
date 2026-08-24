@@ -54,8 +54,8 @@ final class EvalCommandRepetitionsTest extends TestCase
             $json = json_decode((string) file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
 
             $this->assertSame(2, $json['repetitions']);
-            $this->assertSame(1, $json['total_rows']);
-            $this->assertSame(2, $json['total_samples']);
+            $this->assertSame(1, $json['total_samples']);
+            $this->assertSame(2, $json['total_executions']);
             $this->assertEqualsWithDelta(1.0, $json['pass_rate'], 1e-9);
             $this->assertArrayHasKey('precision', $json);
             $this->assertCount(1, $json['sample_aggregates']);

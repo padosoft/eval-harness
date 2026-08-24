@@ -17,8 +17,8 @@ namespace Padosoft\EvalHarness\Statistics;
  *
  * This class replaces the guess with the number the guess was standing in for:
  *
- *   - {@see differenceResolution()} — the smallest pass-rate difference this
- *     run can separate from noise, given how many repetitions it actually ran.
+ *   - {@see differenceResolution()} — the smallest pass-rate difference a row
+ *     can separate from noise, given how many repetitions it actually ran.
  *   - {@see requiredRepetitions()} — how many repetitions it would take to
  *     resolve the difference you care about.
  *   - {@see describe()} — both of those in a sentence an operator can act on.
@@ -30,20 +30,40 @@ namespace Padosoft\EvalHarness\Statistics;
  *
  * ## The maths, briefly
  *
- * Comparing two runs of the same dataset is a two-proportion comparison. The
+ * Comparing the same row across two runs is a two-proportion comparison. The
  * standard error of the difference between two independent pass rates is
  * `sqrt(p₁(1-p₁)/n₁ + p₂(1-p₂)/n₂)`; with equal repetition counts and a shared
- * working estimate of `p` that is `sqrt(2p(1-p)/n)`, and a difference is
- * distinguishable at confidence `z` when it exceeds `z` times that. Inverting
- * for `n` gives `requiredRepetitions()`.
+ * working estimate that is `sqrt(2v/n)` where `v` is the variance of a single
+ * execution's outcome, and a difference is distinguishable at confidence `z`
+ * when it exceeds `z` times that. Inverting for `n` gives
+ * `requiredRepetitions()`.
  *
- * The edge case is the one that matters most in practice, because it is where
- * healthy suites live: a row that passed every repetition has `p(1-p) = 0`, and
- * the formula above would report that zero repetitions suffice. It does not.
- * With no observed failures in `n` trials the 95% upper bound on the failure
- * rate is approximately `3/n` — the "rule of three" — so resolving a drop of
- * `δ` from a perfect record needs `n ≥ 3/δ`. That branch is why a 100% row is
- * reported as "could not have seen a 5-point drop" rather than as certainty.
+ * ## Which variance
+ *
+ * There are two candidates and they answer different questions.
+ *
+ * Pooling every execution of every row gives `p̄(1-p̄)` over the whole run, and
+ * for a dataset where half the rows always pass and half always fail that
+ * reports substantial noise for a suite that never wavered — the spread is
+ * *between* rows, not *within* them, and no amount of repeating will change a
+ * row that is deterministic.
+ *
+ * The variance that matters for a per-row gate is the **mean within-row
+ * variance**: average `pᵢ(1-pᵢ)` across rows. It is zero exactly when every row
+ * agreed with itself, which is the honest input to the question the gate asks.
+ * Both entry points exist — {@see differenceResolution()} from a pass rate for
+ * direct callers, {@see differenceResolutionFromVariance()} from an observed
+ * variance for a report — and `EvalReport` uses the latter.
+ *
+ * ## The edge case that matters most
+ *
+ * A row that passed every repetition has zero variance, and the formula above
+ * would report that zero repetitions suffice. It does not. With no observed
+ * failures in `n` trials the 95% upper bound on the failure rate is
+ * approximately `3/n` — the "rule of three" — so resolving a drop of `δ` from a
+ * perfect record needs `n ≥ 3/δ`. That branch is why a 100% row is reported as
+ * "could not have seen a 5-point drop" rather than as certainty, and it is
+ * where healthy suites live.
  */
 final class SamplingPrecision
 {
@@ -51,23 +71,35 @@ final class SamplingPrecision
     public const DEFAULT_TARGET_DELTA = 0.05;
 
     /**
-     * Smallest pass-rate difference distinguishable from sampling noise.
+     * Smallest pass-rate difference distinguishable from sampling noise, from
+     * an observed pass rate.
      *
-     * Returns 1.0 (i.e. "nothing is distinguishable") for a run with fewer than
-     * two repetitions, because a single draw carries no dispersion at all.
+     * Returns 1.0 (i.e. "nothing is distinguishable") for fewer than two
+     * repetitions, because a single draw carries no dispersion at all.
      */
     public static function differenceResolution(float $passRate, int $repetitions, float $z = WilsonInterval::Z_95): float
+    {
+        $passRate = self::clampProportion($passRate);
+
+        return self::differenceResolutionFromVariance($passRate * (1.0 - $passRate), $repetitions, $z);
+    }
+
+    /**
+     * Same, from an observed per-execution variance.
+     *
+     * @param  float  $variance  mean within-row variance of a single execution's outcome
+     */
+    public static function differenceResolutionFromVariance(float $variance, int $repetitions, float $z = WilsonInterval::Z_95): float
     {
         if ($repetitions < 2) {
             return 1.0;
         }
 
-        $passRate = self::clampProportion($passRate);
-        $variance = $passRate * (1.0 - $passRate);
+        $variance = max(0.0, $variance);
 
         if ($variance <= 0.0) {
-            // Rule of three: no observed failures still allows a failure rate
-            // up to ~3/n, and that bound is the resolution.
+            // Rule of three: no observed disagreement still allows a failure
+            // rate up to ~3/n, and that bound is the resolution.
             return min(1.0, round(3.0 / $repetitions, 6));
         }
 
@@ -82,12 +114,24 @@ final class SamplingPrecision
         float $targetDelta = self::DEFAULT_TARGET_DELTA,
         float $z = WilsonInterval::Z_95,
     ): int {
+        $passRate = self::clampProportion($passRate);
+
+        return self::requiredRepetitionsFromVariance($passRate * (1.0 - $passRate), $targetDelta, $z);
+    }
+
+    /**
+     * Same, from an observed per-execution variance.
+     */
+    public static function requiredRepetitionsFromVariance(
+        float $variance,
+        float $targetDelta = self::DEFAULT_TARGET_DELTA,
+        float $z = WilsonInterval::Z_95,
+    ): int {
         if ($targetDelta <= 0.0 || $targetDelta > 1.0) {
             return 0;
         }
 
-        $passRate = self::clampProportion($passRate);
-        $variance = $passRate * (1.0 - $passRate);
+        $variance = max(0.0, $variance);
 
         if ($variance <= 0.0) {
             return (int) ceil(3.0 / $targetDelta);
@@ -116,8 +160,41 @@ final class SamplingPrecision
         float $targetDelta = self::DEFAULT_TARGET_DELTA,
         float $z = WilsonInterval::Z_95,
     ): array {
-        $resolution = self::differenceResolution($passRate, $repetitions, $z);
-        $required = self::requiredRepetitions($passRate, $targetDelta, $z);
+        $passRate = self::clampProportion($passRate);
+
+        return self::describeFromVariance(
+            variance: $passRate * (1.0 - $passRate),
+            repetitions: $repetitions,
+            passRate: $passRate,
+            targetDelta: $targetDelta,
+            z: $z,
+        );
+    }
+
+    /**
+     * Same, from an observed per-execution variance.
+     *
+     * @return array{
+     *     repetitions: int,
+     *     pass_rate: float,
+     *     confidence: float,
+     *     resolution: float,
+     *     target_delta: float,
+     *     target_resolvable: bool,
+     *     required_repetitions: int,
+     *     summary: string
+     * }
+     */
+    public static function describeFromVariance(
+        float $variance,
+        int $repetitions,
+        float $passRate,
+        float $targetDelta = self::DEFAULT_TARGET_DELTA,
+        float $z = WilsonInterval::Z_95,
+    ): array {
+        $variance = max(0.0, $variance);
+        $resolution = self::differenceResolutionFromVariance($variance, $repetitions, $z);
+        $required = self::requiredRepetitionsFromVariance($variance, $targetDelta, $z);
         $resolvable = $repetitions >= 2 && $resolution <= $targetDelta;
 
         return [
@@ -128,7 +205,7 @@ final class SamplingPrecision
             'target_delta' => round($targetDelta, 6),
             'target_resolvable' => $resolvable,
             'required_repetitions' => $required,
-            'summary' => self::summarise($repetitions, $resolution, $targetDelta, $required, $resolvable),
+            'summary' => self::summarise($repetitions, $resolution, $targetDelta, $required, $resolvable, $variance),
         ];
     }
 
@@ -138,6 +215,7 @@ final class SamplingPrecision
         float $targetDelta,
         int $required,
         bool $resolvable,
+        float $variance,
     ): string {
         $targetPoints = self::points($targetDelta);
 
@@ -151,24 +229,33 @@ final class SamplingPrecision
             );
         }
 
+        // Zero observed variance is not certainty, and saying why keeps the
+        // number from reading as a bug: every row agreed with itself, so what
+        // bounds the answer is the length of the run, not its noise.
+        $steadyNote = $variance <= 0.0
+            ? ' Every row agreed with itself across repetitions, so the limit here is what a run this short can rule out at all, not measured noise.'
+            : '';
+
         if ($resolvable) {
             return sprintf(
-                '%d repetitions resolve differences down to %s, which covers the %s you asked about.',
+                '%d repetitions resolve differences down to %s, which covers the %s you asked about.%s',
                 $repetitions,
                 self::points($resolution),
                 $targetPoints,
+                $steadyNote,
             );
         }
 
         return sprintf(
             '%d repetitions only resolve differences above %s, so a %s change is not distinguishable from noise here. '
-            .'Resolving %s needs at least %d repetitions (--repetitions=%d).',
+            .'Resolving %s needs at least %d repetitions (--repetitions=%d).%s',
             $repetitions,
             self::points($resolution),
             $targetPoints,
             $targetPoints,
             $required,
             $required,
+            $steadyNote,
         );
     }
 

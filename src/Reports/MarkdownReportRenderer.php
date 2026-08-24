@@ -9,8 +9,8 @@ namespace Padosoft\EvalHarness\Reports;
  *
  * Output structure:
  *   - H1 with dataset name.
- *   - Summary table: total samples, rows, repetitions, pass rate,
- *     total failures, duration.
+ *   - Summary table: total samples (dataset rows), executions,
+ *     repetitions, pass rate, total failures, duration.
  *   - Sampling section: what difference this run could detect, and the
  *     rows whose repetitions disagreed with each other.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
@@ -33,21 +33,22 @@ final class MarkdownReportRenderer
         $lines[] = sprintf('# Eval report — %s', $this->headingText($report->datasetName));
         $lines[] = '';
         $lines[] = sprintf(
-            '_Run completed in %.2fs over %d samples (%d failures captured)._',
+            '_Run completed in %.2fs over %d samples in %d executions (%d failures captured)._',
             $report->durationSeconds(),
             $report->totalSamples(),
+            $report->totalExecutions(),
             $report->totalFailures(),
         );
         $lines[] = '';
 
         $lines[] = '## Summary';
         $lines[] = '';
-        $lines[] = '| total samples | rows | repetitions | pass rate | total failures | duration seconds |';
+        $lines[] = '| total samples | executions | repetitions | pass rate | total failures | duration seconds |';
         $lines[] = '| --- | --- | --- | --- | --- | --- |';
         $lines[] = sprintf(
             '| %d | %d | %d | %.4f | %d | %.2f |',
             $report->totalSamples(),
-            $report->totalRows(),
+            $report->totalExecutions(),
             $report->repetitions(),
             $report->runPassRate(),
             $report->totalFailures(),

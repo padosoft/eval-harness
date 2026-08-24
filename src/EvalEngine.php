@@ -9,6 +9,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Container\Container;
 use Padosoft\EvalHarness\Batches\BatchOptions;
 use Padosoft\EvalHarness\Batches\LazyParallelBatch;
+use Padosoft\EvalHarness\Batches\RateLimitWindow;
 use Padosoft\EvalHarness\Batches\SerialBatch;
 use Padosoft\EvalHarness\Contracts\SampleInvocation;
 use Padosoft\EvalHarness\Contracts\SampleRunner;
@@ -164,10 +165,24 @@ final class EvalEngine
         $sampleResults = [];
         $failures = [];
 
+        // One limiter for the whole run, not one per pass: a rate limit is a
+        // promise about how hard a provider gets hit, and three passes each
+        // opening a fresh window would break that promise by exactly the
+        // repetition count.
+        $rateLimiter = LazyParallelBatch::windowFor($batchOptions ?? BatchOptions::serial());
+
         for ($repetition = 0; $repetition < $passes; $repetition++) {
-            $report = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, $repetition);
-            $sampleResults = array_merge($sampleResults, $report->sampleResults);
-            $failures = array_merge($failures, $report->failures);
+            $report = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, $repetition, $rateLimiter);
+
+            // Appended in place rather than array_merge()d: merging inside the
+            // loop reallocates the whole accumulator on every pass, which is
+            // quadratic in repetitions for no benefit.
+            foreach ($report->sampleResults as $result) {
+                $sampleResults[] = $result;
+            }
+            foreach ($report->failures as $failure) {
+                $failures[] = $failure;
+            }
         }
 
         return new EvalReport(
@@ -182,10 +197,27 @@ final class EvalEngine
 
     /**
      * Executions per row for this run: explicit override, else the dataset's.
+     *
+     * An explicit zero or negative value is rejected rather than clamped. The
+     * CLI, the YAML loader, the builder and GoldenDataset all refuse those, and
+     * a programmatic caller quietly getting one execution out of
+     * `repetitions: 0` would spend the tokens and produce a report that hides
+     * its own misconfiguration.
      */
     private function resolveRepetitions(GoldenDataset $dataset, ?int $repetitions): int
     {
-        return max(1, $repetitions ?? $dataset->repetitions);
+        if ($repetitions === null) {
+            return max(1, $dataset->repetitions);
+        }
+
+        if ($repetitions < 1) {
+            throw new EvalRunException(sprintf(
+                'Repetitions must be at least 1; got %d.',
+                $repetitions,
+            ));
+        }
+
+        return $repetitions;
     }
 
     private function runSinglePass(
@@ -193,6 +225,7 @@ final class EvalEngine
         callable|SampleRunner $systemUnderTest,
         ?BatchOptions $batchOptions,
         int $repetition,
+        ?RateLimitWindow $rateLimiter = null,
     ): EvalReport {
         $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
@@ -221,6 +254,7 @@ final class EvalEngine
                     sampleInvocations: $sampleInvocations,
                     runner: $sampleRunner,
                     options: $batchOptions,
+                    rateLimiter: $rateLimiter,
                 ),
             );
         }
@@ -303,8 +337,12 @@ final class EvalEngine
                 actualOutputForSample: $actualOutputForSample,
                 repetition: $repetition,
             );
-            $sampleResults = array_merge($sampleResults, $report->sampleResults);
-            $failures = array_merge($failures, $report->failures);
+            foreach ($report->sampleResults as $result) {
+                $sampleResults[] = $result;
+            }
+            foreach ($report->failures as $failure) {
+                $failures[] = $failure;
+            }
         }
 
         return new EvalReport(

@@ -90,7 +90,24 @@ final class EvalReport
         return max(0.0, $this->finishedAt - $this->startedAt);
     }
 
+    /**
+     * Distinct dataset rows in this run.
+     *
+     * This is the number a human curated, and it is what the `total_samples`
+     * field has always meant. A run that repeats each row does not have a
+     * bigger dataset — see {@see totalExecutions()} for the work it did.
+     */
     public function totalSamples(): int
+    {
+        return $this->totalRows();
+    }
+
+    /**
+     * Individual executions in this run: rows x repetitions.
+     *
+     * This is what metric means are averaged over, and what a run costs.
+     */
+    public function totalExecutions(): int
     {
         return count($this->sampleResults);
     }
@@ -204,10 +221,9 @@ final class EvalReport
     /**
      * Distinct dataset rows in this run.
      *
-     * {@see totalSamples()} counts executions, which is the number the metric
-     * means are averaged over; this counts the rows a human curated. They are
-     * the same number until a run repeats, and reporting only the first one
-     * after that would quietly inflate the apparent size of a dataset.
+     * Identical to {@see totalSamples()}; kept as the unambiguous name for
+     * code that also deals with {@see totalExecutions()} and should not have
+     * to remember which of the two "samples" means.
      */
     public function totalRows(): int
     {
@@ -277,9 +293,26 @@ final class EvalReport
     }
 
     /**
-     * What difference this run was actually able to detect.
+     * What difference this run was actually able to detect, **per row**.
+     *
+     * The scope matters and is stated in the payload. A regression gate asks
+     * "did *this row* get worse?", so the relevant sample size is the number of
+     * repetitions that row ran — not the total number of executions in the run.
+     * A hundred rows repeated three times gives a hundred separate three-trial
+     * questions, not one three-hundred-trial question, and reporting the latter
+     * would promise a resolution the gate cannot deliver.
+     *
+     * The variance fed to it is the mean *within-row* variance, not the pooled
+     * pass rate. On a dataset where half the rows always pass and half always
+     * fail, pooling reports substantial noise for a suite that never wavered:
+     * that spread is between rows, and no amount of repeating will move it.
+     *
+     * The aggregate figure — how precisely this run pinned down its own overall
+     * pass rate, across every execution — travels alongside under `run`, so the
+     * two are never confused for one another.
      *
      * @return array{
+     *     scope: string,
      *     repetitions: int,
      *     pass_rate: float,
      *     confidence: float,
@@ -287,16 +320,60 @@ final class EvalReport
      *     target_delta: float,
      *     target_resolvable: bool,
      *     required_repetitions: int,
-     *     summary: string
+     *     summary: string,
+     *     within_row_variance: float,
+     *     run: array{observations: int, resolution: float, target_resolvable: bool}
      * }
      */
     public function precision(?float $targetDelta = null): array
     {
-        return SamplingPrecision::describe(
-            passRate: $this->runPassRate(),
+        $targetDelta ??= SamplingPrecision::DEFAULT_TARGET_DELTA;
+        $variance = $this->meanWithinRowVariance();
+        $passRate = $this->runPassRate();
+        $executions = $this->totalExecutions();
+
+        $perRow = SamplingPrecision::describeFromVariance(
+            variance: $variance,
             repetitions: $this->repetitions(),
-            targetDelta: $targetDelta ?? SamplingPrecision::DEFAULT_TARGET_DELTA,
+            passRate: $passRate,
+            targetDelta: $targetDelta,
         );
+
+        $runResolution = SamplingPrecision::differenceResolutionFromVariance($variance, $executions);
+
+        return [
+            'scope' => 'per_row',
+            ...$perRow,
+            'within_row_variance' => round($variance, 6),
+            'run' => [
+                'observations' => $executions,
+                'resolution' => $runResolution,
+                'target_resolvable' => $executions >= 2 && $runResolution <= $targetDelta,
+            ],
+        ];
+    }
+
+    /**
+     * Mean variance of a single execution's outcome, averaged across rows.
+     *
+     * Zero exactly when every row agreed with itself across its repetitions,
+     * which is the honest input to "could this run have seen a change in a
+     * row?".
+     */
+    private function meanWithinRowVariance(): float
+    {
+        $aggregates = $this->sampleAggregates();
+
+        if ($aggregates === []) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        foreach ($aggregates as $aggregate) {
+            $total += $aggregate->passRate * (1.0 - $aggregate->passRate);
+        }
+
+        return $total / count($aggregates);
     }
 
     /**

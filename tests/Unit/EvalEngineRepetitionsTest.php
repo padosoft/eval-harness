@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Tests\Unit;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Tests\TestCase;
 
 final class EvalEngineRepetitionsTest extends TestCase
@@ -27,6 +28,7 @@ final class EvalEngineRepetitionsTest extends TestCase
         $this->assertSame(2, $calls);
         $this->assertSame(1, $report->repetitions());
         $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(2, $report->totalExecutions());
     }
 
     public function test_repetitions_execute_the_system_under_test_repeatedly(): void
@@ -44,8 +46,8 @@ final class EvalEngineRepetitionsTest extends TestCase
 
         $this->assertSame(6, $calls);
         $this->assertSame(3, $report->repetitions());
-        $this->assertSame(2, $report->totalRows());
-        $this->assertSame(6, $report->totalSamples());
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(6, $report->totalExecutions());
     }
 
     /**
@@ -207,14 +209,41 @@ final class EvalEngineRepetitionsTest extends TestCase
         $report = $engine->scoreOutputs('rep.outputs', ['s1' => '4', 's2' => '6'], repetitions: 3);
 
         $this->assertSame(3, $report->repetitions());
-        $this->assertSame(6, $report->totalSamples());
-        $this->assertSame(2, $report->totalRows());
+        $this->assertSame(2, $report->totalSamples());
+        $this->assertSame(6, $report->totalExecutions());
 
         // Deterministic metrics over fixed outputs: zero spread by construction.
         foreach ($report->sampleAggregates() as $aggregate) {
             $this->assertSame(0.0, $aggregate->scoreStddev);
             $this->assertFalse($aggregate->isUnstable());
         }
+    }
+
+    /**
+     * The CLI, the YAML loader, the builder and GoldenDataset all refuse a
+     * non-positive value; a programmatic caller quietly getting one execution
+     * out of `repetitions: 0` would spend the tokens and produce a report that
+     * hides its own misconfiguration.
+     */
+    public function test_a_non_positive_run_argument_is_rejected(): void
+    {
+        $engine = $this->engine();
+        $this->registerDataset($engine, 'rep.reject');
+
+        $this->expectException(EvalRunException::class);
+        $this->expectExceptionMessage('Repetitions must be at least 1');
+
+        $engine->run('rep.reject', static fn (): string => '4', repetitions: 0);
+    }
+
+    public function test_a_negative_run_argument_is_rejected(): void
+    {
+        $engine = $this->engine();
+        $this->registerDataset($engine, 'rep.reject.negative');
+
+        $this->expectException(EvalRunException::class);
+
+        $engine->scoreOutputs('rep.reject.negative', ['s1' => '4', 's2' => '6'], repetitions: -3);
     }
 
     private function engine(): EvalEngine

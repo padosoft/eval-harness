@@ -80,6 +80,19 @@ final class WilsonIntervalTest extends TestCase
         );
     }
 
+    public function test_half_width_matches_the_returned_bounds(): void
+    {
+        foreach ([[1, 3], [2, 3], [7, 9], [13, 17], [99, 100]] as [$successes, $trials]) {
+            $interval = WilsonInterval::forProportion($successes, $trials);
+
+            $this->assertSame(
+                round(($interval['high'] - $interval['low']) / 2, 6),
+                $interval['half_width'],
+                'half_width must be derivable from the bounds a caller was handed',
+            );
+        }
+    }
+
     public function test_higher_confidence_widens_the_interval(): void
     {
         $ninetyFive = WilsonInterval::forProportion(5, 10, WilsonInterval::Z_95);

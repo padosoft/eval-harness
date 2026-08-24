@@ -376,3 +376,21 @@
 - **Additive report keys still break exact-array assertions.** `test_failures_are_serialised`
   asserted the whole `failures[]` row with `assertSame`; adding `repetition` failed it.
   Additive-only is a contract about consumers, not about the package's own tests.
+
+## 2026-08-24 — Review lessons from PR #49
+
+- **A per-call limiter is not a rate limit.** Anything that repeats an operation must
+  hold the window outside the operation, or the limit is multiplied by the repetition
+  count. Same trap applies to retries and to any future "run the suite N times" flag.
+- **Say which scope a statistic belongs to.** A resolution computed with per-row `n` and
+  a run-level pass rate is two different questions wearing one name. Naming the scope in
+  the payload (`scope: "per_row"`) is cheaper than a reviewer working it out.
+- **Pooled variance lies about deterministic datasets.** Half-always-pass /
+  half-always-fail pools to p=0.5 and reports noise for a suite that never wavered. Use
+  the mean *within-row* variance whenever the question is about a row.
+- **A field's meaning is part of the contract, not just its name.** `total_samples`
+  silently becoming rows×repetitions would have made every stored manifest and every
+  diff wrong without a schema bump. Add a field; do not redefine one.
+- **The batch records against `hrtime()`, not `microtime()`.** A test probing a
+  `RateLimitWindow` must read the same clock or every record looks decades old and gets
+  pruned.
