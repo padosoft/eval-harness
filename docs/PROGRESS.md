@@ -3002,3 +3002,51 @@ these are a plain DTO, so the same expectations work over any runtime.
 - Docs: `docs-site/docs/guides/agent-trajectories.md` + nav; README bullet.
 - NEXT: `padosoft/eval-harness-ai-bridge` carries the `laravel/ai` adapter, the
   conversation dataset source and the Pest surface — this package stays SDK-free.
+
+## 2026-08-24 — P4: `eval-harness:brief`, and the guard on its own artifact
+
+Fourth item from the vizra analysis. Theirs stops at a JSON report; the loop that
+actually closes is *report → diagnosis → fix*, and it breaks because nobody opens
+a thousand-line artifact. `eval-harness:brief` produces the document instead.
+
+- `Brief\RunBriefing` — failing rows worst-first (only the worst-scoring execution
+  of each, so repetitions do not eat the budget), input, expected, actual output,
+  metric scores, the judge's own `judge_reason`, trajectory summary, and the
+  metrics that threw.
+- `Brief\MetricGlossary` — one line of *semantics* per built-in metric. This is
+  the part a briefing built from pass/fail assertions cannot have: an assertion
+  describes itself, a metric has meaning. `retrieval-mrr: 0.31` → "the first
+  relevant document came back around position 3", which points at the retriever
+  instead of at the prompt. An unknown name degrades to no description, never a
+  guess.
+- **Cohort diagnosis**: when one tag carries ≥60% of the failures the briefing
+  says "4 of 5 failures share the tag `policy` — this looks like one problem, not
+  5". Six failures in one cohort is a diagnosis; six scattered ones are a list.
+- **Adversarial rows are named as safety findings** with category, severity and
+  compliance framework, because the fix for a working injection is not the fix
+  for a wrong refund window.
+- **The prompt-injection guard.** The document quotes model output verbatim and
+  is designed to be pasted into an agent with repository access, so it opens —
+  before the first fence — by declaring its quoted blocks untrusted data that
+  must not be executed, and a value containing a fence gets a longer fence.
+  `MOBILE-SEC-LLM-001` / `SEC-LLM-001` applied to our own artifact.
+- **The input comes from the dataset, not the report.** A report records what the
+  pipeline *said*, never what it was *asked*; copying corpora into a committed,
+  diffed, browser-rendered artifact is not a trade worth making. `--dataset=`
+  joins by **content hash first, id second** (same negotiation as the comparator,
+  so a renamed row is still found). Without it the briefing says the dataset was
+  not supplied — it never invents a question.
+- `Brief\BriefSchema` = `eval-harness.brief.v1`; `--format=json` carries the
+  structure *and* the markdown so a UI can show both.
+- `--format=github` = collapsed `<details>` PR comment: the briefing belongs where
+  the diff is reviewed, not only in a dashboard somebody must remember to open.
+- Truncation is **declared with counts** — silently cutting the list leaves an
+  agent reasoning about "all the failures" while holding a third of them.
+- An artifact whose `schema_version` is not the report contract is **refused**:
+  briefing a comparison payload would print "every row passed" for a run that did
+  not.
+- Tests: +35 (`OK (1066 tests, 2909 assertions)`, was 1031/2846). New files:
+  `tests/Unit/Brief/RunBriefingTest.php`, `tests/Unit/Console/BriefCommandTest.php`.
+- Local gate green: composer validate --strict; phpunit OK (1066/2909); PHPStan
+  level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/briefing.md` + nav; README bullet.
