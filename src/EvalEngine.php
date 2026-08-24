@@ -125,19 +125,75 @@ final class EvalEngine
      * Run an eval pass.
      *
      * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
+     * @param  int|null  $repetitions  Executions per row; null uses the dataset's own setting (default 1).
      */
-    public function run(string $datasetName, callable|SampleRunner $systemUnderTest): EvalReport
+    public function run(string $datasetName, callable|SampleRunner $systemUnderTest, ?int $repetitions = null): EvalReport
     {
-        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial());
+        return $this->runBatch($datasetName, $systemUnderTest, BatchOptions::serial(), $repetitions);
     }
 
     /**
      * Run an eval pass through an explicit batch strategy.
      *
+     * When the dataset (or the caller) asks for more than one repetition, the
+     * whole pass is executed that many times and the executions are merged into
+     * a single report. Repeating the pass rather than the individual sample is
+     * deliberate: it keeps every batch mode, rate limit and checkpoint working
+     * unchanged, and it spreads the repetitions of one row across the run
+     * instead of firing them back-to-back — which matters, because three calls
+     * in the same second against a provider that caches aggressively are closer
+     * to one measurement than to three.
+     *
      * @param  SampleRunner|callable  $systemUnderTest  Legacy callables receive sample input; callables typed as SampleInvocation receive the runner DTO.
+     * @param  int|null  $repetitions  Executions per row; null uses the dataset's own setting (default 1).
      */
-    public function runBatch(string $datasetName, callable|SampleRunner $systemUnderTest, ?BatchOptions $batchOptions = null): EvalReport
+    public function runBatch(
+        string $datasetName,
+        callable|SampleRunner $systemUnderTest,
+        ?BatchOptions $batchOptions = null,
+        ?int $repetitions = null,
+    ): EvalReport {
+        $dataset = $this->getDataset($datasetName);
+        $passes = $this->resolveRepetitions($dataset, $repetitions);
+
+        if ($passes === 1) {
+            return $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, 0);
+        }
+
+        $startedAt = microtime(true);
+        $sampleResults = [];
+        $failures = [];
+
+        for ($repetition = 0; $repetition < $passes; $repetition++) {
+            $report = $this->runSinglePass($datasetName, $systemUnderTest, $batchOptions, $repetition);
+            $sampleResults = array_merge($sampleResults, $report->sampleResults);
+            $failures = array_merge($failures, $report->failures);
+        }
+
+        return new EvalReport(
+            datasetName: $datasetName,
+            sampleResults: $sampleResults,
+            failures: $failures,
+            startedAt: $startedAt,
+            finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
+        );
+    }
+
+    /**
+     * Executions per row for this run: explicit override, else the dataset's.
+     */
+    private function resolveRepetitions(GoldenDataset $dataset, ?int $repetitions): int
     {
+        return max(1, $repetitions ?? $dataset->repetitions);
+    }
+
+    private function runSinglePass(
+        string $datasetName,
+        callable|SampleRunner $systemUnderTest,
+        ?BatchOptions $batchOptions,
+        int $repetition,
+    ): EvalReport {
         $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
         $batchOptions ??= BatchOptions::serial();
@@ -159,6 +215,7 @@ final class EvalEngine
                 datasetName: $datasetName,
                 dataset: $dataset,
                 startedAt: $startedAt,
+                repetition: $repetition,
                 actualOutputs: $this->lazyParallelBatch()->run(
                     samples: $dataset->samples,
                     sampleInvocations: $sampleInvocations,
@@ -187,6 +244,7 @@ final class EvalEngine
                 callableExpectsSampleInvocation: $callableExpectsSampleInvocation,
             ),
             batchOptions: $batchOptions,
+            repetition: $repetition,
         );
     }
 
@@ -212,17 +270,50 @@ final class EvalEngine
      *
      * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs  Map or loaded saved-output entries.
      */
-    public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs): EvalReport
+    public function scoreOutputs(string $datasetName, array|SavedOutputs $actualOutputs, ?int $repetitions = null): EvalReport
     {
-        $startedAt = microtime(true);
         $dataset = $this->getDataset($datasetName);
         $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
+        $actualOutputForSample = static fn (DatasetSample $sample, int $_index): string => $outputs[self::sampleIdKey($sample->id)];
+        $passes = $this->resolveRepetitions($dataset, $repetitions);
 
-        return $this->scoreDataset(
+        if ($passes === 1) {
+            return $this->scoreDataset(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: microtime(true),
+                actualOutputForSample: $actualOutputForSample,
+            );
+        }
+
+        // Repeating a scoring pass over fixed outputs measures the *metrics*
+        // rather than the pipeline: deterministic metrics return a stddev of
+        // zero by construction, and anything left moving is the judge
+        // disagreeing with itself. That is the cheapest judge-stability check
+        // in the package — no pipeline invocation, no new dataset.
+        $startedAt = microtime(true);
+        $sampleResults = [];
+        $failures = [];
+
+        for ($repetition = 0; $repetition < $passes; $repetition++) {
+            $report = $this->scoreDataset(
+                datasetName: $datasetName,
+                dataset: $dataset,
+                startedAt: microtime(true),
+                actualOutputForSample: $actualOutputForSample,
+                repetition: $repetition,
+            );
+            $sampleResults = array_merge($sampleResults, $report->sampleResults);
+            $failures = array_merge($failures, $report->failures);
+        }
+
+        return new EvalReport(
             datasetName: $datasetName,
-            dataset: $dataset,
+            sampleResults: $sampleResults,
+            failures: $failures,
             startedAt: $startedAt,
-            actualOutputForSample: static fn (DatasetSample $sample, int $_index): string => $outputs[self::sampleIdKey($sample->id)],
+            finishedAt: microtime(true),
+            datasetSchemaVersion: $dataset->schemaVersion,
         );
     }
 
@@ -235,6 +326,7 @@ final class EvalEngine
         float $startedAt,
         callable $actualOutputForSample,
         ?BatchOptions $batchOptions = null,
+        int $repetition = 0,
     ): EvalReport {
         $batchOptions ??= BatchOptions::serial();
 
@@ -244,6 +336,7 @@ final class EvalEngine
                 dataset: $dataset,
                 startedAt: $startedAt,
                 actualOutputForSample: $actualOutputForSample,
+                repetition: $repetition,
             );
         }
 
@@ -252,22 +345,28 @@ final class EvalEngine
             dataset: $dataset,
             startedAt: $startedAt,
             actualOutputs: $this->sampleOutputsForBatch($dataset, $actualOutputForSample, $batchOptions),
+            repetition: $repetition,
         );
     }
 
     /**
      * @param  callable(DatasetSample, int): string  $actualOutputForSample
      */
-    private function scoreSerialDataset(string $datasetName, GoldenDataset $dataset, float $startedAt, callable $actualOutputForSample): EvalReport
-    {
+    private function scoreSerialDataset(
+        string $datasetName,
+        GoldenDataset $dataset,
+        float $startedAt,
+        callable $actualOutputForSample,
+        int $repetition = 0,
+    ): EvalReport {
         $sampleResults = [];
         $failures = [];
 
         $this->serialBatch->runEach(
             samples: $dataset->samples,
             actualOutputForSample: $actualOutputForSample,
-            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, &$sampleResults, &$failures): void {
-                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
+            handleOutput: function (DatasetSample $sample, int $_index, string $actualOutput) use ($dataset, $repetition, &$sampleResults, &$failures): void {
+                $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition);
             },
         );
 
@@ -284,8 +383,13 @@ final class EvalEngine
     /**
      * @param  list<string>  $actualOutputs
      */
-    private function scoreDatasetOutputs(string $datasetName, GoldenDataset $dataset, float $startedAt, array $actualOutputs): EvalReport
-    {
+    private function scoreDatasetOutputs(
+        string $datasetName,
+        GoldenDataset $dataset,
+        float $startedAt,
+        array $actualOutputs,
+        int $repetition = 0,
+    ): EvalReport {
         $sampleResults = [];
         $failures = [];
 
@@ -300,7 +404,7 @@ final class EvalEngine
 
             $actualOutput = $actualOutputs[$index];
 
-            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures);
+            $sampleResults[] = $this->scoreSampleResult($dataset, $sample, $actualOutput, $failures, $repetition);
         }
 
         return new EvalReport(
@@ -316,8 +420,13 @@ final class EvalEngine
     /**
      * @param  list<SampleFailure>  $failures
      */
-    private function scoreSampleResult(GoldenDataset $dataset, DatasetSample $sample, string $actualOutput, array &$failures): SampleResult
-    {
+    private function scoreSampleResult(
+        GoldenDataset $dataset,
+        DatasetSample $sample,
+        string $actualOutput,
+        array &$failures,
+        int $repetition = 0,
+    ): SampleResult {
         $metricScores = [];
         foreach ($dataset->metrics as $metric) {
             try {
@@ -332,6 +441,7 @@ final class EvalEngine
                     metricName: $metric->name(),
                     error: $e->getMessage(),
                     details: MetricUsageDetails::append([], $metric),
+                    repetition: $repetition,
                 );
             }
         }
@@ -340,6 +450,7 @@ final class EvalEngine
             sample: $sample,
             actualOutput: $actualOutput,
             metricScores: $metricScores,
+            repetition: $repetition,
         );
     }
 

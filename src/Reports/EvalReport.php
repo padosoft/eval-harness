@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Reports;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
+use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
 /**
  * Read-only outcome of an eval run.
@@ -28,6 +29,14 @@ use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
  */
 final class EvalReport
 {
+    /**
+     * Score at or above which a metric counts as "passed".
+     *
+     * Shared by macro-F1 and by the per-row pass rate so the two can never
+     * drift apart and disagree about what passing means.
+     */
+    public const PASS_THRESHOLD = 0.5;
+
     private const UNTAGGED_COHORT_KEY = "\0eval-harness.untagged";
 
     private const SEVERITY_PRECEDENCE = [
@@ -72,6 +81,9 @@ final class EvalReport
             );
         }
     }
+
+    /** @var list<SampleAggregate>|null */
+    private ?array $sampleAggregatesCache = null;
 
     public function durationSeconds(): float
     {
@@ -157,7 +169,7 @@ final class EvalReport
             }
             $passed = 0;
             foreach ($values as $v) {
-                if ($v >= 0.5) {
+                if ($v >= self::PASS_THRESHOLD) {
                     $passed++;
                 }
             }
@@ -170,6 +182,206 @@ final class EvalReport
         }
 
         return $totals / $count;
+    }
+
+    /**
+     * How many times each row was executed in this run.
+     *
+     * Derived rather than stored, so a report built by an older caller (or
+     * rehydrated from a v1 JSON artifact that predates repetitions) still
+     * answers correctly: one execution per row is 1.
+     */
+    public function repetitions(): int
+    {
+        $counts = [];
+        foreach ($this->sampleResults as $result) {
+            $counts[$result->sample->id] = ($counts[$result->sample->id] ?? 0) + 1;
+        }
+
+        return $counts === [] ? 0 : max($counts);
+    }
+
+    /**
+     * Distinct dataset rows in this run.
+     *
+     * {@see totalSamples()} counts executions, which is the number the metric
+     * means are averaged over; this counts the rows a human curated. They are
+     * the same number until a run repeats, and reporting only the first one
+     * after that would quietly inflate the apparent size of a dataset.
+     */
+    public function totalRows(): int
+    {
+        $ids = [];
+        foreach ($this->sampleResults as $result) {
+            $ids[$result->sample->id] = true;
+        }
+
+        return count($ids);
+    }
+
+    /**
+     * Per-row distribution across repetitions, in dataset order.
+     *
+     * @return list<SampleAggregate>
+     */
+    public function sampleAggregates(): array
+    {
+        if ($this->sampleAggregatesCache !== null) {
+            return $this->sampleAggregatesCache;
+        }
+
+        $failuresByRepetition = [];
+        foreach ($this->failures as $failure) {
+            $failuresByRepetition[$failure->sampleId][$failure->repetition] = true;
+        }
+
+        /** @var array<string, list<SampleResult>> $rows */
+        $rows = [];
+        /** @var array<string, DatasetSample> $samples */
+        $samples = [];
+        foreach ($this->sampleResults as $result) {
+            $rows[$result->sample->id][] = $result;
+            $samples[$result->sample->id] ??= $result->sample;
+        }
+
+        $aggregates = [];
+        foreach ($rows as $sampleId => $results) {
+            $aggregates[] = $this->aggregateRow(
+                sampleId: (string) $sampleId,
+                results: $results,
+                erroredRepetitions: $failuresByRepetition[$sampleId] ?? [],
+                metadata: $samples[$sampleId]->metadata,
+            );
+        }
+
+        return $this->sampleAggregatesCache = $aggregates;
+    }
+
+    /**
+     * Fraction of executions in which every configured metric passed.
+     *
+     * This is the number the sampling statistics are computed against: unlike
+     * a metric mean it is a proportion of independent trials, which is what
+     * makes a confidence interval meaningful for it.
+     */
+    public function runPassRate(): float
+    {
+        $passed = 0;
+        $total = 0;
+        foreach ($this->sampleAggregates() as $aggregate) {
+            $passed += $aggregate->passed;
+            $total += $aggregate->repetitions;
+        }
+
+        return $total === 0 ? 0.0 : $passed / $total;
+    }
+
+    /**
+     * What difference this run was actually able to detect.
+     *
+     * @return array{
+     *     repetitions: int,
+     *     pass_rate: float,
+     *     confidence: float,
+     *     resolution: float,
+     *     target_delta: float,
+     *     target_resolvable: bool,
+     *     required_repetitions: int,
+     *     summary: string
+     * }
+     */
+    public function precision(?float $targetDelta = null): array
+    {
+        return SamplingPrecision::describe(
+            passRate: $this->runPassRate(),
+            repetitions: $this->repetitions(),
+            targetDelta: $targetDelta ?? SamplingPrecision::DEFAULT_TARGET_DELTA,
+        );
+    }
+
+    /**
+     * Rows whose repetitions disagreed with each other.
+     *
+     * These are the rows to fix first when a suite has become flaky, and the
+     * rows to distrust first when a gate fails: an intermittent row can fail a
+     * build on a commit that had nothing to do with it.
+     *
+     * @return list<SampleAggregate>
+     */
+    public function unstableSamples(): array
+    {
+        return array_values(array_filter(
+            $this->sampleAggregates(),
+            static fn (SampleAggregate $aggregate): bool => $aggregate->isUnstable(),
+        ));
+    }
+
+    /**
+     * @param  list<SampleResult>  $results
+     * @param  array<int, bool>  $erroredRepetitions
+     * @param  array<string, mixed>  $metadata
+     */
+    private function aggregateRow(string $sampleId, array $results, array $erroredRepetitions, array $metadata): SampleAggregate
+    {
+        /** @var array<string, list<float>> $byMetric */
+        $byMetric = [];
+        $rowScores = [];
+        $passed = 0;
+
+        foreach ($results as $result) {
+            $scores = [];
+            foreach ($result->metricScores as $metricName => $metricScore) {
+                $byMetric[$metricName][] = $metricScore->score;
+                $scores[] = $metricScore->score;
+            }
+
+            if ($scores !== []) {
+                $rowScores[] = array_sum($scores) / count($scores);
+            }
+
+            if (isset($erroredRepetitions[$result->repetition])) {
+                continue;
+            }
+
+            $failedMetric = false;
+            foreach ($scores as $score) {
+                if ($score < self::PASS_THRESHOLD) {
+                    $failedMetric = true;
+
+                    break;
+                }
+            }
+
+            if (! $failedMetric) {
+                $passed++;
+            }
+        }
+
+        $metrics = [];
+        foreach ($byMetric as $metricName => $values) {
+            $metrics[$metricName] = [
+                'mean' => round(SampleAggregate::mean($values) ?? 0.0, 6),
+                'stddev' => round(SampleAggregate::stddev($values) ?? 0.0, 6),
+                'min' => round(min($values), 6),
+                'max' => round(max($values), 6),
+                'observations' => count($values),
+            ];
+        }
+        ksort($metrics);
+
+        return SampleAggregate::make(
+            sampleId: $sampleId,
+            repetitions: count($results),
+            passed: $passed,
+            errored: count(array_intersect_key(
+                $erroredRepetitions,
+                array_flip(array_map(static fn (SampleResult $result): int => $result->repetition, $results)),
+            )),
+            metrics: $metrics,
+            scoreMean: SampleAggregate::mean($rowScores),
+            scoreStddev: SampleAggregate::stddev($rowScores),
+            metadata: $metadata,
+        );
     }
 
     /**

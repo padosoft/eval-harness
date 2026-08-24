@@ -16,7 +16,11 @@ namespace Padosoft\EvalHarness\Reports;
  *   "finished_at": 1714600002.456,
  *   "duration_seconds": 2.333,
  *   "total_samples": 10,
+ *   "total_rows": 10,
+ *   "repetitions": 1,
  *   "total_failures": 0,
+ *   "pass_rate": 0.8,
+ *   "precision": {"repetitions": 1, "resolution": 1.0, "target_delta": 0.05, "target_resolvable": false, "required_repetitions": 683, "summary": "..."},
  *   "metrics": {
  *     "exact-match": {"mean": 0.8, "p50": 1.0, "p95": 1.0, "pass_rate": 0.8}
  *   },
@@ -34,8 +38,13 @@ namespace Padosoft\EvalHarness\Reports;
  *     "compliance_frameworks": [{"framework": "OWASP LLM", "sample_count": 2, "categories": ["prompt-injection"]}]
  *   },
  *   "macro_f1": 0.8,
+ *   "sample_aggregates": [
+ *     {"id": "...", "repetitions": 3, "passed": 2, "errored": 0, "pass_rate": 0.667,
+ *      "pass_rate_ci": {"low": 0.208, "high": 0.939, "confidence": 0.95}, "unstable": true,
+ *      "score_mean": 0.72, "score_stddev": 0.31, "metrics": {"exact-match": {"mean": 0.667, "stddev": 0.471, "min": 0.0, "max": 1.0, "observations": 3}}}
+ *   ],
  *   "samples": [
- *     {"id": "...", "tags": ["geography"], "adversarial": null, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
+ *     {"id": "...", "repetition": 0, "tags": ["geography"], "adversarial": null, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
  *   ],
  *   "failures": [
  *     {"sample_id": "...", "metric": "...", "error": "..."}
@@ -68,6 +77,7 @@ final class JsonReportRenderer
             }
             $samples[] = [
                 'id' => $result->sample->id,
+                'repetition' => $result->repetition,
                 'tags' => $report->tagsForSample($result->sample),
                 'adversarial' => $report->adversarialForSample($result->sample),
                 'actual_output' => $result->actualOutput,
@@ -81,7 +91,13 @@ final class JsonReportRenderer
                 'sample_id' => $failure->sampleId,
                 'metric' => $failure->metricName,
                 'error' => $failure->error,
+                'repetition' => $failure->repetition,
             ];
+        }
+
+        $sampleAggregates = [];
+        foreach ($report->sampleAggregates() as $aggregate) {
+            $sampleAggregates[] = $aggregate->toArray();
         }
 
         return [
@@ -92,13 +108,18 @@ final class JsonReportRenderer
             'finished_at' => $report->finishedAt,
             'duration_seconds' => $report->durationSeconds(),
             'total_samples' => $report->totalSamples(),
+            'total_rows' => $report->totalRows(),
+            'repetitions' => $report->repetitions(),
             'total_failures' => $report->totalFailures(),
+            'pass_rate' => round($report->runPassRate(), 6),
+            'precision' => $report->precision(),
             'metrics' => $metrics,
             'metric_distributions' => $report->metricDistributions(),
             'usage' => $report->usageSummary(),
             'cohorts' => $report->cohortSummaries(),
             'adversarial' => $report->adversarialSummary(),
             'macro_f1' => $report->macroF1(),
+            'sample_aggregates' => $sampleAggregates,
             'samples' => $samples,
             'failures' => $failures,
         ];

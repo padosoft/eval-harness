@@ -8,6 +8,7 @@ use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
 use Padosoft\EvalHarness\Metrics\Metric;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
 /**
  * Fluent dataset builder used by the public Eval facade.
@@ -36,6 +37,8 @@ final class DatasetBuilder
 
     /** @var list<DatasetSample>|null */
     private ?array $explicitSamples = null;
+
+    private ?int $repetitions = null;
 
     public function __construct(
         private readonly EvalEngine $engine,
@@ -135,6 +138,31 @@ final class DatasetBuilder
         return $this;
     }
 
+    /**
+     * Execute every sample this many times per run.
+     *
+     * The default of 1 is right for a deterministic pipeline and wrong for
+     * anything with a model in it: a single execution cannot tell a regression
+     * apart from a different sampling of the same distribution. Three is the
+     * usual starting point; {@see SamplingPrecision}
+     * reports, per run, whether the number you chose can actually resolve the
+     * difference you are gating on.
+     *
+     * An explicit call here wins over a `repetitions:` field in the YAML.
+     */
+    public function withRepetitions(int $repetitions): self
+    {
+        if ($repetitions < 1) {
+            throw new DatasetSchemaException(
+                sprintf('withRepetitions() requires at least 1 repetition; got %d.', $repetitions),
+            );
+        }
+
+        $this->repetitions = $repetitions;
+
+        return $this;
+    }
+
     public function register(): GoldenDataset
     {
         if ($this->parsed === null && $this->explicitSamples === null) {
@@ -188,11 +216,15 @@ final class DatasetBuilder
             $schemaVersion = $this->parsed->schemaVersion;
         }
 
+        $repetitions = $this->repetitions
+            ?? ($this->parsed !== null ? $this->parsed->repetitions : 1);
+
         $dataset = new GoldenDataset(
             name: $name,
             samples: $samples,
             metrics: array_values($metrics),
             schemaVersion: $schemaVersion,
+            repetitions: $repetitions,
         );
 
         $this->engine->registerDataset($dataset);

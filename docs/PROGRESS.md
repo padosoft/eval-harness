@@ -2809,3 +2809,46 @@
 - Local gate green: `composer validate --strict` valid; `vendor/bin/phpunit` => `OK (863 tests, 2335 assertions)` Unit + `(3 tests, 783 assertions)` Architecture (4 PHP 8.5 framework-internal deprecations, pre-existing); PHPStan no errors; Pint passed.
 - Docs updated: README (all sections), `REPORT_API_CONTRACT.md` (online trend), `CHANGELOG.md` (v1.3.0), LESSON.md.
 - REMOTE NEXT STEP: push branch, open combined PR into `main`, run the Copilot/CI loop, then tag `v1.3.0`. Admin companion (`eval-harness-admin`) needs the Online Monitoring screen consuming the new endpoint (separate repo/PR).
+
+## 2026-08-24 — P1: repeated sampling and statistical precision (v1.6.0 train)
+
+Roadmap source: competitor analysis of `vizra-ai/vizra-evals` + `vizra-ai/vizra-evals-ui`
+(2026-08-24). Their three structural wins over this package were repeated sampling,
+per-row baselines, and agent-trajectory assertions. P1 is the first of those, and the
+one the other two depend on: without repetitions there is no dispersion, and without
+dispersion a per-row regression gate is comparing two single draws.
+
+- `Statistics\WilsonInterval` — Wilson score interval. Chosen over the normal/Wald
+  interval because eval pass rates sit at the edges (3/3, 0/3), where Wald returns a
+  zero-width interval and reports a coin toss as certainty.
+- `Statistics\SamplingPrecision` — `differenceResolution()`, `requiredRepetitions()`,
+  `describe()`. Replaces the fixed-epsilon guess every competitor ships with the
+  measurement it stands in for. Rule-of-three branch for `p(1-p) == 0`, which is where
+  healthy suites live and where the normal approximation would claim zero repetitions
+  suffice. PHP has no `erf`, so A&S 7.1.26 is inlined for the confidence label.
+- `Reports\SampleAggregate` + `EvalReport::sampleAggregates()/repetitions()/totalRows()/
+  runPassRate()/precision()/unstableSamples()` — per-row distribution across repetitions.
+  `repetitions()` is derived, not stored, so a report built by an older caller still
+  answers 1.
+- `SampleResult::$repetition` and `SampleFailure::$repetition` — additive, default 0, so
+  every existing constructor call and every v1 artifact stays valid.
+- `EvalEngine::runBatch(..., ?int $repetitions)` / `run(...)` / `scoreOutputs(...)`.
+  The pass is repeated, not the individual sample: every batch mode, rate limit and
+  checkpoint keeps working unchanged, and repetitions of one row are spread across the
+  run instead of firing back-to-back against a caching provider.
+- Dataset surface: YAML `repetitions:` (not `samples:` — that is already the row list),
+  `DatasetBuilder::withRepetitions()` (wins over YAML), `GoldenDataset::$repetitions` +
+  `executionCount()`. Run-argument beats both.
+- `--repetitions=N` on `eval-harness:run`; advisory line written to stderr only when the
+  run repeated, so a single-execution run gains no new noise and a JSON report piped from
+  stdout stays parseable.
+- Report contract additions (additive only): `total_rows`, `repetitions`, `pass_rate`,
+  `precision`, `sample_aggregates`, `samples[].repetition`, `failures[].repetition`;
+  Markdown gains a `## Sampling` section and `### Unstable rows`.
+- Tests: +42 (`OK (905 tests, 2507 assertions)`, was 863/2335). New files:
+  `tests/Unit/Statistics/{WilsonIntervalTest,SamplingPrecisionTest}.php`,
+  `tests/Unit/Reports/SampleAggregationTest.php`, `tests/Unit/EvalEngineRepetitionsTest.php`,
+  `tests/Unit/Console/EvalCommandRepetitionsTest.php`.
+- Local gate green: `composer validate --strict` valid; `vendor/bin/phpunit` =>
+  `OK (905 tests, 2507 assertions)`; PHPStan level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/repeated-sampling.md` + nav entry; README feature bullet.

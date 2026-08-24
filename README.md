@@ -115,6 +115,18 @@ surface small and the offline path fast.
 
 ## Features
 
+- **Repeated sampling with real statistics** — `--repetitions=N`
+  executes every row N times and reports pass rate, standard deviation
+  and a Wilson confidence interval per row. Every report then carries
+  the number no other eval tool prints: **the smallest difference the
+  run could actually have detected**, and how many repetitions the
+  difference you are gating on would need. A fixed "ignore drops under
+  5%" epsilon is a guess wearing the costume of a threshold; this
+  replaces it with the measurement it was standing in for. Unstable
+  rows — the ones that disagree with themselves and fail builds nobody
+  broke — are listed on their own. Also applies to `--outputs`, where
+  the pipeline contributes no variance and anything still moving is the
+  judge disagreeing with itself.
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,
