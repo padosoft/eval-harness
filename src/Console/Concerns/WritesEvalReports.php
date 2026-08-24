@@ -11,6 +11,16 @@ use Padosoft\EvalHarness\Reports\EvalReport;
 
 trait WritesEvalReports
 {
+    /**
+     * Disk-relative path of the last artifact written by this command.
+     *
+     * Recorded so a run can refer to its own artifact afterwards — promoting
+     * itself as the baseline, or excluding itself when resolving
+     * `--compare=latest`, which would otherwise happily compare a run against
+     * the copy of itself it had just written.
+     */
+    private ?string $lastWrittenArtifactPath = null;
+
     private function reportPayload(EvalReport $report): ?string
     {
         if (! $this->option('json')) {
@@ -54,13 +64,23 @@ trait WritesEvalReports
 
     private function writeReport(string $out, string $payload): bool
     {
+        return $this->writeArtifact($out, $payload, 'report');
+    }
+
+    /**
+     * Write one artifact through the same path rules the report uses.
+     *
+     * @param  string  $label  what is being written, for the operator-facing messages
+     */
+    private function writeArtifact(string $out, string $payload, string $label = 'report'): bool
+    {
         $rawPath = (bool) $this->option('raw-path');
         $isAbsolute = $this->isAbsolutePath($out);
 
         if ($rawPath || $isAbsolute) {
             $bytes = file_put_contents($out, $payload);
             if ($bytes === false) {
-                $this->error(sprintf('Failed to write report to %s', $out));
+                $this->error(sprintf('Failed to write %s to %s', $label, $out));
 
                 return false;
             }
@@ -82,12 +102,20 @@ trait WritesEvalReports
 
         if (! $disk->put($relativePath, $payload)) {
             $this->error(sprintf(
-                'Failed to write report to disk [%s] at path [%s].',
+                'Failed to write %s to disk [%s] at path [%s].',
+                $label,
                 $diskName,
                 $relativePath,
             ));
 
             return false;
+        }
+
+        // Only the report itself: a command writes its comparison afterwards
+        // through the same helper, and recording that path here would leave
+        // "the artifact this run produced" pointing at the wrong file.
+        if ($label === 'report') {
+            $this->lastWrittenArtifactPath = $relativePath;
         }
 
         $this->info(sprintf(

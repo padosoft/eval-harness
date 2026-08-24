@@ -394,3 +394,20 @@
 - **The batch records against `hrtime()`, not `microtime()`.** A test probing a
   `RateLimitWindow` must read the same clock or every record looks decades old and gets
   pruned.
+## 2026-08-24 — Baselines and comparison (P2a)
+
+- **Validate CLI flags at the top of `handle()`, not where they are read.** The
+  comparison flags are consumed after the run finishes; rejecting a typo there has
+  already cost a full suite of provider calls. Two tests caught this by asserting
+  exit code 1 on a bad flag when no baseline existed.
+- **Do not assert on wrapped console output.** A long `$this->error()` line is
+  wrapped by the terminal formatter, so `expectsOutputToContain('1 row regressed')`
+  fails depending on where it broke. Assert the short stable prefix (`Gate failed`)
+  and check the details in the written artifact instead.
+- **`ltrim($slug, '.')` runs after the allow-list replacement**, so `../../etc/passwd`
+  becomes `_.._etc_passwd`, not `.._.._etc_passwd`. Write the traversal test against
+  the real output, not the one you expected.
+- **A shared `writeArtifact()` helper must not record every path it writes.** The
+  comparison is written through the same helper right after the report, so
+  `$lastWrittenArtifactPath` has to be set for the report only or "the artifact this
+  run produced" silently points at the diff.

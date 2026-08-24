@@ -2882,3 +2882,53 @@ All seven were legitimate; three changed behaviour, not just style.
 
 - Local gate green: phpunit `OK (919 tests, 2541 assertions)`; PHPStan level 6 no
   errors; Pint passed.
+## 2026-08-24 — P2a: row hashes, baselines, and per-row regression gating
+
+Second item from the vizra competitor analysis. Their per-row baseline was the
+capability this package had only inside the adversarial lane (manifests); this
+generalises it to the main lane and improves on it in two places.
+
+- `Datasets\RowHash` — SHA-256 over canonicalised (input, expected_output). Not the
+  id (renames keep history), not the metadata (tagging does not orphan a row), not
+  the key order (a reformatted YAML is the same dataset). List order IS content
+  (ranked retrieval, conversations). Editing the question or the expected answer
+  correctly reads as removed + added.
+- `Regression\RunComparator` — joins two decoded reports by `row_hash`, emits
+  regressed / improved / stable / added / removed.
+- **Tolerance from statistics, not a constant.** The epsilon every competitor ships
+  is replaced by `SamplingPrecision::differenceResolution()` computed from the run's
+  own repetitions and pass rate; `--compare-epsilon` still accepts a fixed number.
+- **Status and confidence are separate** (`RowComparison::$confident`). A drop is
+  reported whatever the repetition count; whether the run could *prove* it travels
+  alongside. `RegressionGate` counts all by default (PR lane) or only confident ones
+  with `--confident-only` (scheduled lane). A gate that fails on unprovable rows says
+  so in the failure message.
+- `Regression\BaselineStore` — the baseline is a pointer file
+  (`<prefix>/baselines/<dataset>.json`) naming an existing report artifact, not a
+  copy and not a database row. Slug is allow-listed, so no dataset name can escape
+  the baselines directory. A pointer to a deleted report degrades to "nothing to
+  compare against" and never fails a run.
+- `eval-harness:baseline {dataset} [--report=] [--show] [--clear]`; promoting a
+  report from a different dataset is refused (it would silently disable the gate).
+- `eval-harness:run` gains `--compare=baseline|latest|<path>`, `--max-regressions`,
+  `--confident-only`, `--compare-epsilon`, `--comparison-out`, `--promote-baseline`
+  (which refuses to promote a run that did not finish clean). Comparison flags are
+  validated up-front so a bad value cannot cost a full suite of tokens.
+- Report contract additions: `samples[].row_hash`, `sample_aggregates[].row_hash`.
+  New `eval-harness.comparison.v1` payload for `--comparison-out`.
+- `WritesEvalReports` now exposes `writeArtifact()` and records
+  `$lastWrittenArtifactPath` (report only), so a run can promote itself and exclude
+  itself from `--compare=latest`.
+- Tests: +62 (`OK (981 tests, 2689 assertions)` after rebasing onto the P1 review
+  round, which added 14 of its own). New files:
+  `tests/Unit/Datasets/RowHashTest.php`, `tests/Unit/Regression/{RunComparatorTest,
+  RegressionGateTest,BaselineStoreTest}.php`,
+  `tests/Unit/Console/{BaselineCommandTest,EvalCommandCompareTest}.php`.
+- Local gate green: composer validate --strict valid; phpunit OK (981/2689); PHPStan
+  level 6 no errors; Pint passed.
+- Rebased onto `main` after PR #49 merged: the baseline pointer summary follows the
+  corrected field split (`total_samples` = rows, `total_executions` = work), so a
+  promoted baseline records both.
+- Docs: `docs-site/docs/guides/baselines-and-regressions.md` + nav; README bullet.
+- NEXT (P2b): optional database index of runs/rows + `eval-harness:reindex` + git
+  metadata (sha/branch/dirty/commit subject) — the artifact stays source of truth.

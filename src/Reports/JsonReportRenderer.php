@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\EvalHarness\Reports;
 
+use Padosoft\EvalHarness\Datasets\RowHash;
+
 /**
  * Machine-readable JSON renderer for {@see EvalReport}.
  *
@@ -41,7 +43,7 @@ namespace Padosoft\EvalHarness\Reports;
  *   },
  *   "macro_f1": 0.8,
  *   "sample_aggregates": [
- *     {"id": "...", "repetitions": 3, "passed": 2, "errored": 0, "pass_rate": 0.667,
+ *     {"id": "...", "row_hash": "9f2c…", "repetitions": 3, "passed": 2, "errored": 0, "pass_rate": 0.667,
  *      "pass_rate_ci": {"low": 0.208, "high": 0.939, "confidence": 0.95}, "unstable": true,
  *      "score_mean": 0.72, "score_stddev": 0.31, "metrics": {"exact-match": {"mean": 0.667, "stddev": 0.471, "min": 0.0, "max": 1.0, "observations": 3}}}
  *   ],
@@ -79,6 +81,7 @@ final class JsonReportRenderer
             }
             $samples[] = [
                 'id' => $result->sample->id,
+                'row_hash' => RowHash::for($result->sample),
                 'repetition' => $result->repetition,
                 'tags' => $report->tagsForSample($result->sample),
                 'adversarial' => $report->adversarialForSample($result->sample),

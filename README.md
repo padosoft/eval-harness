@@ -127,6 +127,17 @@ surface small and the offline path fast.
   broke — are listed on their own. Also applies to `--outputs`, where
   the pipeline contributes no variance and anything still moving is the
   judge disagreeing with itself.
+- **Baselines and per-row regressions** — promote any run as a
+  dataset's baseline, then `--compare=baseline --max-regressions=0`
+  fails CI naming the rows that got worse. Rows join across runs by a
+  **content hash** of input + expected output, so renaming a sample or
+  sorting the YAML keeps its history while rewriting the expected answer
+  correctly reads as a different test. The tolerance is the run's own
+  detectable difference rather than a hard-coded epsilon, and each row
+  reports *what happened* and *whether the run could prove it*
+  separately — so a gate can stop a pull request on a real break without
+  training anybody to ignore noise. The baseline is a pointer to a file,
+  not a database row: it travels in a CI artifact and diffs in a PR.
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

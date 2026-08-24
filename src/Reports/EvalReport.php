@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Reports;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
+use Padosoft\EvalHarness\Datasets\RowHash;
 use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
 use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
@@ -264,6 +265,7 @@ final class EvalReport
         foreach ($rows as $sampleId => $results) {
             $aggregates[] = $this->aggregateRow(
                 sampleId: (string) $sampleId,
+                rowHash: RowHash::for($samples[$sampleId]),
                 results: $results,
                 erroredRepetitions: $failuresByRepetition[$sampleId] ?? [],
                 metadata: $samples[$sampleId]->metadata,
@@ -398,8 +400,13 @@ final class EvalReport
      * @param  array<int, bool>  $erroredRepetitions
      * @param  array<string, mixed>  $metadata
      */
-    private function aggregateRow(string $sampleId, array $results, array $erroredRepetitions, array $metadata): SampleAggregate
-    {
+    private function aggregateRow(
+        string $sampleId,
+        string $rowHash,
+        array $results,
+        array $erroredRepetitions,
+        array $metadata,
+    ): SampleAggregate {
         /** @var array<string, list<float>> $byMetric */
         $byMetric = [];
         $rowScores = [];
@@ -448,6 +455,7 @@ final class EvalReport
 
         return SampleAggregate::make(
             sampleId: $sampleId,
+            rowHash: $rowHash,
             repetitions: count($results),
             passed: $passed,
             errored: count(array_intersect_key(
