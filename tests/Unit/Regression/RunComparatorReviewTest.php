@@ -157,6 +157,25 @@ final class RunComparatorReviewTest extends TestCase
     }
 
     /**
+     * `before` and `after` are null for added and removed rows, so the
+     * newly-failing check has to read them without assuming either exists.
+     */
+    public function test_added_and_removed_rows_are_not_read_as_newly_failing(): void
+    {
+        $current = $this->report([$this->row('h-new', 'added-row', 0.0, 0.0)]);
+        $reference = $this->report([$this->row('h-old', 'removed-row', 1.0, 1.0)]);
+
+        $comparison = (new RunComparator)->compare($current, $reference);
+
+        foreach ($comparison->rows as $row) {
+            $this->assertFalse($row->isNewlyFailing());
+        }
+
+        $this->assertCount(1, $comparison->added());
+        $this->assertCount(1, $comparison->removed());
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $aggregates
      * @param  array<string, mixed>|null  $precision
      * @return array<string, mixed>

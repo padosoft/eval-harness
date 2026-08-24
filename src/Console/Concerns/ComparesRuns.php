@@ -50,8 +50,12 @@ trait ComparesRuns
                 return null;
             }
 
-            $pointer = $baselines->pointer($dataset);
-            $path = is_string($pointer['report_path'] ?? null) ? $pointer['report_path'] : 'baseline';
+            // Re-read rather than kept from report(): the pointer can be
+            // rewritten or removed between the two calls, and a label is not
+            // worth failing a completed run over.
+            $pointer = $baselines->pointer($dataset) ?? [];
+            $reportPath = $pointer['report_path'] ?? null;
+            $path = is_string($reportPath) ? $reportPath : 'baseline';
 
             return ['payload' => $payload, 'label' => sprintf('the baseline [%s]', $path)];
         }
