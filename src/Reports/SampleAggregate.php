@@ -29,6 +29,7 @@ final class SampleAggregate
      */
     public function __construct(
         public readonly string $sampleId,
+        public readonly string $rowHash,
         public readonly int $repetitions,
         public readonly int $passed,
         public readonly int $errored,
@@ -65,6 +66,7 @@ final class SampleAggregate
     {
         return [
             'id' => $this->sampleId,
+            'row_hash' => $this->rowHash,
             'repetitions' => $this->repetitions,
             'passed' => $this->passed,
             'errored' => $this->errored,
@@ -118,6 +120,7 @@ final class SampleAggregate
      */
     public static function make(
         string $sampleId,
+        string $rowHash,
         int $repetitions,
         int $passed,
         int $errored,
@@ -128,6 +131,7 @@ final class SampleAggregate
     ): self {
         return new self(
             sampleId: $sampleId,
+            rowHash: $rowHash,
             repetitions: $repetitions,
             passed: $passed,
             errored: $errored,

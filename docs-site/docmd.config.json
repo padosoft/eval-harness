@@ -77,6 +77,10 @@
           "path": "/guides/repeated-sampling"
         },
         {
+          "title": "Baselines & regressions",
+          "path": "/guides/baselines-and-regressions"
+        },
+        {
           "title": "The CI gate",
           "path": "/guides/ci-gate"
         },

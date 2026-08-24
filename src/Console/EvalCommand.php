@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Console;
 
 use Illuminate\Console\Command;
 use Padosoft\EvalHarness\Console\Concerns\BuildsBatchOptions;
+use Padosoft\EvalHarness\Console\Concerns\ComparesRuns;
 use Padosoft\EvalHarness\Console\Concerns\DispatchesEvalRegistrars;
 use Padosoft\EvalHarness\Console\Concerns\ResolvesSystemUnderTest;
 use Padosoft\EvalHarness\Console\Concerns\WritesEvalReports;
@@ -13,6 +14,8 @@ use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Regression\BaselineStore;
+use Padosoft\EvalHarness\Regression\RunComparator;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
@@ -60,6 +63,7 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 final class EvalCommand extends Command
 {
     use BuildsBatchOptions;
+    use ComparesRuns;
     use DispatchesEvalRegistrars;
     use ResolvesSystemUnderTest;
     use WritesEvalReports;
@@ -81,6 +85,12 @@ final class EvalCommand extends Command
         {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}
         {--checkpoint-every= : Emit a progress checkpoint every N completed samples in lazy-parallel mode}
         {--repetitions= : Execute every sample this many times and report pass rate, spread, and the smallest difference the run could actually detect; overrides the dataset `repetitions:` field (default 1)}
+        {--compare= : Compare this run against a reference: `baseline`, `latest`, or a report path on the reports disk}
+        {--max-regressions=0 : Fail the run when more than N rows regressed against the reference (requires --compare)}
+        {--confident-only : Count only regressions larger than the difference this run could actually detect}
+        {--compare-epsilon= : Fixed score tolerance in [0,1]; overrides the statistical resolution derived from --repetitions}
+        {--comparison-out= : Write the row-by-row comparison payload as JSON to this path}
+        {--promote-baseline : Promote this run as the dataset baseline when it finishes clean and passes the gate}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
@@ -95,6 +105,13 @@ final class EvalCommand extends Command
 
         try {
             $repetitions = $this->repetitionsOption();
+
+            // Validated here rather than where they are used. The comparison
+            // flags are only read once the run has finished, and rejecting an
+            // unusable value at that point has already cost somebody a full
+            // suite of tokens.
+            $this->maxRegressionsOption();
+            $this->compareEpsilonOption();
         } catch (EvalHarnessException $e) {
             $this->error($e->getMessage());
 
@@ -165,7 +182,109 @@ final class EvalCommand extends Command
             return self::FAILURE;
         }
 
-        return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+        $exitCode = $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+
+        try {
+            $gateFailed = $this->compareAgainstReference($datasetName, $report);
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        return $gateFailed ? self::FAILURE : $exitCode;
+    }
+
+    /**
+     * Compare against the reference run, print what moved, apply the gate, and
+     * promote the baseline when asked.
+     *
+     * Returns true when the gate failed. A missing or unreadable reference is
+     * not a failure: the run happened, and losing a baseline must never turn a
+     * green run red.
+     */
+    private function compareAgainstReference(string $datasetName, EvalReport $report): bool
+    {
+        /** @var BaselineStore $baselines */
+        $baselines = $this->laravel->make(BaselineStore::class);
+
+        $reference = $this->resolveReferenceReport($baselines, $datasetName, $this->lastWrittenArtifactPath);
+        $currentPayload = $report->toJson();
+        $gateFailed = false;
+
+        if ($reference !== null) {
+            /** @var RunComparator $comparator */
+            $comparator = $this->laravel->make(RunComparator::class);
+
+            $comparison = $this->compareRuns($comparator, $currentPayload, $reference['payload'], $reference['label']);
+
+            // An unusable reference is treated exactly like a missing one: warn
+            // and leave the run's own exit code alone. The alternative — gating
+            // on a comparison that could not join a single row — reports zero
+            // regressions and passes, which is the most expensive kind of green.
+            if (! $comparison->isComparable()) {
+                $this->warn(sprintf(
+                    'Skipping the comparison against %s: %s.',
+                    $reference['label'],
+                    (string) $comparison->incomparableReason,
+                ));
+
+                $this->promoteBaselineIfRequested($baselines, $datasetName, $report, false);
+
+                return false;
+            }
+
+            $this->renderComparison($comparison);
+
+            if (! $this->writeComparison($comparison)) {
+                return true;
+            }
+
+            $verdict = $this->regressionGate()->evaluate($comparison, $currentPayload);
+
+            if (! $verdict['passed']) {
+                foreach ($verdict['failures'] as $failure) {
+                    $this->error('Gate failed: '.$failure);
+                }
+
+                $gateFailed = true;
+            }
+        }
+
+        $this->promoteBaselineIfRequested($baselines, $datasetName, $report, $gateFailed);
+
+        return $gateFailed;
+    }
+
+    /**
+     * A run only becomes the baseline if it is one worth measuring against:
+     * clean, and past the gate. Promoting a run that failed would silently
+     * lower the bar to the level of the regression that just shipped.
+     */
+    private function promoteBaselineIfRequested(
+        BaselineStore $baselines,
+        string $datasetName,
+        EvalReport $report,
+        bool $gateFailed,
+    ): void {
+        if (! (bool) $this->option('promote-baseline')) {
+            return;
+        }
+
+        if ($this->lastWrittenArtifactPath === null) {
+            $this->warn('--promote-baseline needs a stored report: re-run with --out=<path> (and without --raw-path).');
+
+            return;
+        }
+
+        if ($gateFailed || $report->totalFailures() > 0) {
+            $this->warn('Not promoting a baseline: this run did not finish clean.');
+
+            return;
+        }
+
+        $baselines->promote($datasetName, $this->lastWrittenArtifactPath, $report->toJson());
+        $this->info(sprintf("Baseline for '%s' is now [%s].", $datasetName, $this->lastWrittenArtifactPath));
     }
 
     /**

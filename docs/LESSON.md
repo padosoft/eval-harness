@@ -394,3 +394,48 @@
 - **The batch records against `hrtime()`, not `microtime()`.** A test probing a
   `RateLimitWindow` must read the same clock or every record looks decades old and gets
   pruned.
+## 2026-08-24 — Baselines and comparison (P2a)
+
+- **Validate CLI flags at the top of `handle()`, not where they are read.** The
+  comparison flags are consumed after the run finishes; rejecting a typo there has
+  already cost a full suite of provider calls. Two tests caught this by asserting
+  exit code 1 on a bad flag when no baseline existed.
+- **Do not assert on wrapped console output.** A long `$this->error()` line is
+  wrapped by the terminal formatter, so `expectsOutputToContain('1 row regressed')`
+  fails depending on where it broke. Assert the short stable prefix (`Gate failed`)
+  and check the details in the written artifact instead.
+- **`ltrim($slug, '.')` runs after the allow-list replacement**, so `../../etc/passwd`
+  becomes `_.._etc_passwd`, not `.._.._etc_passwd`. Write the traversal test against
+  the real output, not the one you expected.
+- **A shared `writeArtifact()` helper must not record every path it writes.** The
+  comparison is written through the same helper right after the report, so
+  `$lastWrittenArtifactPath` has to be set for the report only or "the artifact this
+  run produced" silently points at the diff.
+
+## 2026-08-24 — Review lessons from PR #50
+
+- **Anything a command prints during a `--json` run can corrupt the payload.** Not
+  just `line()`: `table()`, `info()` and progress bars all write to stdout. Route
+  operator text through one helper that knows about stderr and about JSON mode.
+- **"Zero regressions" and "no rows could be checked" look identical in a count.**
+  Any comparison that can end up with an empty join must report *why* it is empty,
+  and callers must treat that as "no reference" rather than as a pass.
+- **Two artifacts in one directory need a discriminator.** Writing a comparison next
+  to the reports made it a candidate for "the latest report". `schema_version` was
+  already there for exactly this; use it rather than a filename convention.
+- **Derive a threshold once and read it everywhere.** The comparator recomputing the
+  resolution from a different input than the report printed was invisible until a
+  reviewer noticed the two could disagree.
+- **A verdict and its confidence must come from the same axis**, or good news on one
+  axis certifies bad news on the other.
+- **A Copilot finding can be wrong and still worth acting on.** Three of the five
+  in round two were false — `??` suppresses the null-offset warning, short-circuit
+  ordering already prevented the second access, and a `{@see}` docblock link is a
+  real use of an import. But two of the three flagged code that made a reader
+  ask the question, which is its own cost. Rewriting for clarity is the right
+  answer; agreeing that there was a bug is not.
+- **"Cannot prove" is not a reason to accept.** `is_string($x) && $x !== $want`
+  refuses a mismatch and *accepts a missing field*. Promoting a payload with no
+  `dataset` and no report schema disabled the gate exactly as promoting the wrong
+  dataset would have. The guard has to be "prove it matches", never "prove it
+  differs".
