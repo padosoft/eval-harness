@@ -1,6 +1,6 @@
 {
   "title": "eval-harness",
-  "description": "Laravel-native evaluation framework for RAG / LLM applications — golden datasets in YAML, fifteen built-in metrics, judge calibration, production online monitoring, an adversarial red-team lane, and an Artisan CI gate. Apache-2.0.",
+  "description": "Laravel-native evaluation framework for RAG / LLM applications — golden datasets in YAML, twenty-two built-in metrics, repeated sampling with real statistics, per-row regression gates, run briefings, cost budgets, judge calibration, production online monitoring, an adversarial red-team lane, and an Artisan CI gate. Apache-2.0.",
   "url": "https://doc.eval-harness.padosoft.com",
   "src": "docs",
   "out": "_site",

@@ -514,3 +514,13 @@
 - **Derive promoted ids from content, not from the database.** An id from
   `online_scores.id` renumbers a committed dataset the first time somebody
   promotes from staging or truncates the table.
+- **`vendor/bin/phpunit` runs the Unit suite only** (`defaultTestSuite="Unit"`), and
+  CI runs Unit *and* Architecture. Four merged PRs were verified against half the
+  gate: a P3a docblock naming `padosoft/laravel-flow` as an example broke the
+  standalone-agnostic invariant, and main went red on a docs-only PR that had
+  nothing to do with it. Run `phpunit --testsuite Architecture` too, or run
+  `phpunit --testsuite Unit && phpunit --testsuite Architecture` the way the
+  workflow does.
+- **A textual architecture guard is textual on purpose.** The fix is to stop
+  naming the sibling package in prose, not to teach the guard about comments —
+  a real coupling can arrive dressed as one.
