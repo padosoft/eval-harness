@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Reports;
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Datasets\DatasetSchema;
 use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
+use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
 /**
  * Read-only outcome of an eval run.
@@ -28,6 +29,14 @@ use Padosoft\EvalHarness\Exceptions\ReportSchemaException;
  */
 final class EvalReport
 {
+    /**
+     * Score at or above which a metric counts as "passed".
+     *
+     * Shared by macro-F1 and by the per-row pass rate so the two can never
+     * drift apart and disagree about what passing means.
+     */
+    public const PASS_THRESHOLD = 0.5;
+
     private const UNTAGGED_COHORT_KEY = "\0eval-harness.untagged";
 
     private const SEVERITY_PRECEDENCE = [
@@ -73,12 +82,32 @@ final class EvalReport
         }
     }
 
+    /** @var list<SampleAggregate>|null */
+    private ?array $sampleAggregatesCache = null;
+
     public function durationSeconds(): float
     {
         return max(0.0, $this->finishedAt - $this->startedAt);
     }
 
+    /**
+     * Distinct dataset rows in this run.
+     *
+     * This is the number a human curated, and it is what the `total_samples`
+     * field has always meant. A run that repeats each row does not have a
+     * bigger dataset — see {@see totalExecutions()} for the work it did.
+     */
     public function totalSamples(): int
+    {
+        return $this->totalRows();
+    }
+
+    /**
+     * Individual executions in this run: rows x repetitions.
+     *
+     * This is what metric means are averaged over, and what a run costs.
+     */
+    public function totalExecutions(): int
     {
         return count($this->sampleResults);
     }
@@ -157,7 +186,7 @@ final class EvalReport
             }
             $passed = 0;
             foreach ($values as $v) {
-                if ($v >= 0.5) {
+                if ($v >= self::PASS_THRESHOLD) {
                     $passed++;
                 }
             }
@@ -170,6 +199,266 @@ final class EvalReport
         }
 
         return $totals / $count;
+    }
+
+    /**
+     * How many times each row was executed in this run.
+     *
+     * Derived rather than stored, so a report built by an older caller (or
+     * rehydrated from a v1 JSON artifact that predates repetitions) still
+     * answers correctly: one execution per row is 1.
+     */
+    public function repetitions(): int
+    {
+        $counts = [];
+        foreach ($this->sampleResults as $result) {
+            $counts[$result->sample->id] = ($counts[$result->sample->id] ?? 0) + 1;
+        }
+
+        return $counts === [] ? 0 : max($counts);
+    }
+
+    /**
+     * Distinct dataset rows in this run.
+     *
+     * Identical to {@see totalSamples()}; kept as the unambiguous name for
+     * code that also deals with {@see totalExecutions()} and should not have
+     * to remember which of the two "samples" means.
+     */
+    public function totalRows(): int
+    {
+        $ids = [];
+        foreach ($this->sampleResults as $result) {
+            $ids[$result->sample->id] = true;
+        }
+
+        return count($ids);
+    }
+
+    /**
+     * Per-row distribution across repetitions, in dataset order.
+     *
+     * @return list<SampleAggregate>
+     */
+    public function sampleAggregates(): array
+    {
+        if ($this->sampleAggregatesCache !== null) {
+            return $this->sampleAggregatesCache;
+        }
+
+        $failuresByRepetition = [];
+        foreach ($this->failures as $failure) {
+            $failuresByRepetition[$failure->sampleId][$failure->repetition] = true;
+        }
+
+        /** @var array<string, list<SampleResult>> $rows */
+        $rows = [];
+        /** @var array<string, DatasetSample> $samples */
+        $samples = [];
+        foreach ($this->sampleResults as $result) {
+            $rows[$result->sample->id][] = $result;
+            $samples[$result->sample->id] ??= $result->sample;
+        }
+
+        $aggregates = [];
+        foreach ($rows as $sampleId => $results) {
+            $aggregates[] = $this->aggregateRow(
+                sampleId: (string) $sampleId,
+                results: $results,
+                erroredRepetitions: $failuresByRepetition[$sampleId] ?? [],
+                metadata: $samples[$sampleId]->metadata,
+            );
+        }
+
+        return $this->sampleAggregatesCache = $aggregates;
+    }
+
+    /**
+     * Fraction of executions in which every configured metric passed.
+     *
+     * This is the number the sampling statistics are computed against: unlike
+     * a metric mean it is a proportion of independent trials, which is what
+     * makes a confidence interval meaningful for it.
+     */
+    public function runPassRate(): float
+    {
+        $passed = 0;
+        $total = 0;
+        foreach ($this->sampleAggregates() as $aggregate) {
+            $passed += $aggregate->passed;
+            $total += $aggregate->repetitions;
+        }
+
+        return $total === 0 ? 0.0 : $passed / $total;
+    }
+
+    /**
+     * What difference this run was actually able to detect, **per row**.
+     *
+     * The scope matters and is stated in the payload. A regression gate asks
+     * "did *this row* get worse?", so the relevant sample size is the number of
+     * repetitions that row ran — not the total number of executions in the run.
+     * A hundred rows repeated three times gives a hundred separate three-trial
+     * questions, not one three-hundred-trial question, and reporting the latter
+     * would promise a resolution the gate cannot deliver.
+     *
+     * The variance fed to it is the mean *within-row* variance, not the pooled
+     * pass rate. On a dataset where half the rows always pass and half always
+     * fail, pooling reports substantial noise for a suite that never wavered:
+     * that spread is between rows, and no amount of repeating will move it.
+     *
+     * The aggregate figure — how precisely this run pinned down its own overall
+     * pass rate, across every execution — travels alongside under `run`, so the
+     * two are never confused for one another.
+     *
+     * @return array{
+     *     scope: string,
+     *     repetitions: int,
+     *     pass_rate: float,
+     *     confidence: float,
+     *     resolution: float,
+     *     target_delta: float,
+     *     target_resolvable: bool,
+     *     required_repetitions: int,
+     *     summary: string,
+     *     within_row_variance: float,
+     *     run: array{observations: int, resolution: float, target_resolvable: bool}
+     * }
+     */
+    public function precision(?float $targetDelta = null): array
+    {
+        $targetDelta ??= SamplingPrecision::DEFAULT_TARGET_DELTA;
+        $variance = $this->meanWithinRowVariance();
+        $passRate = $this->runPassRate();
+        $executions = $this->totalExecutions();
+
+        $perRow = SamplingPrecision::describeFromVariance(
+            variance: $variance,
+            repetitions: $this->repetitions(),
+            passRate: $passRate,
+            targetDelta: $targetDelta,
+        );
+
+        $runResolution = SamplingPrecision::differenceResolutionFromVariance($variance, $executions);
+
+        return [
+            'scope' => 'per_row',
+            ...$perRow,
+            'within_row_variance' => round($variance, 6),
+            'run' => [
+                'observations' => $executions,
+                'resolution' => $runResolution,
+                'target_resolvable' => $executions >= 2 && $runResolution <= $targetDelta,
+            ],
+        ];
+    }
+
+    /**
+     * Mean variance of a single execution's outcome, averaged across rows.
+     *
+     * Zero exactly when every row agreed with itself across its repetitions,
+     * which is the honest input to "could this run have seen a change in a
+     * row?".
+     */
+    private function meanWithinRowVariance(): float
+    {
+        $aggregates = $this->sampleAggregates();
+
+        if ($aggregates === []) {
+            return 0.0;
+        }
+
+        $total = 0.0;
+        foreach ($aggregates as $aggregate) {
+            $total += $aggregate->passRate * (1.0 - $aggregate->passRate);
+        }
+
+        return $total / count($aggregates);
+    }
+
+    /**
+     * Rows whose repetitions disagreed with each other.
+     *
+     * These are the rows to fix first when a suite has become flaky, and the
+     * rows to distrust first when a gate fails: an intermittent row can fail a
+     * build on a commit that had nothing to do with it.
+     *
+     * @return list<SampleAggregate>
+     */
+    public function unstableSamples(): array
+    {
+        return array_values(array_filter(
+            $this->sampleAggregates(),
+            static fn (SampleAggregate $aggregate): bool => $aggregate->isUnstable(),
+        ));
+    }
+
+    /**
+     * @param  list<SampleResult>  $results
+     * @param  array<int, bool>  $erroredRepetitions
+     * @param  array<string, mixed>  $metadata
+     */
+    private function aggregateRow(string $sampleId, array $results, array $erroredRepetitions, array $metadata): SampleAggregate
+    {
+        /** @var array<string, list<float>> $byMetric */
+        $byMetric = [];
+        $rowScores = [];
+        $passed = 0;
+
+        foreach ($results as $result) {
+            $scores = [];
+            foreach ($result->metricScores as $metricName => $metricScore) {
+                $byMetric[$metricName][] = $metricScore->score;
+                $scores[] = $metricScore->score;
+            }
+
+            if ($scores !== []) {
+                $rowScores[] = array_sum($scores) / count($scores);
+            }
+
+            if (isset($erroredRepetitions[$result->repetition])) {
+                continue;
+            }
+
+            $failedMetric = false;
+            foreach ($scores as $score) {
+                if ($score < self::PASS_THRESHOLD) {
+                    $failedMetric = true;
+
+                    break;
+                }
+            }
+
+            if (! $failedMetric) {
+                $passed++;
+            }
+        }
+
+        $metrics = [];
+        foreach ($byMetric as $metricName => $values) {
+            $metrics[$metricName] = [
+                'mean' => round(SampleAggregate::mean($values) ?? 0.0, 6),
+                'stddev' => round(SampleAggregate::stddev($values) ?? 0.0, 6),
+                'min' => round(min($values), 6),
+                'max' => round(max($values), 6),
+                'observations' => count($values),
+            ];
+        }
+        ksort($metrics);
+
+        return SampleAggregate::make(
+            sampleId: $sampleId,
+            repetitions: count($results),
+            passed: $passed,
+            errored: count(array_intersect_key(
+                $erroredRepetitions,
+                array_flip(array_map(static fn (SampleResult $result): int => $result->repetition, $results)),
+            )),
+            metrics: $metrics,
+            scoreMean: SampleAggregate::mean($rowScores),
+            scoreStddev: SampleAggregate::stddev($rowScores),
+            metadata: $metadata,
+        );
     }
 
     /**

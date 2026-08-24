@@ -11,7 +11,10 @@ use Padosoft\EvalHarness\Console\Concerns\ResolvesSystemUnderTest;
 use Padosoft\EvalHarness\Console\Concerns\WritesEvalReports;
 use Padosoft\EvalHarness\EvalEngine;
 use Padosoft\EvalHarness\Exceptions\EvalHarnessException;
+use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Outputs\SavedOutputsLoader;
+use Padosoft\EvalHarness\Reports\EvalReport;
+use Symfony\Component\Console\Output\ConsoleOutputInterface;
 
 /**
  * Artisan entry point: `php artisan eval-harness:run <dataset>`.
@@ -77,6 +80,7 @@ final class EvalCommand extends Command
         {--rate-limit= : Maximum samples dispatched per --rate-window-seconds in lazy-parallel mode}
         {--rate-window-seconds= : Rolling window in seconds used by --rate-limit (defaults to 60)}
         {--checkpoint-every= : Emit a progress checkpoint every N completed samples in lazy-parallel mode}
+        {--repetitions= : Execute every sample this many times and report pass rate, spread, and the smallest difference the run could actually detect; overrides the dataset `repetitions:` field (default 1)}
         {--json : Emit JSON report instead of Markdown}
         {--out= : Write the report to this file path instead of stdout (relative paths use the configured reports disk + prefix unless --raw-path is set)}
         {--raw-path : Treat --out as a literal cwd-relative path; bypass the reports disk + prefix configuration}';
@@ -88,6 +92,14 @@ final class EvalCommand extends Command
     {
         $datasetName = (string) $this->argument('dataset');
         $registrar = $this->option('registrar');
+
+        try {
+            $repetitions = $this->repetitionsOption();
+        } catch (EvalHarnessException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         if (is_string($registrar) && $registrar !== '') {
             try {
@@ -125,7 +137,7 @@ final class EvalCommand extends Command
             try {
                 /** @var SavedOutputsLoader $loader */
                 $loader = $this->laravel->make(SavedOutputsLoader::class);
-                $report = $engine->scoreOutputs($datasetName, $loader->loadFile($outputsPath));
+                $report = $engine->scoreOutputs($datasetName, $loader->loadFile($outputsPath), $repetitions);
             } catch (EvalHarnessException $e) {
                 $this->error($e->getMessage());
 
@@ -138,7 +150,7 @@ final class EvalCommand extends Command
             }
 
             try {
-                $report = $engine->runBatch($datasetName, $sut, $this->batchOptions());
+                $report = $engine->runBatch($datasetName, $sut, $this->batchOptions(), $repetitions);
             } catch (EvalHarnessException $e) {
                 $this->error($e->getMessage());
 
@@ -146,11 +158,72 @@ final class EvalCommand extends Command
             }
         }
 
+        $this->reportSamplingPrecision($report);
+
         $payload = $this->reportPayload($report);
         if ($payload === null || ! $this->writeOrPrintReport($payload)) {
             return self::FAILURE;
         }
 
         return $report->totalFailures() === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    /**
+     * @throws EvalHarnessException when the flag is present but not a positive integer
+     */
+    private function repetitionsOption(): ?int
+    {
+        $raw = $this->option('repetitions');
+
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        if (! is_string($raw) || ! ctype_digit($raw) || (int) $raw < 1) {
+            throw new EvalRunException(sprintf(
+                'The --repetitions option requires a positive integer; got %s.',
+                is_scalar($raw) ? var_export($raw, true) : get_debug_type($raw),
+            ));
+        }
+
+        return (int) $raw;
+    }
+
+    /**
+     * Tell the operator what the run could actually have detected.
+     *
+     * Written to stderr so it never lands inside a JSON report being piped
+     * from stdout, and only for runs that repeated: a single-execution run is
+     * the package's original deterministic-pipeline default, and adding a
+     * statistics warning to every one of those would be noise. The `precision`
+     * block is in the report either way, so nothing is lost by staying quiet.
+     */
+    private function reportSamplingPrecision(EvalReport $report): void
+    {
+        if ($report->repetitions() < 2) {
+            return;
+        }
+
+        $precision = $report->precision();
+        $tag = $precision['target_resolvable'] ? 'info' : 'comment';
+        $message = sprintf('<%s>[eval-harness] %s</%s>', $tag, $precision['summary'], $tag);
+
+        $output = $this->output->getOutput();
+
+        if ($output instanceof ConsoleOutputInterface) {
+            $output->getErrorOutput()->writeln($message);
+
+            return;
+        }
+
+        // No separate error stream on this output. Stay silent when a JSON
+        // report is headed for stdout: one advisory line there would make the
+        // payload unparseable, and an unparseable report is a worse outcome
+        // than an unprinted note.
+        if ($this->option('json') === true && $this->option('out') === null) {
+            return;
+        }
+
+        $this->line($message);
     }
 }

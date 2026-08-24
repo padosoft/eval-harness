@@ -14,6 +14,11 @@ use Padosoft\EvalHarness\Metrics\MetricScore;
  *   absent from the map; the failure is captured in {@see EvalReport::failures}.
  * - $actualOutput is recorded so the JSON report can reproduce
  *   the LLM judge's view; useful for diagnosing low scores.
+ * - $repetition is the zero-based execution index when a run repeats
+ *   each row (`--repetitions=N`). It stays 0 for a single-execution run,
+ *   which is why every existing caller and every existing report keeps
+ *   working unchanged. Aggregation across repetitions lives in
+ *   {@see SampleAggregate}.
  */
 final class SampleResult
 {
@@ -24,5 +29,6 @@ final class SampleResult
         public readonly DatasetSample $sample,
         public readonly string $actualOutput,
         public readonly array $metricScores,
+        public readonly int $repetition = 0,
     ) {}
 }

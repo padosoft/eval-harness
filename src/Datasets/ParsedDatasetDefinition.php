@@ -28,7 +28,14 @@ final class ParsedDatasetDefinition
         public readonly string $name,
         public readonly array $samples,
         public readonly string $schemaVersion = DatasetSchema::VERSION,
+        public readonly int $repetitions = 1,
     ) {
+        if ($repetitions < 1) {
+            throw new DatasetSchemaException(
+                sprintf("Parsed dataset '%s' repetitions must be at least 1; got %d.", $name, $repetitions),
+            );
+        }
+
         if (! DatasetSchema::isSupported($schemaVersion)) {
             throw new DatasetSchemaException(
                 sprintf(

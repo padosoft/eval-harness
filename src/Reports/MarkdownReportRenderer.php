@@ -9,7 +9,10 @@ namespace Padosoft\EvalHarness\Reports;
  *
  * Output structure:
  *   - H1 with dataset name.
- *   - Summary table: total samples, total failures, duration.
+ *   - Summary table: total samples (dataset rows), executions,
+ *     repetitions, pass rate, total failures, duration.
+ *   - Sampling section: what difference this run could detect, and the
+ *     rows whose repetitions disagreed with each other.
  *   - Per-metric table: mean / p50 / p95 / pass-rate.
  *   - Usage summary when metric providers expose token/cost/latency data.
  *   - Cohort table by metadata.tags.
@@ -30,24 +33,32 @@ final class MarkdownReportRenderer
         $lines[] = sprintf('# Eval report — %s', $this->headingText($report->datasetName));
         $lines[] = '';
         $lines[] = sprintf(
-            '_Run completed in %.2fs over %d samples (%d failures captured)._',
+            '_Run completed in %.2fs over %d samples in %d executions (%d failures captured)._',
             $report->durationSeconds(),
             $report->totalSamples(),
+            $report->totalExecutions(),
             $report->totalFailures(),
         );
         $lines[] = '';
 
         $lines[] = '## Summary';
         $lines[] = '';
-        $lines[] = '| total samples | total failures | duration seconds |';
-        $lines[] = '| --- | --- | --- |';
+        $lines[] = '| total samples | executions | repetitions | pass rate | total failures | duration seconds |';
+        $lines[] = '| --- | --- | --- | --- | --- | --- |';
         $lines[] = sprintf(
-            '| %d | %d | %.2f |',
+            '| %d | %d | %d | %.4f | %d | %.2f |',
             $report->totalSamples(),
+            $report->totalExecutions(),
+            $report->repetitions(),
+            $report->runPassRate(),
             $report->totalFailures(),
             $report->durationSeconds(),
         );
         $lines[] = '';
+
+        foreach ($this->samplingSection($report) as $line) {
+            $lines[] = $line;
+        }
 
         $lines[] = '## Per-metric aggregates';
         $lines[] = '';
@@ -197,6 +208,76 @@ final class MarkdownReportRenderer
         }
 
         return implode("\n", $lines)."\n";
+    }
+
+    /**
+     * Sampling section: what this run could actually detect, and which rows
+     * disagreed with themselves.
+     *
+     * Placed directly under the summary on purpose. Every number below it —
+     * every mean, every cohort, every macro-F1 — is only as trustworthy as the
+     * answer to "could this run have seen the change I am about to claim it
+     * saw?", and that answer belongs before the numbers, not in a footnote
+     * after them.
+     *
+     * @return list<string>
+     */
+    private function samplingSection(EvalReport $report): array
+    {
+        $precision = $report->precision();
+
+        $lines = [];
+        $lines[] = '## Sampling';
+        $lines[] = '';
+        $lines[] = sprintf(
+            '| repetitions | pass rate | detectable difference | resolves %s |',
+            $this->formatPoints($precision['target_delta']),
+        );
+        $lines[] = '| --- | --- | --- | --- |';
+        $lines[] = sprintf(
+            '| %d | %.4f | %s | %s |',
+            $precision['repetitions'],
+            $precision['pass_rate'],
+            $this->formatPoints($precision['resolution']),
+            $precision['target_resolvable'] ? 'yes' : sprintf('no — needs %d', $precision['required_repetitions']),
+        );
+        $lines[] = '';
+        $lines[] = sprintf('_%s_', $this->markdownText($precision['summary']));
+        $lines[] = '';
+
+        $unstable = $report->unstableSamples();
+        if ($unstable !== []) {
+            $lines[] = '### Unstable rows';
+            $lines[] = '';
+            $lines[] = '_These rows did not agree with themselves across repetitions. They are the rows'
+                .' that will fail a build nobody broke._';
+            $lines[] = '';
+            $lines[] = '| sample | passed | repetitions | pass rate | 95% CI | score mean | score stddev |';
+            $lines[] = '| --- | --- | --- | --- | --- | --- | --- |';
+
+            foreach ($unstable as $aggregate) {
+                $lines[] = sprintf(
+                    '| %s | %d | %d | %.4f | %.3f – %.3f | %s | %s |',
+                    $this->tableCell($aggregate->sampleId),
+                    $aggregate->passed,
+                    $aggregate->repetitions,
+                    $aggregate->passRate,
+                    $aggregate->passRateInterval['low'],
+                    $aggregate->passRateInterval['high'],
+                    $aggregate->scoreMean === null ? 'n/a' : sprintf('%.4f', $aggregate->scoreMean),
+                    $aggregate->scoreStddev === null ? 'n/a' : sprintf('%.4f', $aggregate->scoreStddev),
+                );
+            }
+
+            $lines[] = '';
+        }
+
+        return $lines;
+    }
+
+    private function formatPoints(float $value): string
+    {
+        return rtrim(rtrim(number_format($value * 100, 1, '.', ''), '0'), '.').' pts';
     }
 
     /**

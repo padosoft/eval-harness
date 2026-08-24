@@ -7,6 +7,7 @@ namespace Padosoft\EvalHarness\Datasets;
 use Padosoft\EvalHarness\Exceptions\DatasetSchemaException;
 use Padosoft\EvalHarness\Metrics\Metric;
 use Padosoft\EvalHarness\Reports\EvalReport;
+use Padosoft\EvalHarness\Statistics\SamplingPrecision;
 
 /**
  * Immutable, registered golden dataset.
@@ -18,6 +19,12 @@ use Padosoft\EvalHarness\Reports\EvalReport;
  *   - $metrics: list of resolved Metric instances. The harness scores
  *     every sample against every metric; aggregation lives in
  *     {@see EvalReport}.
+ *   - $repetitions: how many times each sample is executed per run.
+ *     Defaults to 1, which is the deterministic-pipeline assumption the
+ *     package started from. Raise it for anything driven by a model: one
+ *     execution of a non-deterministic system is a draw, not a measurement,
+ *     and only repetition turns a score into something carrying a confidence
+ *     interval (see {@see SamplingPrecision}).
  */
 final class GoldenDataset
 {
@@ -30,7 +37,14 @@ final class GoldenDataset
         public readonly array $samples,
         public readonly array $metrics,
         public readonly string $schemaVersion = DatasetSchema::VERSION,
+        public readonly int $repetitions = 1,
     ) {
+        if ($repetitions < 1) {
+            throw new DatasetSchemaException(
+                sprintf("Dataset '%s' repetitions must be at least 1; got %d.", $name, $repetitions),
+            );
+        }
+
         if (! DatasetSchema::isSupported($schemaVersion)) {
             throw new DatasetSchemaException(
                 sprintf(
@@ -64,6 +78,18 @@ final class GoldenDataset
     public function sampleCount(): int
     {
         return count($this->samples);
+    }
+
+    /**
+     * Executions a full run of this dataset performs.
+     *
+     * Rows times repetitions — the number that decides how long the run takes
+     * and what it costs, as opposed to {@see sampleCount()}, which is the size
+     * of the curated dataset.
+     */
+    public function executionCount(): int
+    {
+        return $this->sampleCount() * $this->repetitions;
     }
 
     /**

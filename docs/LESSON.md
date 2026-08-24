@@ -351,3 +351,46 @@
 - Testbench's base `TestCase` declares a public `seed()` method (and `RefreshDatabase` may invoke it). Never name a test helper `seed()` — PHP fatals on the visibility downgrade and a stray `$this->seed(...)` dispatches `db:seed`. Use a domain name like `seedScores()`.
 - The package's first migration ships via `loadMigrationsFrom()` in `boot()` OUTSIDE the `runningInConsole()` guard so `RefreshDatabase` picks it up in tests; the `eval-harness-migrations` publish tag stays INSIDE the guard.
 - Pint's `fully_qualified_strict_types` shortens a fully-qualified `{@see \Ns\Class}` docblock reference and adds a matching `use`. The import is docblock-only; plain PHPStan does not flag it unused, so let Pint do it.
+
+## 2026-08-24 — Repeated sampling (P1)
+
+- **PHP has no `erf()`.** Not in core, not in ext-standard. Any normal-CDF work in this
+  package has to inline an approximation (A&S 7.1.26, error < 1.5e-7) rather than assume
+  a maths extension the host compiled in.
+- **`p(1-p) == 0` breaks the sample-size formula.** A row that passed every repetition
+  has zero variance, so the two-proportion formula returns "0 repetitions needed", which
+  is nonsense precisely for the healthy rows most suites are made of. The rule of three
+  (`n >= 3/δ`) is the correct branch and must be tested explicitly.
+- **Arrow functions capture by value.** `$this->app->bind('x', fn () => function () use
+  (&$counter) {...})` silently counts nothing: the arrow function already copied
+  `$counter`. Use a full closure or a counter object in command tests.
+- **`PHPUnit\Framework\TestCase::result()` is final.** A private test helper named
+  `result()` is a fatal error, not a test failure. Name row-building helpers
+  `sampleResult()`.
+- **`OutputStyle::getErrorOutput()` is protected.** To reach stderr from a Laravel
+  command, go through `$this->output->getOutput()` and check for
+  `ConsoleOutputInterface`; fall back to staying silent when a JSON report is headed for
+  stdout, because one advisory line makes the payload unparseable.
+- **`json_decode` gives `int` for `1.0`.** Assertions on serialised floats that happen to
+  be whole numbers must use `assertEqualsWithDelta`, not `assertSame(1.0, ...)`.
+- **Additive report keys still break exact-array assertions.** `test_failures_are_serialised`
+  asserted the whole `failures[]` row with `assertSame`; adding `repetition` failed it.
+  Additive-only is a contract about consumers, not about the package's own tests.
+
+## 2026-08-24 — Review lessons from PR #49
+
+- **A per-call limiter is not a rate limit.** Anything that repeats an operation must
+  hold the window outside the operation, or the limit is multiplied by the repetition
+  count. Same trap applies to retries and to any future "run the suite N times" flag.
+- **Say which scope a statistic belongs to.** A resolution computed with per-row `n` and
+  a run-level pass rate is two different questions wearing one name. Naming the scope in
+  the payload (`scope: "per_row"`) is cheaper than a reviewer working it out.
+- **Pooled variance lies about deterministic datasets.** Half-always-pass /
+  half-always-fail pools to p=0.5 and reports noise for a suite that never wavered. Use
+  the mean *within-row* variance whenever the question is about a row.
+- **A field's meaning is part of the contract, not just its name.** `total_samples`
+  silently becoming rows×repetitions would have made every stored manifest and every
+  diff wrong without a schema bump. Add a field; do not redefine one.
+- **The batch records against `hrtime()`, not `microtime()`.** A test probing a
+  `RateLimitWindow` must read the same clock or every record looks decades old and gets
+  pruned.

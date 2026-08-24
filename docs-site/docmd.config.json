@@ -5,109 +5,222 @@
   "src": "docs",
   "out": "_site",
   "base": "/",
-
   "favicon": "assets/favicon.svg",
   "theme": {
     "name": "default",
     "defaultMode": "dark",
-    "customCss": ["assets/custom.css"]
+    "customCss": [
+      "assets/custom.css"
+    ]
   },
-
   "autoTitleFromH1": true,
   "copyCode": true,
   "pageNavigation": true,
   "minify": true,
-  "markdown": { "breaks": true },
-
+  "markdown": {
+    "breaks": true
+  },
   "layout": {
     "spa": true,
-    "header": { "enabled": true },
-    "sidebar": { "collapsible": true, "defaultCollapsed": false },
+    "header": {
+      "enabled": true
+    },
+    "sidebar": {
+      "collapsible": true,
+      "defaultCollapsed": false
+    },
     "optionsMenu": {
       "position": "header",
-      "components": { "search": true, "themeSwitch": true }
+      "components": {
+        "search": true,
+        "themeSwitch": true
+      }
     }
   },
-
   "navigation": [
     {
       "title": "Get Started",
       "icon": "rocket",
       "children": [
-        { "title": "Introduction", "path": "/" },
-        { "title": "Quickstart", "path": "/quickstart" },
-        { "title": "Installation", "path": "/installation" },
-        { "title": "Core concepts", "path": "/core-concepts" }
+        {
+          "title": "Introduction",
+          "path": "/"
+        },
+        {
+          "title": "Quickstart",
+          "path": "/quickstart"
+        },
+        {
+          "title": "Installation",
+          "path": "/installation"
+        },
+        {
+          "title": "Core concepts",
+          "path": "/core-concepts"
+        }
       ]
     },
     {
       "title": "Guides",
       "icon": "book-open",
       "children": [
-        { "title": "Golden datasets", "path": "/guides/golden-datasets" },
-        { "title": "Running evaluations", "path": "/guides/running-evaluations" },
-        { "title": "The CI gate", "path": "/guides/ci-gate" },
-        { "title": "Scoring saved outputs", "path": "/guides/scoring-saved-outputs" },
-        { "title": "Judge calibration", "path": "/guides/judge-calibration" },
-        { "title": "Online / production monitoring", "path": "/guides/online-monitoring" },
-        { "title": "Adversarial / red-team testing", "path": "/guides/adversarial-testing" }
+        {
+          "title": "Golden datasets",
+          "path": "/guides/golden-datasets"
+        },
+        {
+          "title": "Running evaluations",
+          "path": "/guides/running-evaluations"
+        },
+        {
+          "title": "Repeated sampling & precision",
+          "path": "/guides/repeated-sampling"
+        },
+        {
+          "title": "The CI gate",
+          "path": "/guides/ci-gate"
+        },
+        {
+          "title": "Scoring saved outputs",
+          "path": "/guides/scoring-saved-outputs"
+        },
+        {
+          "title": "Judge calibration",
+          "path": "/guides/judge-calibration"
+        },
+        {
+          "title": "Online / production monitoring",
+          "path": "/guides/online-monitoring"
+        },
+        {
+          "title": "Adversarial / red-team testing",
+          "path": "/guides/adversarial-testing"
+        }
       ]
     },
     {
       "title": "Concetti & Teoria",
       "icon": "square-function",
       "children": [
-        { "title": "Motivazione", "path": "/architecture/decisions" },
-        { "title": "Teoria", "path": "/metrics/overview" },
-        { "title": "Metrics overview", "path": "/metrics/overview" },
-        { "title": "Lexical & structural metrics", "path": "/metrics/lexical-and-structural" },
-        { "title": "Semantic similarity metrics", "path": "/metrics/semantic-similarity" },
-        { "title": "LLM-as-judge metrics", "path": "/metrics/llm-as-judge" },
-        { "title": "Retrieval-ranking metrics", "path": "/metrics/retrieval-ranking" },
-        { "title": "Ordinal scoring & aggregation", "path": "/metrics/ordinal-and-aggregation" }
+        {
+          "title": "Motivazione",
+          "path": "/architecture/decisions"
+        },
+        {
+          "title": "Teoria",
+          "path": "/metrics/overview"
+        },
+        {
+          "title": "Metrics overview",
+          "path": "/metrics/overview"
+        },
+        {
+          "title": "Lexical & structural metrics",
+          "path": "/metrics/lexical-and-structural"
+        },
+        {
+          "title": "Semantic similarity metrics",
+          "path": "/metrics/semantic-similarity"
+        },
+        {
+          "title": "LLM-as-judge metrics",
+          "path": "/metrics/llm-as-judge"
+        },
+        {
+          "title": "Retrieval-ranking metrics",
+          "path": "/metrics/retrieval-ranking"
+        },
+        {
+          "title": "Ordinal scoring & aggregation",
+          "path": "/metrics/ordinal-and-aggregation"
+        }
       ]
     },
     {
       "title": "Architettura",
       "icon": "workflow",
       "children": [
-        { "title": "Architecture overview", "path": "/architecture/overview" },
-        { "title": "Pipeline / workflow", "path": "/architecture/evaluation-pipeline" },
-        { "title": "Modello dati / contratto", "path": "/architecture/report-contract" },
-        { "title": "ADR", "path": "/architecture/decisions" }
+        {
+          "title": "Architecture overview",
+          "path": "/architecture/overview"
+        },
+        {
+          "title": "Pipeline / workflow",
+          "path": "/architecture/evaluation-pipeline"
+        },
+        {
+          "title": "Modello dati / contratto",
+          "path": "/architecture/report-contract"
+        },
+        {
+          "title": "ADR",
+          "path": "/architecture/decisions"
+        }
       ]
     },
     {
       "title": "Best Practices",
       "icon": "lightbulb",
       "children": [
-        { "title": "Regression gating", "path": "/best-practices/regression-gating" },
-        { "title": "Trustworthy judges", "path": "/best-practices/trustworthy-judges" },
-        { "title": "Safety & red-teaming", "path": "/best-practices/safety-and-red-teaming" }
+        {
+          "title": "Regression gating",
+          "path": "/best-practices/regression-gating"
+        },
+        {
+          "title": "Trustworthy judges",
+          "path": "/best-practices/trustworthy-judges"
+        },
+        {
+          "title": "Safety & red-teaming",
+          "path": "/best-practices/safety-and-red-teaming"
+        }
       ]
     },
     {
       "title": "Operations",
       "icon": "settings",
       "children": [
-        { "title": "Configuration", "path": "/configuration" },
-        { "title": "Batch execution", "path": "/operations/batch-execution" },
-        { "title": "Horizon & queues", "path": "/operations/horizon-and-queues" },
-        { "title": "Troubleshooting", "path": "/operations/troubleshooting" }
+        {
+          "title": "Configuration",
+          "path": "/configuration"
+        },
+        {
+          "title": "Batch execution",
+          "path": "/operations/batch-execution"
+        },
+        {
+          "title": "Horizon & queues",
+          "path": "/operations/horizon-and-queues"
+        },
+        {
+          "title": "Troubleshooting",
+          "path": "/operations/troubleshooting"
+        }
       ]
     },
     {
       "title": "Reference",
       "icon": "book-marked",
       "children": [
-        { "title": "CLI reference", "path": "/reference/cli" },
-        { "title": "PHP API", "path": "/reference/php-api" },
-        { "title": "Report API", "path": "/reference/report-api" },
-        { "title": "Metrics catalog", "path": "/reference/metrics-catalog" }
+        {
+          "title": "CLI reference",
+          "path": "/reference/cli"
+        },
+        {
+          "title": "PHP API",
+          "path": "/reference/php-api"
+        },
+        {
+          "title": "Report API",
+          "path": "/reference/report-api"
+        },
+        {
+          "title": "Metrics catalog",
+          "path": "/reference/metrics-catalog"
+        }
       ]
     }
   ],
-
   "footer": {
     "style": "minimal",
     "branding": true,
@@ -116,22 +229,41 @@
       {
         "title": "Project",
         "links": [
-          { "title": "GitHub", "path": "https://github.com/padosoft/eval-harness", "external": true },
-          { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/eval-harness", "external": true }
+          {
+            "title": "GitHub",
+            "path": "https://github.com/padosoft/eval-harness",
+            "external": true
+          },
+          {
+            "title": "Packagist",
+            "path": "https://packagist.org/packages/padosoft/eval-harness",
+            "external": true
+          }
         ]
       },
       {
         "title": "Author",
         "links": [
-          { "title": "Lorenzo Padovani", "path": "https://github.com/lorenzo-padovani", "external": true },
-          { "title": "Padosoft", "path": "https://github.com/padosoft", "external": true }
+          {
+            "title": "Lorenzo Padovani",
+            "path": "https://github.com/lorenzo-padovani",
+            "external": true
+          },
+          {
+            "title": "Padosoft",
+            "path": "https://github.com/padosoft",
+            "external": true
+          }
         ]
       }
     ]
   },
-
   "plugins": {
-    "search": { "enabled": true, "semantic": true, "placeholder": "Search the docs…" },
+    "search": {
+      "enabled": true,
+      "semantic": true,
+      "placeholder": "Search the docs…"
+    },
     "git": {
       "repo": "https://github.com/padosoft/eval-harness",
       "branch": "main",
@@ -144,12 +276,21 @@
       "defaultDescription": "Laravel-native evaluation framework for RAG / LLM applications.",
       "aiBots": true,
       "openGraph": {},
-      "twitter": { "cardType": "summary_large_image" }
+      "twitter": {
+        "cardType": "summary_large_image"
+      }
     },
-    "sitemap": { "defaultChangefreq": "weekly", "defaultPriority": 0.8 },
+    "sitemap": {
+      "defaultChangefreq": "weekly",
+      "defaultPriority": 0.8
+    },
     "mermaid": {},
     "math": {},
-    "llms": { "fullContext": true },
-    "analytics": { "enabled": false }
+    "llms": {
+      "fullContext": true
+    },
+    "analytics": {
+      "enabled": false
+    }
   }
 }

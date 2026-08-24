@@ -1309,35 +1309,19 @@ final class LazyParallelBatchTest extends TestCase
         // rateWindowSeconds, the producer throttles using a 60-second
         // rolling window. Reflection avoids dragging real wall-clock
         // timing into the assertion.
-        /** @var Dispatcher $dispatcher */
-        $dispatcher = $this->app->make(Dispatcher::class);
-        $batch = new LazyParallelBatch(
-            dispatcher: $dispatcher,
-            resultStore: new RecordingBatchResultStore,
-            resultTtlSeconds: 10,
-        );
-
-        $reflection = new ReflectionMethod(LazyParallelBatch::class, 'rateLimitWindow');
-        $reflection->setAccessible(true);
-
-        $explicitWindow = $reflection->invoke(
-            $batch,
+        $explicitWindow = LazyParallelBatch::windowFor(
             BatchOptions::lazyParallel(rateLimit: 5, rateWindowSeconds: 30),
         );
         $this->assertNotNull($explicitWindow);
         $this->assertSame(5, $explicitWindow->rateLimit);
         $this->assertSame(30, $explicitWindow->rateWindowSeconds);
 
-        $defaultWindow = $reflection->invoke(
-            $batch,
-            BatchOptions::lazyParallel(rateLimit: 7),
-        );
+        $defaultWindow = LazyParallelBatch::windowFor(BatchOptions::lazyParallel(rateLimit: 7));
         $this->assertNotNull($defaultWindow);
         $this->assertSame(7, $defaultWindow->rateLimit);
         $this->assertSame(60, $defaultWindow->rateWindowSeconds);
 
-        $unsetWindow = $reflection->invoke($batch, BatchOptions::lazyParallel());
-        $this->assertNull($unsetWindow);
+        $this->assertNull(LazyParallelBatch::windowFor(BatchOptions::lazyParallel()));
     }
 
     public function test_terminal_reporter_receives_success_status_on_happy_path(): void

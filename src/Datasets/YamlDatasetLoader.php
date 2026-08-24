@@ -28,7 +28,10 @@ use Symfony\Component\Yaml\Yaml;
  * ```
  *
  * Required keys: `name` (string), `samples` (non-empty list).
- * Optional keys: `schema_version` (supported dataset contract ID).
+ * Optional keys: `schema_version` (supported dataset contract ID),
+ * `repetitions` (positive int, executions per sample per run — note the name:
+ * in this package a "sample" is a dataset row, so the knob that repeats a row
+ * cannot also be called `samples`, which is already the list of rows).
  * Per-sample required keys: `id` (string, unique), `input` (assoc
  * array), `expected_output` (any). `metadata` is optional.
  *
@@ -108,7 +111,33 @@ final class YamlDatasetLoader
             name: $decoded['name'],
             samples: $parsedSamples,
             schemaVersion: $schemaVersion,
+            repetitions: $this->resolveRepetitions($decoded),
         );
+    }
+
+    /**
+     * @param  array<mixed>  $decoded
+     */
+    private function resolveRepetitions(array $decoded): int
+    {
+        if (! array_key_exists('repetitions', $decoded)) {
+            return 1;
+        }
+
+        $repetitions = $decoded['repetitions'];
+
+        if (is_string($repetitions) && $repetitions !== '' && ctype_digit($repetitions)) {
+            $repetitions = (int) $repetitions;
+        }
+
+        if (! is_int($repetitions) || $repetitions < 1) {
+            throw new DatasetSchemaException(sprintf(
+                "Dataset YAML field 'repetitions' must be an integer of at least 1; got %s.",
+                get_debug_type($decoded['repetitions']),
+            ));
+        }
+
+        return $repetitions;
     }
 
     /**

@@ -208,7 +208,10 @@ final class JsonReportRendererTest extends TestCase
         $json = (new JsonReportRenderer)->render($report);
 
         $this->assertSame(1, $json['total_failures']);
-        $this->assertSame([['sample_id' => 's1', 'metric' => 'llm-as-judge', 'error' => 'boom']], $json['failures']);
+        $this->assertSame(
+            [['sample_id' => 's1', 'metric' => 'llm-as-judge', 'error' => 'boom', 'repetition' => 0]],
+            $json['failures'],
+        );
     }
 
     public function test_usage_summary_is_serialised(): void
