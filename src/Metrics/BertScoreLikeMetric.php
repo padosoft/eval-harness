@@ -25,7 +25,7 @@ final class BertScoreLikeMetric implements Metric, ProvidesUsageDetails
     private const int DEFAULT_MAX_TOKENS = 128;
 
     /**
-     * @var array<string, int|float>
+     * @var array<string, int|float|string>
      */
     private array $usageDetails = [];
 

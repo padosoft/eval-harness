@@ -33,6 +33,7 @@ use Padosoft\EvalHarness\Console\CalibrateJudgeCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
+use Padosoft\EvalHarness\Costs\PriceBook;
 use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
@@ -129,6 +130,9 @@ class EvalHarnessServiceProvider extends ServiceProvider
         });
         $this->app->singleton(RunComparator::class, static function (): RunComparator {
             return new RunComparator;
+        });
+        $this->app->singleton(PriceBook::class, static function (Container $app): PriceBook {
+            return new PriceBook($app->make(ConfigRepository::class));
         });
         $this->app->singleton(ReportArtifactRepository::class, static function (Container $app): ReportArtifactRepository {
             return new ReportArtifactRepository(

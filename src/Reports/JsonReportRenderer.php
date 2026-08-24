@@ -42,6 +42,12 @@ use Padosoft\EvalHarness\Datasets\RowHash;
  *     "compliance_frameworks": [{"framework": "OWASP LLM", "sample_count": 2, "categories": ["prompt-injection"]}]
  *   },
  *   "macro_f1": 0.8,
+ *   "cost": {"total_usd": 0.0412, "reported_usd": 0.0, "derived_usd": 0.0412, "complete": true,
+ *            "calls": 30, "unpriced_calls": 0, "unpriced_models": [], "prompt_tokens": 12400,
+ *            "completion_tokens": 900, "total_tokens": 13300,
+ *            "models": [{"model": "gpt-4o-mini", "calls": 30, "prompt_tokens": 12400,
+ *                        "completion_tokens": 900, "total_tokens": 13300, "cost_usd": 0.0412, "priced": true}]},
+ *   "budget": {"limit_usd": 1.0, "spent_usd": 0.0412, "halted": false, "completed_rows": 0, "reason": null},
  *   "sample_aggregates": [
  *     {"id": "...", "row_hash": "9f2c…", "repetitions": 3, "passed": 2, "errored": 0, "pass_rate": 0.667,
  *      "pass_rate_ci": {"low": 0.208, "high": 0.939, "confidence": 0.95}, "unstable": true,
@@ -135,6 +141,8 @@ final class JsonReportRenderer
             'cohorts' => $report->cohortSummaries(),
             'adversarial' => $report->adversarialSummary(),
             'macro_f1' => $report->macroF1(),
+            'cost' => $report->cost?->toArray(),
+            'budget' => $report->budget?->toArray(),
             'sample_aggregates' => $sampleAggregates,
             'samples' => $samples,
             'failures' => $failures,

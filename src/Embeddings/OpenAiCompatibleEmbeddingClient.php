@@ -19,7 +19,7 @@ use Padosoft\EvalHarness\Support\TimeoutNormalizer;
 final class OpenAiCompatibleEmbeddingClient implements EmbeddingClient, ProvidesUsageDetails
 {
     /**
-     * @var array<string, int|float>
+     * @var array<string, int|float|string>
      */
     private array $usageDetails = [];
 

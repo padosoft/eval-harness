@@ -197,6 +197,44 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Cost attribution and token rates (FinOps)
+    |--------------------------------------------------------------------------
+    |
+    | Evaluation traffic is indistinguishable from production traffic on a
+    | provider dashboard — same key, same model, same endpoint — so the honest
+    | answer to "how much are we spending on quality?" is usually "we cannot
+    | tell". Every run dispatches EvalRunCosted tagged with `cost_center`
+    | (`{dataset}` is substituted), which a FinOps package can subscribe to
+    | without either side depending on the other.
+    |
+    | `models` declares what a million tokens costs, split input/output. It is
+    | only consulted when the provider did NOT bill us in the response body;
+    | a reported cost always wins. A model with no declared rate is reported as
+    | **unpriced** rather than as zero: a cost report that quietly says $0.00
+    | for a self-hosted or newly released model gets believed, budgeted
+    | against, and quoted in a meeting.
+    |
+    | Names match by longest prefix after stripping a `vendor/` prefix, so
+    | `gpt-4o-mini` covers `gpt-4o-mini-2024-07-18` and `openai/gpt-4o-mini`,
+    | while declaring the dated name explicitly still wins.
+    |
+    | No rates ship by default: provider prices change, and a stale rate baked
+    | into a package is a wrong number with a straight face. Declare the models
+    | you actually use.
+    |
+    */
+
+    'costs' => [
+        'cost_center' => env('EVAL_HARNESS_COST_CENTER', 'eval:{dataset}'),
+
+        'models' => [
+            // 'gpt-4o-mini' => ['input_per_million' => 0.15, 'output_per_million' => 0.60],
+            // 'text-embedding-3-small' => ['input_per_million' => 0.02, 'output_per_million' => 0.0],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Adversarial run manifests (HTTP discovery)
     |--------------------------------------------------------------------------
     |
