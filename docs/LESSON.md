@@ -428,7 +428,6 @@
   reviewer noticed the two could disagree.
 - **A verdict and its confidence must come from the same axis**, or good news on one
   axis certifies bad news on the other.
-
 - **A Copilot finding can be wrong and still worth acting on.** Three of the five
   in round two were false — `??` suppresses the null-offset warning, short-circuit
   ordering already prevented the second access, and a `{@see}` docblock link is a
