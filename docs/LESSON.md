@@ -524,3 +524,21 @@
 - **A textual architecture guard is textual on purpose.** The fix is to stop
   naming the sibling package in prose, not to teach the guard about comments —
   a real coupling can arrive dressed as one.
+- **A quickstart is a claim that gets executed.** The README's thirty-second
+  version showed a bare `$eval->dataset(...)->register()` with no home, no SUT
+  binding, `--compare=baseline` on an installation that has no baseline, and a
+  `brief report.json` for a file the preceding command never wrote. Three
+  copy-paste steps, three different errors on a fresh install: "Dataset is not
+  registered", a warn that silently skipped the gate the paragraph was selling,
+  and "Report [report.json] could not be read as JSON". Every step of a
+  quickstart has to be runnable *in the order printed, from nothing*: the
+  registration needs a place the separate Artisan process reaches, the first run
+  has to record the baseline the second one is gated against, and any artifact a
+  later command reads has to be written by an earlier one.
+- **Illustrated console output is documentation too, and it drifts.** The block
+  under the run attributed the briefing's headline (`Macro-F1 …, pass rate …`,
+  from `RunBriefing`) to the run, dropped the `%d compared` the comparison line
+  actually prints, paraphrased the gate message, and showed "2 improved" for a
+  dataset with one sample. Nobody diffs a fenced block against the sprintf that
+  produces it — so paste from a real run, or read the format string before
+  inventing the numbers.
