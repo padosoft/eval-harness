@@ -2963,3 +2963,42 @@ kind of bug a regression gate cannot afford.
 6. **`put()` returning false read as success** (P2). Promotion now throws.
 - Tests: +13 (`OK (994 tests, 2721 assertions)`), including a test that the JSON
   report on stdout still parses while comparing.
+## 2026-08-24 — P3a: agent trajectories (SDK-agnostic core)
+
+Third item from the vizra analysis, and the largest functional gap: this package
+scored a string, which is the one part a broken agent can still get right by
+accident. Their equivalent assertions are welded to `laravel/ai`'s AgentResponse;
+these are a plain DTO, so the same expectations work over any runtime.
+
+- `Trajectory\{Trajectory,ToolCall}` — tool calls with arguments/result/error,
+  steps, finish reason, pending approvals, approvals. Arguments match as a SUBSET
+  (a runtime that adds a trace id has still made the call) with numeric loose
+  compare across `7`/`"7"`; order matches as a SUBSEQUENCE (a new tool in between
+  must not fail an eval).
+- `Trajectory\TrajectoryRecorder` — container singleton the SampleRunner records
+  into. Keyed by (sample, repetition) with fallback to the row, so a runner that
+  does not know it is the third execution still works.
+- Seven metrics under `Metrics\Trajectory\` + aliases: `tool-called`,
+  `tool-not-called`, `tool-called-with`, `tool-call-order`, `steps-below`,
+  `no-pending-approvals`, `approval-gated`. Expectations live under
+  `metadata.trajectory.*` on the row; a constructor default covers dataset-wide
+  rules. Lists score with partial credit.
+- **The Metric contract is unchanged.** `TrajectoryMetric extends Metric` and the
+  engine calls `scoreTrajectory()` only for that family; every other metric and
+  every host-written one is untouched.
+- **A missing trajectory raises MetricException** (captured as a failure), never
+  0.0 and never 1.0: scoring 0 blames the agent for the harness's wiring, scoring
+  1 lets a dataset go green because nobody plugged the recorder in.
+- Saved outputs carry an optional `trajectory` block, so the whole family is
+  usable offline with no agent runtime — record once, score forever, free.
+- `samples[].trajectory` in the JSON report, emitted only when one exists.
+- `approval-gated` is the compliance hook: action ids come from whatever the host
+  records (laravel-flow saga step, laravel-iam-agents consent id, custom string).
+- Tests: +37 (`OK (1018 tests, 2792 assertions)`, was 981/2689). New files:
+  `tests/Unit/Trajectory/TrajectoryTest.php`,
+  `tests/Unit/Metrics/TrajectoryMetricsTest.php`,
+  `tests/Unit/EvalEngineTrajectoryTest.php`.
+- Local gate green: phpunit OK (1018/2792); PHPStan level 6 no errors; Pint passed.
+- Docs: `docs-site/docs/guides/agent-trajectories.md` + nav; README bullet.
+- NEXT: `padosoft/eval-harness-ai-bridge` carries the `laravel/ai` adapter, the
+  conversation dataset source and the Pest surface — this package stays SDK-free.

@@ -24,12 +24,15 @@ use Padosoft\EvalHarness\EvalSets\EvalSetRunResult;
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
 use Padosoft\EvalHarness\Exceptions\MetricException;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Metrics\Trajectory\TrajectoryMetric;
 use Padosoft\EvalHarness\Outputs\SavedOutputs;
 use Padosoft\EvalHarness\Reports\EvalReport;
 use Padosoft\EvalHarness\Reports\SampleFailure;
 use Padosoft\EvalHarness\Reports\SampleResult;
 use Padosoft\EvalHarness\Support\MetricUsageDetails;
 use Padosoft\EvalHarness\Support\RuntimeOptions;
+use Padosoft\EvalHarness\Trajectory\Trajectory;
+use Padosoft\EvalHarness\Trajectory\TrajectoryRecorder;
 use ReflectionFunction;
 use ReflectionFunctionAbstract;
 use ReflectionMethod;
@@ -70,6 +73,7 @@ final class EvalEngine
         ?SerialBatch $serialBatch = null,
         ?LazyParallelBatch $lazyParallelBatch = null,
         private readonly ?ConfigRepository $config = null,
+        private readonly ?TrajectoryRecorder $trajectories = null,
     ) {
         $this->serialBatch = $serialBatch ?? new SerialBatch;
         $this->lazyParallelBatch = $lazyParallelBatch;
@@ -308,6 +312,7 @@ final class EvalEngine
     {
         $dataset = $this->getDataset($datasetName);
         $outputs = $this->savedOutputsForDataset($datasetName, $dataset, $actualOutputs);
+        $this->recordSavedTrajectories($actualOutputs);
         $actualOutputForSample = static fn (DatasetSample $sample, int $_index): string => $outputs[self::sampleIdKey($sample->id)];
         $passes = $this->resolveRepetitions($dataset, $repetitions);
 
@@ -465,10 +470,13 @@ final class EvalEngine
         array &$failures,
         int $repetition = 0,
     ): SampleResult {
+        $trajectory = $this->trajectoryFor($sample->id, $repetition);
         $metricScores = [];
         foreach ($dataset->metrics as $metric) {
             try {
-                $metricScores[$metric->name()] = $metric->score($sample, $actualOutput);
+                $metricScores[$metric->name()] = $metric instanceof TrajectoryMetric
+                    ? $metric->scoreTrajectory($sample, $actualOutput, $trajectory)
+                    : $metric->score($sample, $actualOutput);
             } catch (Throwable $e) {
                 if ($this->shouldRaiseMetricExceptions() && $e instanceof MetricException) {
                     throw $e;
@@ -489,7 +497,66 @@ final class EvalEngine
             actualOutput: $actualOutput,
             metricScores: $metricScores,
             repetition: $repetition,
+            trajectory: $trajectory,
         );
+    }
+
+    /**
+     * Hand any trajectories that travelled with the saved outputs to the
+     * recorder, so the trajectory metrics work on a file with no agent running.
+     *
+     * @param  array<array-key, mixed>|SavedOutputs  $actualOutputs
+     */
+    private function recordSavedTrajectories(array|SavedOutputs $actualOutputs): void
+    {
+        if (! $actualOutputs instanceof SavedOutputs) {
+            return;
+        }
+
+        $trajectories = $actualOutputs->trajectories();
+
+        if ($trajectories === []) {
+            return;
+        }
+
+        $recorder = $this->trajectoryRecorder();
+
+        if (! $recorder instanceof TrajectoryRecorder) {
+            return;
+        }
+
+        foreach ($trajectories as $sampleId => $trajectory) {
+            $recorder->record((string) $sampleId, $trajectory);
+        }
+    }
+
+    /**
+     * The trajectory recorded for this execution, if anything recorded one.
+     *
+     * Resolved lazily from the container rather than required in the
+     * constructor: the recorder is only ever populated by a host that has an
+     * agent to record, and a RAG pipeline should not have to know it exists.
+     */
+    private function trajectoryFor(string $sampleId, int $repetition): ?Trajectory
+    {
+        $recorder = $this->trajectoryRecorder();
+
+        return $recorder?->for($sampleId, $repetition);
+    }
+
+    private function trajectoryRecorder(): ?TrajectoryRecorder
+    {
+        if ($this->trajectories instanceof TrajectoryRecorder) {
+            return $this->trajectories;
+        }
+
+        try {
+            $recorder = $this->container->make(TrajectoryRecorder::class);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return $recorder instanceof TrajectoryRecorder ? $recorder : null;
     }
 
     private function shouldRaiseMetricExceptions(): bool

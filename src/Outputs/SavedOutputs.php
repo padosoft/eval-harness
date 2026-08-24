@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\EvalHarness\Outputs;
 
 use Padosoft\EvalHarness\Exceptions\EvalRunException;
+use Padosoft\EvalHarness\Trajectory\Trajectory;
 
 /**
  * Preserves saved-output sample IDs before PHP array-key coercion.
@@ -15,6 +16,17 @@ final class SavedOutputs
      * @var list<array{id: string, actual_output: string}>
      */
     private array $entries;
+
+    /**
+     * Trajectories recorded alongside the outputs, keyed by sample id.
+     *
+     * Optional, and the reason the trajectory metrics are usable without an
+     * agent runtime at all: record what an agent did once, and every later run
+     * scores it offline, deterministically, for free.
+     *
+     * @var array<string, Trajectory>
+     */
+    private array $trajectories = [];
 
     /**
      * @param  list<mixed>  $entries
@@ -57,6 +69,11 @@ final class SavedOutputs
 
             $seen[$key] = true;
             $normalizedEntries[] = ['id' => $id, 'actual_output' => $actualOutput];
+
+            $trajectory = $entry['trajectory'] ?? null;
+            if (is_array($trajectory)) {
+                $this->trajectories[$id] = Trajectory::fromArray($trajectory);
+            }
         }
 
         $this->entries = $normalizedEntries;
@@ -94,6 +111,14 @@ final class SavedOutputs
         }
 
         return new self($entries);
+    }
+
+    /**
+     * @return array<string, Trajectory>
+     */
+    public function trajectories(): array
+    {
+        return $this->trajectories;
     }
 
     /**

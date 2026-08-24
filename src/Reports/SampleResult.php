@@ -6,6 +6,7 @@ namespace Padosoft\EvalHarness\Reports;
 
 use Padosoft\EvalHarness\Datasets\DatasetSample;
 use Padosoft\EvalHarness\Metrics\MetricScore;
+use Padosoft\EvalHarness\Trajectory\Trajectory;
 
 /**
  * Per-sample result captured during an eval run.
@@ -19,6 +20,9 @@ use Padosoft\EvalHarness\Metrics\MetricScore;
  *   which is why every existing caller and every existing report keeps
  *   working unchanged. Aggregation across repetitions lives in
  *   {@see SampleAggregate}.
+ * - $trajectory is how the answer was produced — tool calls, steps,
+ *   approvals — when a system under test recorded one. Null for a
+ *   pipeline that only produces text, which is most of them.
  */
 final class SampleResult
 {
@@ -30,5 +34,6 @@ final class SampleResult
         public readonly string $actualOutput,
         public readonly array $metricScores,
         public readonly int $repetition = 0,
+        public readonly ?Trajectory $trajectory = null,
     ) {}
 }
