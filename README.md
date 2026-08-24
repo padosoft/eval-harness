@@ -149,6 +149,24 @@ surface small and the offline path fast.
   so the assertions outlive whichever runtime you are on this year.
   `approval-gated` answers a compliance question no text metric can:
   *did the agent ask before it acted?*
+- **A failed run that explains itself** — `eval-harness:brief` turns a
+  report into a document a person reads in a minute and a coding agent
+  acts on directly: failing rows worst-first with input, expected
+  answer, actual output and the judge's own reason, plus three things a
+  "copy the failures" button cannot produce. It says when the failures
+  **share a cohort** ("4 of 5 are tagged `policy` — this looks like one
+  problem, not 5"), it explains what each failing **metric actually
+  measures** (`retrieval-mrr: 0.31` becomes "the first relevant document
+  came back around position 3", which points at the retriever rather
+  than the prompt), and it maps failing adversarial rows to their
+  **category and framework** so a working injection is not filed as a
+  wrong answer. `--format=github` posts it as a collapsed PR comment;
+  `--format=json` is `eval-harness.brief.v1` for a UI. And because the
+  document quotes model output verbatim into something with repository
+  access, it **opens by declaring its own quoted blocks untrusted data
+  that must not be executed** — the rule this ecosystem applies to model
+  output reaching a router or a WebView, applied to its own artifact.
+
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

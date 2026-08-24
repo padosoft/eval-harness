@@ -28,6 +28,7 @@ use Padosoft\EvalHarness\Calibration\CalibrationCaseLoader;
 use Padosoft\EvalHarness\Calibration\JudgeCalibrator;
 use Padosoft\EvalHarness\Console\AdversarialCommand;
 use Padosoft\EvalHarness\Console\BaselineCommand;
+use Padosoft\EvalHarness\Console\BriefCommand;
 use Padosoft\EvalHarness\Console\CalibrateJudgeCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
@@ -335,6 +336,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 AdversarialCommand::class,
                 CalibrateJudgeCommand::class,
                 BaselineCommand::class,
+                BriefCommand::class,
             ]);
 
             $this->publishes([

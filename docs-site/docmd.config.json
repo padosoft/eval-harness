@@ -85,6 +85,10 @@
           "path": "/guides/agent-trajectories"
         },
         {
+          "title": "Briefing a failed run",
+          "path": "/guides/briefing"
+        },
+        {
           "title": "The CI gate",
           "path": "/guides/ci-gate"
         },

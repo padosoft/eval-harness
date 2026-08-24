@@ -428,3 +428,27 @@
   reviewer noticed the two could disagree.
 - **A verdict and its confidence must come from the same axis**, or good news on one
   axis certifies bad news on the other.
+
+## 2026-08-24 — P4 lessons
+
+- **The report is not the dataset.** Every instinct said "add `input`/`expected` to
+  `samples[]` and be done" — additive, contract-legal, one line. It would also have
+  put whole corpora into an artifact that gets committed, diffed and shipped to a
+  browser. The dataset is already in the repo; read it there and join on the hash
+  that already exists for exactly this problem.
+- **Degrade loudly, never plausibly.** With no dataset the briefing says "the dataset
+  was not supplied" rather than printing the row id where a question belongs. A
+  fabricated input is the one output that would make this document actively
+  misleading to the thing reading it.
+- **`expectsOutputToContain` matches per `doWrite` chunk, not against the whole
+  buffer.** A multi-line payload written in one call still failed on a phrase that
+  was plainly in it. Same lesson as PR #50 from the other direction: assert short
+  prefixes on the console and everything else from the written artifact.
+- **A generated artifact is an LLM surface too.** The rule about model output reaching
+  a router or a WebView is usually read as being about *runtime* code. A markdown file
+  pasted into a coding agent has repository write access at the end of it, which is a
+  larger blast radius than a WebView, and the fence alone does not say what the text
+  is.
+- **PHPStan: `reset()` takes its array by reference**, so `reset($sample->input)` on a
+  readonly promoted property is an error. Copy to a local first — and the copy is
+  free, since PHP arrays are copy-on-write.
