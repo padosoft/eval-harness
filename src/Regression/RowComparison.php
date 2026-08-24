@@ -62,10 +62,16 @@ final class RowComparison
      */
     public function isNewlyFailing(): bool
     {
+        // Both sides read once into locals. `before` and `after` are null for
+        // added and removed rows, and repeating a null-coalescing index across
+        // three clauses invites the next edit to drop one of them.
+        $before = $this->before['pass_rate'] ?? null;
+        $after = $this->after['pass_rate'] ?? null;
+
         return $this->isRegression()
-            && ($this->before['pass_rate'] ?? null) !== null
-            && $this->before['pass_rate'] >= 1.0
-            && ($this->after['pass_rate'] ?? 1.0) < 1.0;
+            && $before !== null
+            && $before >= 1.0
+            && ($after ?? 1.0) < 1.0;
     }
 
     /**
