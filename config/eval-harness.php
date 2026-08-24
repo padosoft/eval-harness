@@ -134,6 +134,38 @@ return [
         ),
         'queue' => env('EVAL_HARNESS_ONLINE_QUEUE'),
         'connection' => env('EVAL_HARNESS_ONLINE_CONNECTION'),
+
+        /*
+         * Keeping the interaction, not just the score.
+         *
+         * The online monitor stores a number, which is enough to plot drift and
+         * not enough to turn a production failure into a regression test — for
+         * that you need the question that was asked. Keeping production text is
+         * a separate decision with a separate legal basis, so it is a separate
+         * switch, and it is off.
+         *
+         * `require_redactor` is on: with retention enabled and nothing bound,
+         * the job raises rather than quietly storing raw customer text. The
+         * failure it prevents is the one that actually happens — retention gets
+         * switched on in a hurry to debug something, the redactor is "next
+         * sprint", and six months of real questions are sitting in a table
+         * nobody remembers agreeing to. Turn it off only for a corpus you know
+         * carries no personal data, and know that you turned it off.
+         *
+         * `redactor` is a container key or FQCN implementing
+         * Padosoft\EvalHarness\Online\Redactor — padosoft/laravel-pii-redactor
+         * is one, your own regex is another. This package deliberately ships
+         * none: an eval harness with its own half-good PII regex is a package
+         * quietly promising a compliance property it cannot keep.
+         */
+        'retention' => [
+            'enabled' => RuntimeOptions::normalizeBoolean(env('EVAL_HARNESS_ONLINE_RETENTION'), false),
+            'require_redactor' => RuntimeOptions::normalizeBoolean(
+                env('EVAL_HARNESS_ONLINE_REQUIRE_REDACTOR'),
+                true,
+            ),
+            'redactor' => env('EVAL_HARNESS_ONLINE_REDACTOR'),
+        ],
         'alert' => [
             'threshold' => RuntimeOptions::normalizeUnitInterval(
                 env('EVAL_HARNESS_ONLINE_ALERT_THRESHOLD'),

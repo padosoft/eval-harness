@@ -109,6 +109,10 @@
           "path": "/guides/online-monitoring"
         },
         {
+          "title": "Promoting production failures",
+          "path": "/guides/promoting-production-failures"
+        },
+        {
           "title": "Adversarial / red-team testing",
           "path": "/guides/adversarial-testing"
         }

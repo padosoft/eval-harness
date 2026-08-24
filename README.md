@@ -184,6 +184,24 @@ surface small and the offline path fast.
   `EvalRunCosted` tagged `eval:<dataset>`, so a FinOps package attributes
   evaluation spend without either side depending on the other.
 
+- **Production failures become regression tests** —
+  `eval-harness:promote-online` turns the interactions your online
+  monitor scored and your pipeline got *wrong* into golden dataset
+  rows. Golden datasets are written by the people who built the
+  pipeline, so they encode what those people already thought to worry
+  about; the questions that actually break a system arrive at 11pm from
+  a real user. Rows dedupe by the same **content hash** the regression
+  gate joins on — so a nightly promotion is idempotent, a promoted row
+  keeps its history from the moment it lands, and its id survives a
+  re-promotion from another environment. Retention of production text is
+  **off by default, and refuses to run without a bound PII redactor**:
+  the row you most want is, for exactly that reason, the row most likely
+  to contain a name or an order number. Redaction happens at the
+  boundary, never "cleaned up later" — later is where the backups
+  already took a copy — and this package deliberately ships no redactor
+  of its own, because an eval harness with its own half-good PII regex
+  is a package quietly promising a compliance property it cannot keep.
+
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

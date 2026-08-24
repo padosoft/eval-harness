@@ -31,6 +31,7 @@ use Padosoft\EvalHarness\Console\BaselineCommand;
 use Padosoft\EvalHarness\Console\BriefCommand;
 use Padosoft\EvalHarness\Console\CalibrateJudgeCommand;
 use Padosoft\EvalHarness\Console\EvalCommand;
+use Padosoft\EvalHarness\Console\PromoteOnlineCommand;
 use Padosoft\EvalHarness\Contracts\EmbeddingClient;
 use Padosoft\EvalHarness\Contracts\JudgeClient;
 use Padosoft\EvalHarness\Costs\PriceBook;
@@ -38,7 +39,9 @@ use Padosoft\EvalHarness\Datasets\YamlDatasetLoader;
 use Padosoft\EvalHarness\Embeddings\OpenAiCompatibleEmbeddingClient;
 use Padosoft\EvalHarness\Judges\OpenAiCompatibleJudgeClient;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Online\InteractionRetention;
 use Padosoft\EvalHarness\Online\OnlineDriftAlert;
+use Padosoft\EvalHarness\Online\OnlineInteractionPromoter;
 use Padosoft\EvalHarness\Online\OnlineMonitor;
 use Padosoft\EvalHarness\Online\OnlineSamplingDecision;
 use Padosoft\EvalHarness\Online\OnlineTrendRepository;
@@ -133,6 +136,12 @@ class EvalHarnessServiceProvider extends ServiceProvider
         });
         $this->app->singleton(PriceBook::class, static function (Container $app): PriceBook {
             return new PriceBook($app->make(ConfigRepository::class));
+        });
+        $this->app->singleton(InteractionRetention::class, static function (Container $app): InteractionRetention {
+            return new InteractionRetention($app, $app->make(ConfigRepository::class));
+        });
+        $this->app->singleton(OnlineInteractionPromoter::class, static function (Container $app): OnlineInteractionPromoter {
+            return new OnlineInteractionPromoter($app->make(YamlDatasetLoader::class));
         });
         $this->app->singleton(ReportArtifactRepository::class, static function (Container $app): ReportArtifactRepository {
             return new ReportArtifactRepository(
@@ -341,6 +350,7 @@ class EvalHarnessServiceProvider extends ServiceProvider
                 CalibrateJudgeCommand::class,
                 BaselineCommand::class,
                 BriefCommand::class,
+                PromoteOnlineCommand::class,
             ]);
 
             $this->publishes([

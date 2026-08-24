@@ -490,3 +490,27 @@
 - **`SerialBatch::runEach` needed a `shouldStop`, not a control-flow exception.**
   The exception version worked and read worse: a signal class whose only job is
   to be caught two frames up is a loop condition wearing a costume.
+
+## 2026-08-24 — P6 lessons
+
+- **The valuable row and the dangerous row are the same row.** A production
+  failure is the best dataset row anybody can have precisely because it is real,
+  which is also precisely why it carries a name or an order number. Any design
+  that treats "useful" and "sensitive" as separate populations is wrong about
+  this feature.
+- **Redact at the boundary, not on read.** Storing raw and cleaning up later
+  loses, because "later" is after the backup, the read replica and the log
+  shipper have each taken a copy.
+- **Refusing is a feature.** `require_redactor` defaulting to true means
+  retention *fails* when misconfigured. The alternative — retain and warn — is
+  the version where six months of customer questions accumulate in a table.
+- **An error message can be the leak.** The natural exception text for a failed
+  redaction includes the string that failed. That string is the one thing that
+  must not reach a log.
+- **A "no existing rows" fallback is only safe for a missing file.** The promoter
+  reading a corrupt merge target as empty is correct for `--merge=new-file.yaml`
+  and would have replaced a curated dataset for `--merge=broken.yaml`. Same
+  fallback, opposite consequences; the caller has to distinguish them.
+- **Derive promoted ids from content, not from the database.** An id from
+  `online_scores.id` renumbers a committed dataset the first time somebody
+  promotes from staging or truncates the table.

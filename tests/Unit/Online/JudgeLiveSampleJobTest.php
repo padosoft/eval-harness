@@ -8,6 +8,7 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Padosoft\EvalHarness\Metrics\MetricResolver;
+use Padosoft\EvalHarness\Online\InteractionRetention;
 use Padosoft\EvalHarness\Online\JudgeLiveSampleJob;
 use Padosoft\EvalHarness\Online\OnlineDriftAlert;
 use Padosoft\EvalHarness\Online\OnlineScore;
@@ -27,6 +28,33 @@ final class JudgeLiveSampleJobTest extends TestCase
         config()->set('eval-harness.online.pass_threshold', 0.7);
     }
 
+    public function test_the_interaction_is_not_retained_by_default(): void
+    {
+        $row = $this->runJob('4', '4');
+
+        $this->assertNull($row->input);
+        $this->assertNull($row->expected_output);
+        $this->assertFalse($row->isRetained());
+    }
+
+    /**
+     * Redacted at the boundary, never written raw and cleaned up later:
+     * "later" is where backups, replicas and log shippers already took a copy.
+     */
+    public function test_an_enabled_retention_stores_the_redacted_interaction(): void
+    {
+        config()->set('eval-harness.online.retention.enabled', true);
+        config()->set('eval-harness.online.retention.redactor', MaskingRedactor::class);
+
+        $row = $this->runJob('reply to ada@example.com', 'reply to ada@example.com');
+
+        $this->assertTrue($row->isRetained());
+        $this->assertSame('reply to [redacted]', $row->expected_output);
+        $this->assertSame('reply to [redacted]', $row->actual_output);
+        $this->assertSame(MaskingRedactor::class, $row->redactor);
+        $this->assertNotNull($row->redacted_at);
+    }
+
     private function runJob(string $expected, string $actual): OnlineScore
     {
         $job = new JudgeLiveSampleJob(
@@ -41,6 +69,7 @@ final class JudgeLiveSampleJobTest extends TestCase
             $this->app->make(MetricResolver::class),
             $this->app->make(ConfigRepository::class),
             $this->app->make(OnlineDriftAlert::class),
+            $this->app->make(InteractionRetention::class),
         );
 
         return OnlineScore::forDataset('rag.faq')->firstOrFail();
