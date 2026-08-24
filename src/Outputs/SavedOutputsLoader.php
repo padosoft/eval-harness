@@ -16,6 +16,9 @@ use Symfony\Component\Yaml\Yaml;
  * Accepted shapes:
  *   - {"outputs": {"sample-id": "actual output"}}
  *   - {"outputs": [{"id": "sample-id", "actual_output": "..."}]}
+ *   - {"outputs": [{"id": "sample-id", "actual_output": "...",
+ *                   "trajectory": {"tool_calls": [{"name": "lookup_order", "arguments": {"id": 7}}],
+ *                                  "steps": 3, "finish_reason": "stop"}}]}
  *   - The same wrapped object shapes as a YAML document.
  */
 final class SavedOutputsLoader
@@ -163,7 +166,16 @@ final class SavedOutputsLoader
                 ));
             }
 
-            $entries[] = ['id' => $id, 'actual_output' => $actualOutput];
+            $normalized = ['id' => $id, 'actual_output' => $actualOutput];
+
+            // Carried through verbatim; SavedOutputs decides what a valid
+            // trajectory looks like, so the loader has one job less to get
+            // wrong and one shape less to keep in step.
+            if (is_array($entry['trajectory'] ?? null)) {
+                $normalized['trajectory'] = $entry['trajectory'];
+            }
+
+            $entries[] = $normalized;
         }
 
         return $this->savedOutputs($entries, $source);

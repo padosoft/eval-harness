@@ -81,6 +81,10 @@
           "path": "/guides/baselines-and-regressions"
         },
         {
+          "title": "Agent trajectories",
+          "path": "/guides/agent-trajectories"
+        },
+        {
           "title": "The CI gate",
           "path": "/guides/ci-gate"
         },

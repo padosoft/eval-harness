@@ -48,7 +48,9 @@ use Padosoft\EvalHarness\Datasets\RowHash;
  *      "score_mean": 0.72, "score_stddev": 0.31, "metrics": {"exact-match": {"mean": 0.667, "stddev": 0.471, "min": 0.0, "max": 1.0, "observations": 3}}}
  *   ],
  *   "samples": [
- *     {"id": "...", "repetition": 0, "tags": ["geography"], "adversarial": null, "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}}}
+ *     {"id": "...", "row_hash": "9f2c…", "repetition": 0, "tags": ["geography"], "adversarial": null,
+ *      "actual_output": "...", "scores": {"exact-match": {"score": 1.0, "details": {...}}},
+ *      "trajectory": {"tool_calls": [{"name": "lookup_order", "arguments": {"id": 7}}], "steps": 3, "pending_approvals": 0}}
  *   ],
  *   "failures": [
  *     {"sample_id": "...", "metric": "...", "error": "..."}
@@ -79,7 +81,7 @@ final class JsonReportRenderer
                     'details' => $score->details,
                 ];
             }
-            $samples[] = [
+            $sample = [
                 'id' => $result->sample->id,
                 'row_hash' => RowHash::for($result->sample),
                 'repetition' => $result->repetition,
@@ -88,6 +90,15 @@ final class JsonReportRenderer
                 'actual_output' => $result->actualOutput,
                 'scores' => $scores,
             ];
+
+            // Only when something recorded one: a RAG pipeline has no
+            // trajectory, and a null field on every row of every report would
+            // be noise in the artifact people actually diff.
+            if ($result->trajectory !== null) {
+                $sample['trajectory'] = $result->trajectory->toArray();
+            }
+
+            $samples[] = $sample;
         }
 
         $failures = [];

@@ -138,6 +138,17 @@ surface small and the offline path fast.
   separately — so a gate can stop a pull request on a real break without
   training anybody to ignore noise. The baseline is a pointer to a file,
   not a database row: it travels in a CI artifact and diffs in a PR.
+- **Agent trajectory metrics** — `tool-called`, `tool-not-called`,
+  `tool-called-with`, `tool-call-order`, `steps-below`,
+  `no-pending-approvals`, `approval-gated`: score **how** an answer was
+  produced, not just the answer. An agent that replies "your order ships
+  Tuesday" without ever calling the order lookup has guessed, and every
+  text metric scores that guess 1.0. The `Trajectory` DTO is
+  **SDK-agnostic** — populate it from `laravel/ai`, a custom
+  orchestrator, MCP, `laravel-flow` saga steps, or a recorded JSON file —
+  so the assertions outlive whichever runtime you are on this year.
+  `approval-gated` answers a compliance question no text metric can:
+  *did the agent ask before it acted?*
 - **Fifteen metrics out of the box** — `exact-match`, `contains`,
   `regex`, `rouge-l`, `citation-groundedness`,
   `cosine-embedding`, `bertscore-like`, `llm-as-judge`,

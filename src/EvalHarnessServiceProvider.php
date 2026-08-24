@@ -48,6 +48,7 @@ use Padosoft\EvalHarness\ReportApi\Trend\DatasetTrendRepository;
 use Padosoft\EvalHarness\Reports\FailedSampleDatasetExporter;
 use Padosoft\EvalHarness\Support\RuntimeOptions;
 use Padosoft\EvalHarness\Support\TimeoutNormalizer;
+use Padosoft\EvalHarness\Trajectory\TrajectoryRecorder;
 
 /**
  * Package service provider.
@@ -116,6 +117,9 @@ class EvalHarnessServiceProvider extends ServiceProvider
             return new FailedSampleDatasetExporter;
         });
 
+        $this->app->singleton(TrajectoryRecorder::class, static function (): TrajectoryRecorder {
+            return new TrajectoryRecorder;
+        });
         $this->app->singleton(BaselineStore::class, static function (Container $app): BaselineStore {
             return new BaselineStore(
                 filesystems: $app->make(\Illuminate\Contracts\Filesystem\Factory::class),
