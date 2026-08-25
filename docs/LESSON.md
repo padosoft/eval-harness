@@ -542,3 +542,19 @@
   dataset with one sample. Nobody diffs a fenced block against the sprintf that
   produces it — so paste from a real run, or read the format string before
   inventing the numbers.
+- **A CHANGELOG nobody updates is worse than no CHANGELOG.** This one sat at
+  `[Unreleased] — W6 scaffold` while the package shipped 1.0, 1.1, 1.2, 1.3,
+  1.4, 1.5 and 1.6: a reader installing 1.6 was shown the pre-release scaffold
+  and told it was unreleased. Only 1.3.0 had ever been filed. The backfill was
+  possible only because the GitHub releases carried real notes — the commit
+  subjects could not have produced it (one range is forty commits of "address
+  PR #37 Nth-round Copilot review comments"). Two consequences: write the entry
+  in the PR that makes the change, not at release time; and if the release notes
+  are the real record, say so in the file rather than letting it rot in parallel.
+- **Reconstruct from artifacts, not from memory.** Every backfilled entry came
+  from a published release note or the diff for that tag range, and the two were
+  checked against the code: `bertscore` is really the `bertscore-like` alias,
+  the trajectory metrics really number seven, and 1.5.0 turned out to contain a
+  single Dependabot bump of a docs-site dev dependency — a version with no
+  package change at all, which is worth recording precisely because a reader
+  would otherwise assume it had one.
