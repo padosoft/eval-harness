@@ -39,30 +39,68 @@ samples:
 ```
 
 ```php
-$eval->dataset('rag.factuality')
-    ->loadFromYaml(database_path('evals/rag.factuality.yaml'))
-    ->withMetrics(['exact-match', 'llm-as-judge'])
-    ->register();
+// app/Console/EvalRegistrar.php
+//
+// `eval-harness:run` starts its own Artisan process, so the dataset and the
+// thing being evaluated have to be registered somewhere that process reaches:
+// a registrar like this one, or a service provider's boot().
+class EvalRegistrar
+{
+    public function __construct(private readonly Container $container) {}
+
+    public function __invoke(EvalEngine $engine): void
+    {
+        $engine->dataset('rag.factuality')
+            ->loadFromYaml(database_path('evals/rag.factuality.yaml'))
+            ->withMetrics(['exact-match', 'llm-as-judge'])
+            ->register();
+
+        // The system under test: a callable, or a SampleRunner class.
+        $this->container->bind('eval-harness.sut', fn () =>
+            fn (array $input): string => app(KnowledgeAgent::class)->answer($input['question']),
+        );
+    }
+}
 ```
 
 ```bash
+# First run: there is nothing to compare against yet, so record the baseline.
 php artisan eval-harness:run rag.factuality \
-    --compare=baseline --max-regressions=0 --confident-only
-```
-
-```
-Macro-F1 91.2%, pass rate 88.0% · 3 repetitions · differences below 4.7 points are noise
-Compared against the baseline [eval-harness/reports/run-41.json]
-  1 regressed (1 beyond this run's 4.7-point detectable difference), 2 improved, 0 added, 0 removed.
-  refund-window                100% → 33%   score -0.4200   beyond noise, newly failing
-Gate failed: 1 confident regression.
+    --registrar="App\Console\EvalRegistrar" \
+    --json --out=run-1.json --promote-baseline
 ```
 
 ```bash
-php artisan eval-harness:brief report.json --dataset=database/evals/rag.factuality.yaml | claude -p
+# Every run after a change: the same command, now gated against that baseline.
+php artisan eval-harness:run rag.factuality \
+    --registrar="App\Console\EvalRegistrar" \
+    --compare=baseline --max-regressions=0 --confident-only \
+    --json --out=run-2.json --comparison-out=comparison.json
+```
+
+```
+Compared against the baseline [eval-harness/reports/run-1.json]
+  1 regressed (1 beyond this run's 4.7-point detectable difference), 0 improved, 0 added, 0 removed, 1 compared.
+  refund-window                100% → 33%   score -0.4200   beyond noise, newly failing
+Gate failed: 1 confident row regressed against the baseline [eval-harness/reports/run-1.json] (allowed: 0)
+```
+
+```bash
+php artisan eval-harness:brief run-2.json \
+    --dataset=database/evals/rag.factuality.yaml \
+    --comparison=comparison.json | claude -p
+```
+
+```
+Macro-F1 91.2%, pass rate 88.0%
+- Against the baseline [eval-harness/reports/run-1.json]: 1 regressed, 0 improved, 0 added, 0 removed
 ```
 
 That is the whole loop: **measure → prove it moved → say what to do about it.**
+
+> `exact-match` scores offline. `llm-as-judge` needs a judge provider configured
+> first — point one at your own endpoint, or swap it for `rouge-l` and run the
+> whole loop with no API key. → [Installation](https://doc.eval-harness.padosoft.com/installation)
 
 ## Why this and not the others
 
